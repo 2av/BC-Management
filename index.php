@@ -198,8 +198,17 @@ $recentActivities = $stmt->fetchAll();
         <?php endif; ?>
 
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>BC Management Dashboard</h1>
+            <div>
+                <h1>BC Management Dashboard</h1>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-calendar"></i> <?= date('l, F j, Y') ?> |
+                    <i class="fas fa-clock"></i> <?= date('g:i A') ?>
+                </p>
+            </div>
             <div class="d-flex gap-2">
+                <a href="admin_members.php" class="btn btn-outline-success">
+                    <i class="fas fa-users"></i> Manage Members
+                </a>
                 <a href="admin_change_password.php" class="btn btn-outline-primary">
                     <i class="fas fa-key"></i> Change Password
                 </a>
@@ -212,42 +221,86 @@ $recentActivities = $stmt->fetchAll();
         <!-- Statistics Cards -->
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="card stat-card dashboard-card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-users fa-2x mb-2"></i>
-                        <h3><?= $totalGroups ?></h3>
-                        <p class="mb-0">Total Groups</p>
-                        <small><?= $activeGroups ?> Active, <?= $completedGroups ?> Completed</small>
+                <a href="#groupsList" class="text-decoration-none" onclick="scrollToGroups()">
+                    <div class="card stat-card dashboard-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-users fa-2x mb-2"></i>
+                            <h3><?= $totalGroups ?></h3>
+                            <p class="mb-0">Total Groups</p>
+                            <small><?= $activeGroups ?> Active, <?= $completedGroups ?> Completed</small>
+                            <div class="mt-2">
+                                <i class="fas fa-arrow-down"></i> <small>Click to view</small>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </a>
             </div>
             <div class="col-md-3">
-                <div class="card stat-card-success dashboard-card">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-user-friends fa-2x mb-2"></i>
-                        <h3><?= $totalMembers ?></h3>
-                        <p class="mb-0">Total Members</p>
-                        <small>Across all groups</small>
+                <a href="admin_members.php" class="text-decoration-none">
+                    <div class="card stat-card-success dashboard-card">
+                        <div class="card-body text-center text-white">
+                            <i class="fas fa-user-friends fa-2x mb-2"></i>
+                            <h3><?= $totalMembers ?></h3>
+                            <p class="mb-0">Total Members</p>
+                            <small>Across all groups</small>
+                            <div class="mt-2">
+                                <i class="fas fa-external-link-alt"></i> <small>Manage members</small>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </a>
             </div>
             <div class="col-md-3">
-                <div class="card stat-card-info dashboard-card">
+                <div class="card stat-card-info dashboard-card" style="cursor: pointer;" onclick="showCollectionDetails()">
                     <div class="card-body text-center text-white">
                         <i class="fas fa-rupee-sign fa-2x mb-2"></i>
                         <h3><?= formatCurrency($totalCollected) ?></h3>
                         <p class="mb-0">Total Collected</p>
                         <small>All payments received</small>
+                        <div class="mt-2">
+                            <i class="fas fa-info-circle"></i> <small>Click for details</small>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card stat-card-warning dashboard-card">
+                <div class="card stat-card-warning dashboard-card" style="cursor: pointer;" onclick="showDistributionDetails()">
                     <div class="card-body text-center text-white">
                         <i class="fas fa-hand-holding-usd fa-2x mb-2"></i>
                         <h3><?= formatCurrency($totalDistributed) ?></h3>
                         <p class="mb-0">Total Distributed</p>
                         <small>Amount given to winners</small>
+                        <div class="mt-2">
+                            <i class="fas fa-info-circle"></i> <small>Click for details</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Bar -->
+        <div class="card mb-4" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="mb-1"><i class="fas fa-bolt text-warning"></i> Quick Actions</h6>
+                        <p class="text-muted mb-0">Frequently used admin functions</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="admin_add_member.php" class="btn btn-sm btn-outline-success" title="Add New Member">
+                                <i class="fas fa-user-plus"></i>
+                            </a>
+                            <a href="admin_bulk_import.php" class="btn btn-sm btn-outline-info" title="Bulk Import">
+                                <i class="fas fa-upload"></i>
+                            </a>
+                            <a href="create_group.php" class="btn btn-sm btn-outline-primary" title="Create Group">
+                                <i class="fas fa-plus"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()" title="Refresh Data">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -343,17 +396,28 @@ $recentActivities = $stmt->fetchAll();
         </div>
 
         <!-- BC Groups List -->
-        <div class="card dashboard-card">
-            <div class="card-header">
+        <div class="card dashboard-card" id="groupsList">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-list"></i> All BC Groups
                 </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="filterGroups('all')" id="filterAll">
+                        All
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="filterGroups('active')" id="filterActive">
+                        Active
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="filterGroups('completed')" id="filterCompleted">
+                        Completed
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 <div class="row">
                     <?php if (!empty($groups)): ?>
                 <?php foreach ($groups as $group): ?>
-                    <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="col-md-6 col-lg-4 mb-3" data-group-status="<?= $group['status'] ?>">
                         <div class="card">
                             <div class="card-body">
                                 <h5 class="card-title"><?= htmlspecialchars($group['group_name']) ?></h5>
@@ -509,6 +573,103 @@ $recentActivities = $stmt->fetchAll();
                 this.style.boxShadow = '';
             });
         });
+
+        // Enhanced dashboard functions
+        function scrollToGroups() {
+            document.getElementById('groupsList').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+
+        function showCollectionDetails() {
+            const totalCollected = <?= $totalCollected ?>;
+            const totalMembers = <?= $totalMembers ?>;
+            const avgPerMember = totalMembers > 0 ? (totalCollected / totalMembers) : 0;
+
+            alert(`Collection Details:\n\n` +
+                  `Total Collected: ₹${totalCollected.toLocaleString()}\n` +
+                  `Total Members: ${totalMembers}\n` +
+                  `Average per Member: ₹${avgPerMember.toFixed(2)}\n\n` +
+                  `Click on "Manage Members" to see detailed payment history.`);
+        }
+
+        function showDistributionDetails() {
+            const totalDistributed = <?= $totalDistributed ?>;
+            const totalCollected = <?= $totalCollected ?>;
+            const remaining = totalCollected - totalDistributed;
+
+            alert(`Distribution Details:\n\n` +
+                  `Total Distributed: ₹${totalDistributed.toLocaleString()}\n` +
+                  `Total Collected: ₹${totalCollected.toLocaleString()}\n` +
+                  `Remaining Balance: ₹${remaining.toLocaleString()}\n\n` +
+                  `This shows amounts given to bid winners.`);
+        }
+
+        function filterGroups(status) {
+            const groupCards = document.querySelectorAll('[data-group-status]');
+            const filterButtons = document.querySelectorAll('[id^="filter"]');
+
+            // Reset button styles
+            filterButtons.forEach(btn => {
+                btn.classList.remove('btn-primary', 'btn-success', 'btn-secondary');
+                btn.classList.add('btn-outline-primary', 'btn-outline-success', 'btn-outline-secondary');
+            });
+
+            // Highlight active filter
+            const activeButton = document.getElementById('filter' + status.charAt(0).toUpperCase() + status.slice(1));
+            if (activeButton) {
+                activeButton.classList.remove('btn-outline-primary', 'btn-outline-success', 'btn-outline-secondary');
+                activeButton.classList.add(status === 'active' ? 'btn-success' :
+                                          status === 'completed' ? 'btn-secondary' : 'btn-primary');
+            }
+
+            // Filter groups
+            groupCards.forEach(card => {
+                if (status === 'all' || card.getAttribute('data-group-status') === status) {
+                    card.style.display = 'block';
+                    card.style.animation = 'fadeIn 0.3s ease-in';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        function refreshDashboard() {
+            const refreshBtn = document.querySelector('[onclick="refreshDashboard()"]');
+            const icon = refreshBtn.querySelector('i');
+
+            // Add spinning animation
+            icon.classList.add('fa-spin');
+            refreshBtn.disabled = true;
+
+            // Simulate refresh (in real app, you'd reload data via AJAX)
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+
+        // Auto-refresh dashboard every 5 minutes
+        setInterval(() => {
+            console.log('Auto-refreshing dashboard data...');
+            // In a real application, you'd fetch updated data via AJAX here
+        }, 300000); // 5 minutes
+
+        // Add fade-in animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .dashboard-card {
+                transition: all 0.3s ease;
+            }
+            .dashboard-card:hover {
+                transform: translateY(-2px);
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
