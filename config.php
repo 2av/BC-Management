@@ -1,0 +1,246 @@
+<?php
+// Simple BC Management System Configuration
+session_start();
+
+// Database Configuration
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'bc_simple');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+
+// Application Configuration
+define('APP_NAME', 'BC Management System');
+
+// Database Connection
+function getDB() {
+    static $pdo = null;
+    
+    if ($pdo === null) {
+        try {
+            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            ]);
+        } catch (PDOException $e) {
+            die("Database connection failed: " . $e->getMessage());
+        }
+    }
+    
+    return $pdo;
+}
+
+// Authentication Functions
+function isAdminLoggedIn() {
+    return isset($_SESSION['admin_id']);
+}
+
+function isMemberLoggedIn() {
+    return isset($_SESSION['member_id']);
+}
+
+function isLoggedIn() {
+    return isAdminLoggedIn() || isMemberLoggedIn();
+}
+
+function requireAdminLogin() {
+    if (!isAdminLoggedIn()) {
+        header('Location: login.php');
+        exit;
+    }
+}
+
+function requireMemberLogin() {
+    if (!isMemberLoggedIn()) {
+        header('Location: member_login.php');
+        exit;
+    }
+}
+
+function requireLogin() {
+    if (!isLoggedIn()) {
+        header('Location: login.php');
+        exit;
+    }
+}
+
+function adminLogin($username, $password) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM admin_users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['admin_id'] = $user['id'];
+        $_SESSION['admin_name'] = $user['full_name'];
+        $_SESSION['user_type'] = 'admin';
+        return true;
+    }
+
+    return false;
+}
+
+function memberLogin($username, $password) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT m.*, g.group_name FROM members m JOIN bc_groups g ON m.group_id = g.id WHERE m.username = ? AND m.status = 'active'");
+    $stmt->execute([$username]);
+    $member = $stmt->fetch();
+
+    if ($member && password_verify($password, $member['password'])) {
+        $_SESSION['member_id'] = $member['id'];
+        $_SESSION['member_name'] = $member['member_name'];
+        $_SESSION['group_id'] = $member['group_id'];
+        $_SESSION['group_name'] = $member['group_name'];
+        $_SESSION['user_type'] = 'member';
+        return true;
+    }
+
+    return false;
+}
+
+function logout() {
+    $userType = $_SESSION['user_type'] ?? 'admin';
+    session_destroy();
+
+    if ($userType === 'member') {
+        header('Location: member_login.php');
+    } else {
+        header('Location: login.php');
+    }
+    exit;
+}
+
+function getCurrentMember() {
+    if (!isMemberLoggedIn()) {
+        return null;
+    }
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM members WHERE id = ?");
+    $stmt->execute([$_SESSION['member_id']]);
+    return $stmt->fetch();
+}
+
+// Utility Functions
+function formatCurrency($amount) {
+    return '₹' . number_format($amount, 0);
+}
+
+function formatDate($date) {
+    return date('d/m/Y', strtotime($date));
+}
+
+function redirect($url) {
+    header("Location: $url");
+    exit;
+}
+
+function setMessage($message, $type = 'success') {
+    $_SESSION['message'] = $message;
+    $_SESSION['message_type'] = $type;
+}
+
+function getMessage() {
+    if (isset($_SESSION['message'])) {
+        $message = $_SESSION['message'];
+        $type = $_SESSION['message_type'] ?? 'success';
+        unset($_SESSION['message'], $_SESSION['message_type']);
+        return ['message' => $message, 'type' => $type];
+    }
+    return null;
+}
+
+// BC Functions
+function getAllGroups() {
+    $pdo = getDB();
+    $stmt = $pdo->query("SELECT * FROM bc_groups ORDER BY created_at DESC");
+    return $stmt->fetchAll();
+}
+
+function getGroupById($id) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM bc_groups WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch();
+}
+
+function getGroupMembers($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM members WHERE group_id = ? ORDER BY member_number");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+function getMonthlyBids($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT mb.*, m.member_name 
+        FROM monthly_bids mb 
+        LEFT JOIN members m ON mb.taken_by_member_id = m.id 
+        WHERE mb.group_id = ? 
+        ORDER BY mb.month_number
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+function getMemberPayments($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT mp.*, m.member_name, m.member_number 
+        FROM member_payments mp 
+        JOIN members m ON mp.member_id = m.id 
+        WHERE mp.group_id = ? 
+        ORDER BY m.member_number, mp.month_number
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+function getMemberSummary($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT ms.*, m.member_name, m.member_number 
+        FROM member_summary ms 
+        JOIN members m ON ms.member_id = m.id 
+        WHERE ms.group_id = ? 
+        ORDER BY m.member_number
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+function updateMemberSummary($groupId, $memberId) {
+    $pdo = getDB();
+    
+    // Calculate total paid
+    $stmt = $pdo->prepare("SELECT SUM(payment_amount) as total FROM member_payments WHERE group_id = ? AND member_id = ? AND payment_status = 'paid'");
+    $stmt->execute([$groupId, $memberId]);
+    $totalPaid = $stmt->fetchColumn() ?: 0;
+    
+    // Calculate given amount (if member won any month)
+    $stmt = $pdo->prepare("SELECT SUM(net_payable) as total FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+    $stmt->execute([$groupId, $memberId]);
+    $givenAmount = $stmt->fetchColumn() ?: 0;
+    
+    // Calculate profit
+    $profit = $givenAmount - $totalPaid;
+    
+    // Update or insert summary
+    $stmt = $pdo->prepare("
+        INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit) 
+        VALUES (?, ?, ?, ?, ?) 
+        ON DUPLICATE KEY UPDATE 
+        total_paid = VALUES(total_paid), 
+        given_amount = VALUES(given_amount), 
+        profit = VALUES(profit)
+    ");
+    
+    $stmt->execute([$groupId, $memberId, $totalPaid, $givenAmount, $profit]);
+}
+
+function calculateGainPerMember($totalCollection, $bidAmount, $totalMembers) {
+    $netPayable = $totalCollection - $bidAmount;
+    return $netPayable / $totalMembers;
+}
+?>

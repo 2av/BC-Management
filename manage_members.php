@@ -1,0 +1,215 @@
+<?php
+require_once 'config.php';
+requireAdminLogin();
+
+$groupId = (int)($_GET['group_id'] ?? 0);
+if (!$groupId) {
+    redirect('index.php');
+}
+
+$group = getGroupById($groupId);
+if (!$group) {
+    setMessage('Group not found.', 'error');
+    redirect('index.php');
+}
+
+$members = getGroupMembers($groupId);
+
+$error = '';
+$success = '';
+
+// Handle member credential updates
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
+    $memberId = (int)($_POST['member_id'] ?? 0);
+    $username = trim($_POST['username'] ?? '');
+    $newPassword = trim($_POST['new_password'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    
+    if ($memberId && $username) {
+        try {
+            $pdo = getDB();
+            
+            if (!empty($newPassword)) {
+                $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("UPDATE members SET username = ?, password = ?, phone = ?, email = ? WHERE id = ? AND group_id = ?");
+                $stmt->execute([$username, $hashedPassword, $phone, $email, $memberId, $groupId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE members SET username = ?, phone = ?, email = ? WHERE id = ? AND group_id = ?");
+                $stmt->execute([$username, $phone, $email, $memberId, $groupId]);
+            }
+            
+            $success = 'Member credentials updated successfully!';
+            $members = getGroupMembers($groupId); // Refresh data
+            
+        } catch (Exception $e) {
+            $error = 'Failed to update member credentials.';
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Members - <?= APP_NAME ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.php">
+                <i class="fas fa-coins"></i> <?= APP_NAME ?>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Manage Members - <?= htmlspecialchars($group['group_name']) ?></h1>
+            <a href="view_group.php?id=<?= $groupId ?>" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Group
+            </a>
+        </div>
+
+        <?php if ($error): ?>
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($success): ?>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> <?= htmlspecialchars($success) ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users"></i> Member Login Credentials
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 
+                    Members can use these credentials to login and view their BC status. Default password for new members is "member123".
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Member Name</th>
+                                <th>Username</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($members as $member): ?>
+                                <tr>
+                                    <td><?= $member['member_number'] ?></td>
+                                    <td><?= htmlspecialchars($member['member_name']) ?></td>
+                                    <td>
+                                        <code><?= htmlspecialchars($member['username'] ?: 'Not Set') ?></code>
+                                    </td>
+                                    <td><?= htmlspecialchars($member['phone'] ?: '-') ?></td>
+                                    <td><?= htmlspecialchars($member['email'] ?: '-') ?></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal<?= $member['id'] ?>">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- Edit Modal -->
+                                <div class="modal fade" id="editModal<?= $member['id'] ?>" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form method="POST">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Edit Member Credentials</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <input type="hidden" name="member_id" value="<?= $member['id'] ?>">
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Member Name</label>
+                                                        <input type="text" class="form-control" value="<?= htmlspecialchars($member['member_name']) ?>" readonly>
+                                                    </div>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label for="username<?= $member['id'] ?>" class="form-label">Username *</label>
+                                                        <input type="text" class="form-control" id="username<?= $member['id'] ?>" name="username" 
+                                                               value="<?= htmlspecialchars($member['username'] ?: strtolower(str_replace(' ', '', $member['member_name']))) ?>" required>
+                                                    </div>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label for="new_password<?= $member['id'] ?>" class="form-label">New Password</label>
+                                                        <input type="password" class="form-control" id="new_password<?= $member['id'] ?>" name="new_password" 
+                                                               placeholder="Leave blank to keep current password">
+                                                        <div class="form-text">Default password is "member123"</div>
+                                                    </div>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label for="phone<?= $member['id'] ?>" class="form-label">Phone</label>
+                                                        <input type="tel" class="form-control" id="phone<?= $member['id'] ?>" name="phone" 
+                                                               value="<?= htmlspecialchars($member['phone'] ?: '') ?>">
+                                                    </div>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label for="email<?= $member['id'] ?>" class="form-label">Email</label>
+                                                        <input type="email" class="form-control" id="email<?= $member['id'] ?>" name="email" 
+                                                               value="<?= htmlspecialchars($member['email'] ?: '') ?>">
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" name="update_member" class="btn btn-primary">
+                                                        <i class="fas fa-save"></i> Update
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Member Login Instructions -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-question-circle"></i> Member Login Instructions
+                </h6>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li>Share the member login URL: <code><?= $_SERVER['HTTP_HOST'] ?>/member_login.php</code></li>
+                    <li>Each member uses their assigned username and password</li>
+                    <li>Members can view their payment history, group status, and profit/loss</li>
+                    <li>Members have read-only access - they cannot modify any data</li>
+                    <li>Default password for all new members is: <code>member123</code></li>
+                </ol>
+                
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Security Note:</strong> Advise members to change their passwords after first login. You can update passwords here as needed.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
