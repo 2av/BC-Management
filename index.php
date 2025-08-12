@@ -129,16 +129,61 @@ $recentActivities = $stmt->fetchAll();
             <a class="navbar-brand" href="index.php">
                 <i class="fas fa-coins"></i> <?= APP_NAME ?>
             </a>
-            <div class="navbar-nav ms-auto">
-                <span class="navbar-text me-3">
-                    Welcome, <?= htmlspecialchars($_SESSION['admin_name']) ?>
-                </span>
-                <a class="nav-link text-white" href="admin_change_password.php">
-                    <i class="fas fa-key"></i> Change Password
-                </a>
-                <a class="nav-link text-white" href="?logout=1">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.php">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-users"></i> Members
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="admin_members.php">
+                                <i class="fas fa-list"></i> All Members
+                            </a></li>
+                            <li><a class="dropdown-item" href="admin_add_member.php">
+                                <i class="fas fa-user-plus"></i> Add Member
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="admin_bulk_import.php">
+                                <i class="fas fa-upload"></i> Bulk Import
+                            </a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-layer-group"></i> Groups
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="index.php">
+                                <i class="fas fa-list"></i> All Groups
+                            </a></li>
+                            <li><a class="dropdown-item" href="create_group.php">
+                                <i class="fas fa-plus"></i> Create Group
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <div class="navbar-nav ms-auto">
+                    <span class="navbar-text me-3">
+                        Welcome, <?= htmlspecialchars($_SESSION['admin_name']) ?>
+                    </span>
+                    <a class="nav-link text-white" href="admin_change_password.php">
+                        <i class="fas fa-key"></i> Change Password
+                    </a>
+                    <a class="nav-link text-white" href="?logout=1">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
