@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         <div class="text-center">
                             <small class="text-muted">
-                                <strong>Demo Admin:</strong> admin / admin123<br>
+                                
                                 <a href="member_login.php" class="text-success">Member Login</a>
                             </small>
                         </div>
