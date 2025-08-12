@@ -55,6 +55,9 @@ foreach ($myPayments as $payment) {
                 <span class="navbar-text me-3">
                     Welcome, <?= htmlspecialchars($_SESSION['member_name']) ?>
                 </span>
+                <a class="nav-link text-white" href="member_change_password.php">
+                    <i class="fas fa-key"></i> Change Password
+                </a>
                 <a class="nav-link text-white" href="?logout=1">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
@@ -89,6 +92,9 @@ foreach ($myPayments as $payment) {
                                 <div class="d-flex gap-2 justify-content-md-end">
                                     <a href="member_group_view.php" class="btn btn-light btn-sm">
                                         <i class="fas fa-eye"></i> View Full Group
+                                    </a>
+                                    <a href="member_change_password.php" class="btn btn-outline-light btn-sm">
+                                        <i class="fas fa-key"></i> Change Password
                                     </a>
                                 </div>
                             </div>

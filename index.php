@@ -130,6 +130,12 @@ $recentActivities = $stmt->fetchAll();
                 <i class="fas fa-coins"></i> <?= APP_NAME ?>
             </a>
             <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    Welcome, <?= htmlspecialchars($_SESSION['admin_name']) ?>
+                </span>
+                <a class="nav-link text-white" href="admin_change_password.php">
+                    <i class="fas fa-key"></i> Change Password
+                </a>
                 <a class="nav-link text-white" href="?logout=1">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
@@ -148,9 +154,14 @@ $recentActivities = $stmt->fetchAll();
 
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>BC Management Dashboard</h1>
-            <a href="create_group.php" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Create New Group
-            </a>
+            <div class="d-flex gap-2">
+                <a href="admin_change_password.php" class="btn btn-outline-primary">
+                    <i class="fas fa-key"></i> Change Password
+                </a>
+                <a href="create_group.php" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create New Group
+                </a>
+            </div>
         </div>
 
         <!-- Statistics Cards -->
