@@ -155,13 +155,75 @@ $recentActivities = $stmt->fetchAll();
             border-radius: 50%;
             background: #28a745;
         }
+
+        /* Interactive enhancements */
+        .member-avatar {
+            transition: all 0.3s ease;
+        }
+
+        .member-avatar:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(40,167,69,0.3);
+        }
+
+        .btn {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.4rem;
+            transition: transform 0.3s ease;
+        }
+
+        .navbar-brand:hover {
+            transform: scale(1.05);
+        }
+
+        .fas, .far {
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover .fas,
+        .btn:hover .far {
+            transform: scale(1.1);
+        }
+
+        .card {
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .member-card {
+            transition: all 0.3s ease;
+        }
+
+        .member-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
         <div class="container">
             <a class="navbar-brand" href="member_dashboard.php">
-                <i class="fas fa-user-circle"></i> Member Portal
+                <i class="fas fa-users text-warning me-2"></i>Mitra Niidhi Samooh
             </a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">
@@ -196,28 +258,31 @@ $recentActivities = $stmt->fetchAll();
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <h3 class="mb-1">Welcome, <?= htmlspecialchars($member['member_name']) ?>!</h3>
+                        <h3 class="mb-1"><i class="fas fa-hand-holding-heart me-2"></i>Welcome, <?= htmlspecialchars($member['member_name']) ?>!</h3>
                         <div class="row">
                             <div class="col-md-6">
                                 <p class="mb-1">
-                                    <i class="fas fa-users"></i> <strong>Group:</strong> <?= htmlspecialchars($group['group_name']) ?>
+                                    <i class="fas fa-users-cog text-warning"></i> <strong>Group:</strong> <?= htmlspecialchars($group['group_name']) ?>
                                 </p>
                                 <p class="mb-1">
-                                    <i class="fas fa-hashtag"></i> <strong>Member #:</strong> <?= $member['member_number'] ?>
+                                    <i class="fas fa-id-badge text-info"></i> <strong>Member #:</strong> <?= $member['member_number'] ?>
                                 </p>
                             </div>
                             <div class="col-md-6">
                                 <p class="mb-1">
-                                    <i class="fas fa-rupee-sign"></i> <strong>Monthly:</strong> <?= formatCurrency($group['monthly_contribution']) ?>
+                                    <i class="fas fa-coins text-warning"></i> <strong>Monthly:</strong> <?= formatCurrency($group['monthly_contribution']) ?>
                                 </p>
                                 <p class="mb-1">
-                                    <i class="fas fa-calendar"></i> <strong>Started:</strong> <?= formatDate($group['start_date']) ?>
+                                    <i class="fas fa-calendar-alt text-info"></i> <strong>Started:</strong> <?= formatDate($group['start_date']) ?>
                                 </p>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-4 text-center">
                         <div class="d-flex flex-column gap-2">
+                            <a href="member_bidding.php" class="btn btn-warning">
+                                <i class="fas fa-gavel"></i> Place Bids
+                            </a>
                             <a href="member_group_view.php" class="btn btn-light">
                                 <i class="fas fa-eye"></i> View Full Group
                             </a>

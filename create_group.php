@@ -93,22 +93,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding: 10px;
             margin-bottom: 15px;
         }
+
+        /* Interactive button effects */
+        .btn-interactive {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-interactive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .btn-interactive:active {
+            transform: translateY(0);
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.4rem;
+            transition: transform 0.3s ease;
+        }
+
+        .navbar-brand:hover {
+            transform: scale(1.05);
+        }
+
+        .fas, .far {
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover .fas,
+        .btn:hover .far {
+            transform: scale(1.1);
+        }
+
+        .card {
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .form-control {
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+        }
     </style>
 </head>
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="index.php">
-                <i class="fas fa-coins"></i> <?= APP_NAME ?>
+                <i class="fas fa-handshake text-warning me-2"></i><?= APP_NAME ?>
             </a>
         </div>
     </nav>
 
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Create New BC Group</h1>
-            <a href="index.php" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left"></i> Back
+            <h1><i class="fas fa-users-cog text-primary me-2"></i>Create New Niidhi Group</h1>
+            <a href="index.php" class="btn btn-outline-secondary btn-interactive">
+                <i class="fas fa-arrow-left me-1"></i> Back
             </a>
         </div>
 

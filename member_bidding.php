@@ -1,0 +1,606 @@
+
+<?php
+require_once 'config.php';
+requireMemberLogin();
+
+$member = getCurrentMember();
+$groupId = $_SESSION['group_id'];
+$group = getGroupById($groupId);
+
+// Handle bid submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_bid'])) {
+    $monthNumber = (int)$_POST['month_number'];
+    $bidAmount = (float)$_POST['bid_amount'];
+    
+    // Validate bid
+    $errors = [];
+
+    if ($bidAmount <= 0) {
+        $errors[] = "Bid amount must be greater than 0";
+    }
+
+    // Check if member has already won
+    if ($member['has_won_month']) {
+        $errors[] = "You have already won in month " . $member['has_won_month'];
+    }
+
+    // Check if bidding is open for this month and get bidding limits
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM month_bidding_status WHERE group_id = ? AND month_number = ?");
+    $stmt->execute([$groupId, $monthNumber]);
+    $biddingStatus = $stmt->fetch();
+
+    if (!$biddingStatus || $biddingStatus['bidding_status'] !== 'open') {
+        $errors[] = "Bidding is not open for this month";
+    } else {
+        // Check bidding limits from month_bidding_status
+        if ($biddingStatus['minimum_bid_amount'] > 0 && $bidAmount < $biddingStatus['minimum_bid_amount']) {
+            $errors[] = "Bid amount must be at least ₹" . number_format($biddingStatus['minimum_bid_amount']);
+        }
+
+        if ($biddingStatus['maximum_bid_amount'] > 0 && $bidAmount > $biddingStatus['maximum_bid_amount']) {
+            $errors[] = "Bid amount cannot exceed ₹" . number_format($biddingStatus['maximum_bid_amount']);
+        }
+
+        // Fallback to total collection if no maximum set
+        if ($biddingStatus['maximum_bid_amount'] == 0 && $bidAmount >= $group['total_monthly_collection']) {
+            $errors[] = "Bid amount must be less than total monthly collection (₹" . number_format($group['total_monthly_collection']) . ")";
+        }
+    }
+    
+    // Check if member already placed a bid for this month
+    $stmt = $pdo->prepare("SELECT id FROM member_bids WHERE group_id = ? AND member_id = ? AND month_number = ?");
+    $stmt->execute([$groupId, $member['id'], $monthNumber]);
+    if ($stmt->fetch()) {
+        $errors[] = "You have already placed a bid for this month";
+    }
+    
+    if (empty($errors)) {
+        // Insert the bid
+        $stmt = $pdo->prepare("
+            INSERT INTO member_bids (group_id, member_id, month_number, bid_amount) 
+            VALUES (?, ?, ?, ?)
+        ");
+        
+        if ($stmt->execute([$groupId, $member['id'], $monthNumber, $bidAmount])) {
+            setMessage("Your bid of ₹" . number_format($bidAmount) . " for Month $monthNumber has been submitted successfully!", 'success');
+            redirect('member_bidding.php');
+        } else {
+            $errors[] = "Failed to submit bid. Please try again.";
+        }
+    }
+    
+    if (!empty($errors)) {
+        setMessage(implode('<br>', $errors), 'error');
+    }
+}
+
+// Get available months for bidding
+function getAvailableBiddingMonths($groupId, $memberId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT mbs.*,
+               (SELECT COUNT(*) FROM member_bids mb WHERE mb.group_id = mbs.group_id AND mb.month_number = mbs.month_number) as total_bids,
+               (SELECT COUNT(*) FROM member_bids mb WHERE mb.group_id = mbs.group_id AND mb.month_number = mbs.month_number AND mb.member_id = ?) as my_bid_count
+        FROM month_bidding_status mbs
+        WHERE mbs.group_id = ?
+        ORDER BY mbs.month_number
+    ");
+    $stmt->execute([$memberId, $groupId]);
+    return $stmt->fetchAll();
+}
+
+// Get current active month (next month to be bid on)
+function getCurrentActiveMonth($groupId) {
+    $pdo = getDB();
+
+    // First, try to find an open month
+    $stmt = $pdo->prepare("
+        SELECT * FROM month_bidding_status
+        WHERE group_id = ? AND bidding_status = 'open'
+        ORDER BY month_number LIMIT 1
+    ");
+    $stmt->execute([$groupId]);
+    $openMonth = $stmt->fetch();
+
+    if ($openMonth) {
+        return $openMonth;
+    }
+
+    // If no open month, find the next month after completed ones
+    $stmt = $pdo->prepare("
+        SELECT MIN(month_number) as next_month
+        FROM month_bidding_status
+        WHERE group_id = ? AND bidding_status = 'not_started'
+    ");
+    $stmt->execute([$groupId]);
+    $result = $stmt->fetch();
+
+    if ($result && $result['next_month']) {
+        $stmt = $pdo->prepare("
+            SELECT * FROM month_bidding_status
+            WHERE group_id = ? AND month_number = ?
+        ");
+        $stmt->execute([$groupId, $result['next_month']]);
+        return $stmt->fetch();
+    }
+
+    return null;
+}
+
+// Get current bids for a specific month
+function getCurrentBids($groupId, $monthNumber) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT mb.*, m.member_name, m.member_number
+        FROM member_bids mb
+        JOIN members m ON mb.member_id = m.id
+        WHERE mb.group_id = ? AND mb.month_number = ?
+        ORDER BY mb.bid_amount ASC, mb.bid_date ASC
+    ");
+    $stmt->execute([$groupId, $monthNumber]);
+    return $stmt->fetchAll();
+}
+
+$availableMonths = getAvailableBiddingMonths($groupId, $member['id']);
+$currentActiveMonth = getCurrentActiveMonth($groupId);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bidding Portal - <?= APP_NAME ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .bidding-card {
+            transition: all 0.3s ease;
+        }
+        .bidding-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .bid-status-open {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .bid-status-closed {
+            background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
+            color: white;
+        }
+        .bid-status-completed {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            color: white;
+        }
+        .bid-status-not_started {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+        }
+        .current-month-highlight {
+            background: linear-gradient(135deg, #fd7e14 0%, #e63946 100%);
+            color: white;
+            border: 3px solid #ffc107;
+            box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 20px rgba(255, 193, 7, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(255, 193, 7, 0.8); }
+            100% { box-shadow: 0 0 20px rgba(255, 193, 7, 0.5); }
+        }
+        .current-bid {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .winning-bid {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .my-bid {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        .month-status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .current-month-section {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 2px solid #ffc107;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+        }
+        .bid-form-highlight {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand" href="member_dashboard.php">
+                <i class="fas fa-users text-warning me-2"></i>Mitra Niidhi Samooh
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    Welcome, <?= htmlspecialchars($_SESSION['member_name']) ?>
+                </span>
+                <a class="nav-link text-white" href="member_dashboard.php">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <?php $msg = getMessage(); ?>
+        <?php if ($msg): ?>
+            <div class="alert alert-<?= $msg['type'] ?> alert-dismissible fade show">
+                <?= htmlspecialchars($msg['message']) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2><i class="fas fa-gavel text-primary me-2"></i>Monthly Bidding Portal</h2>
+                <p class="text-muted">Place your bids for upcoming months. Lowest bidder wins the collection!</p>
+            </div>
+        </div>
+
+        <!-- Group Info Card -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <strong>Group:</strong> Family BC Group
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Monthly Collection:</strong> ₹18,000
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Your Member #:</strong> 5
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Won Month:</strong> Not yet
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Active Month Highlight -->
+        <?php if ($currentActiveMonth): ?>
+            <div class="current-month-section">
+                <div class="card-body p-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h3 class="mb-3">
+                                <i class="fas fa-star text-warning me-2"></i>
+                                Current Month: Month <?= $currentActiveMonth['month_number'] ?>
+                                <span class="badge bg-<?= $currentActiveMonth['bidding_status'] === 'open' ? 'success' : 'info' ?> ms-2">
+                                    <?= ucfirst(str_replace('_', ' ', $currentActiveMonth['bidding_status'])) ?>
+                                </span>
+                            </h3>
+
+                            <?php if ($currentActiveMonth['bidding_status'] === 'open'): ?>
+                                <p class="text-success mb-2">
+                                    <i class="fas fa-clock text-warning"></i>
+                                    <strong>Bidding is OPEN!</strong> Place your bid now to win this month's collection.
+                                </p>
+                                <?php if ($currentActiveMonth['bidding_end_date']): ?>
+                                    <p class="text-muted mb-3">
+                                        <i class="fas fa-calendar-times"></i>
+                                        Bidding ends: <?= date('d/m/Y', strtotime($currentActiveMonth['bidding_end_date'])) ?>
+                                    </p>
+                                <?php endif; ?>
+                            <?php elseif ($currentActiveMonth['bidding_status'] === 'not_started'): ?>
+                                <p class="text-info mb-2">
+                                    <i class="fas fa-hourglass-start"></i>
+                                    <strong>Coming Soon!</strong> Admin will open bidding for this month soon.
+                                </p>
+                                <p class="text-muted mb-3">
+                                    <i class="fas fa-bell"></i>
+                                    You'll be notified when bidding opens.
+                                </p>
+                            <?php endif; ?>
+
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong><i class="fas fa-coins text-warning"></i> Collection:</strong><br>
+                                    <span class="h5 text-success">₹<?= number_format($group['total_monthly_collection']) ?></span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong><i class="fas fa-users text-info"></i> Total Bids:</strong><br>
+                                    <span class="h5 text-primary">
+                                        <?php
+                                        $pdo = getDB();
+                                        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ?");
+                                        $stmt->execute([$groupId, $currentActiveMonth['month_number']]);
+                                        $bidCount = $stmt->fetch()['count'];
+                                        echo $bidCount;
+                                        ?>
+                                    </span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong><i class="fas fa-trophy text-warning"></i> Your Status:</strong><br>
+                                    <span class="h6">
+                                        <?php if ($member['has_won_month']): ?>
+                                            <span class="text-muted">Won Month <?= $member['has_won_month'] ?></span>
+                                        <?php else: ?>
+                                            <?php
+                                            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ? AND member_id = ?");
+                                            $stmt->execute([$groupId, $currentActiveMonth['month_number'], $member['id']]);
+                                            $myBidCount = $stmt->fetch()['count'];
+                                            ?>
+                                            <?php if ($myBidCount > 0): ?>
+                                                <span class="text-success">✓ Bid Placed</span>
+                                            <?php else: ?>
+                                                <span class="text-warning">⏳ Not Bid Yet</span>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 text-center">
+                            <?php if ($currentActiveMonth['bidding_status'] === 'open' && !$member['has_won_month']): ?>
+                                <?php
+                                $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ? AND member_id = ?");
+                                $stmt->execute([$groupId, $currentActiveMonth['month_number'], $member['id']]);
+                                $alreadyBid = $stmt->fetch()['count'] > 0;
+                                ?>
+
+                                <?php if (!$alreadyBid): ?>
+                                    <div class="bid-form-highlight">
+                                        <h5 class="text-dark mb-3">
+                                            <i class="fas fa-gavel text-warning"></i> Place Your Bid
+                                        </h5>
+                                        <form method="POST">
+                                            <input type="hidden" name="month_number" value="<?= $currentActiveMonth['month_number'] ?>">
+                                            <div class="mb-3">
+                                                <label class="form-label text-dark">Bid Amount (₹)</label>
+                                                <?php
+                                                $minBid = max(1, $currentActiveMonth['minimum_bid_amount']);
+                                                $maxBid = $currentActiveMonth['maximum_bid_amount'] > 0 ?
+                                                         $currentActiveMonth['maximum_bid_amount'] :
+                                                         ($group['total_monthly_collection'] - 1);
+                                                ?>
+                                                <input type="number" name="bid_amount" class="form-control form-control-lg"
+                                                       min="<?= $minBid ?>" max="<?= $maxBid ?>"
+                                                       step="1" required placeholder="Enter your bid"
+                                                       oninput="calculateBidImpact(this.value, <?= $group['total_monthly_collection'] ?>, <?= $group['total_members'] ?>)">
+                                                <small class="form-text text-muted">
+                                                    Range: ₹<?= number_format($minBid) ?> - ₹<?= number_format($maxBid) ?>
+                                                    <?php if ($currentActiveMonth['minimum_bid_amount'] > 0): ?>
+                                                        <br><strong>Minimum:</strong> ₹<?= number_format($currentActiveMonth['minimum_bid_amount']) ?>
+                                                    <?php endif; ?>
+                                                </small>
+
+                                                <!-- Bid Impact Calculator -->
+                                                <div id="bidImpactCalculator" class="mt-3" style="display: none;">
+                                                    <div class="card bg-light">
+                                                        <div class="card-body p-3">
+                                                            <h6 class="text-dark mb-2">
+                                                                <i class="fas fa-calculator text-primary"></i> If you bid ₹<span id="bidAmountDisplay">0</span>:
+                                                            </h6>
+                                                            <div class="row text-dark">
+                                                                <div class="col-6">
+                                                                    <strong class="text-success">You'll receive:</strong><br>
+                                                                    <span class="h5 text-success">₹<span id="winnerAmount">0</span></span>
+                                                                </div>
+                                                                <div class="col-6">
+                                                                    <strong class="text-info">Everyone pays:</strong><br>
+                                                                    <span class="h5 text-info">₹<span id="perMemberAmount">0</span></span>
+                                                                </div>
+                                                            </div>
+                                                            <div class="row text-dark mt-2">
+                                                                <div class="col-12">
+                                                                    <strong class="text-warning">Your net benefit:</strong>
+                                                                    <span class="h5 text-warning">₹<span id="netBenefit">0</span></span>
+                                                                </div>
+                                                            </div>
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-info-circle"></i>
+                                                                Calculation: Everyone pays (Winner Amount ÷ <?= $group['total_members'] ?> members). Winner Amount = (₹<?= number_format($group['total_monthly_collection']) ?> - Your Bid)
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button type="submit" name="submit_bid" class="btn btn-warning btn-lg w-100">
+                                                <i class="fas fa-paper-plane"></i> Submit Bid
+                                            </button>
+                                        </form>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <strong>Bid Submitted!</strong><br>
+                                        You have placed your bid for this month.
+                                    </div>
+                                <?php endif; ?>
+                            <?php elseif ($member['has_won_month']): ?>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-trophy"></i>
+                                    <strong>Already Won!</strong><br>
+                                    You won Month <?= $member['has_won_month'] ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="alert alert-secondary">
+                                    <i class="fas fa-clock"></i>
+                                    <strong>Bidding Not Open</strong><br>
+                                    Wait for admin to open bidding.
+                                </div>
+                            <?php endif; ?>
+
+                            <button class="btn btn-outline-dark btn-sm mt-2"
+                                    onclick="showBids(<?= $currentActiveMonth['month_number'] ?>)">
+                                <i class="fas fa-eye"></i> View All Bids
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <!-- All Months Overview -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h4><i class="fas fa-calendar-alt text-primary me-2"></i>All Months Overview</h4>
+                <p class="text-muted">Complete history and upcoming months</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <?php foreach ($availableMonths as $month): ?>
+                <?php
+                $isCurrentMonth = $currentActiveMonth && $month['month_number'] == $currentActiveMonth['month_number'];
+                $cardClass = $isCurrentMonth ? 'current-month-highlight' : 'bid-status-' . str_replace('_', '-', $month['bidding_status']);
+                ?>
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card bidding-card <?= $cardClass ?>"><?php if ($isCurrentMonth): ?>
+                        <div class="position-absolute top-0 start-50 translate-middle">
+                            <span class="badge bg-warning text-dark">
+                                <i class="fas fa-star"></i> CURRENT
+                            </span>
+                        </div>
+                    <?php endif; ?>
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar-alt me-2"></i>Month <?= $month['month_number'] ?>
+                                <span class="badge bg-light text-dark ms-2"><?= ucfirst($month['bidding_status']) ?></span>
+                            </h5>
+                        </div>
+                        <div class="card-body text-white">
+                            <p class="mb-2">
+                                <i class="fas fa-users"></i> Total Bids: <?= $month['total_bids'] ?>
+                            </p>
+                            
+                            <?php if ($month['bidding_status'] === 'open' && !$member['has_won_month'] && $month['my_bid_count'] == 0): ?>
+                                <!-- Bid Form -->
+                                <form method="POST" class="mt-3">
+                                    <input type="hidden" name="month_number" value="<?= $month['month_number'] ?>">
+                                    <div class="mb-3">
+                                        <label class="form-label">Your Bid Amount (₹)</label>
+                                        <?php
+                                        $minBid = max(1, $month['minimum_bid_amount']);
+                                        $maxBid = $month['maximum_bid_amount'] > 0 ?
+                                                 $month['maximum_bid_amount'] :
+                                                 ($group['total_monthly_collection'] - 1);
+                                        ?>
+                                        <input type="number" name="bid_amount" class="form-control"
+                                               min="<?= $minBid ?>" max="<?= $maxBid ?>"
+                                               step="1" required>
+                                        <small class="form-text text-light">
+                                            Range: ₹<?= number_format($minBid) ?> - ₹<?= number_format($maxBid) ?>
+                                            <?php if ($month['minimum_bid_amount'] > 0): ?>
+                                                <br><strong>Min:</strong> ₹<?= number_format($month['minimum_bid_amount']) ?>
+                                            <?php endif; ?>
+                                        </small>
+                                    </div>
+                                    <button type="submit" name="submit_bid" class="btn btn-light">
+                                        <i class="fas fa-paper-plane"></i> Submit Bid
+                                    </button>
+                                </form>
+                            <?php elseif ($month['my_bid_count'] > 0): ?>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-check-circle"></i> You have already placed a bid for this month
+                                </div>
+                            <?php elseif ($member['has_won_month']): ?>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-trophy"></i> You have already won in Month <?= $member['has_won_month'] ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <a href="#" class="btn btn-outline-light btn-sm" 
+                               onclick="showBids(<?= $month['month_number'] ?>)">
+                                <i class="fas fa-eye"></i> View All Bids
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- Bid Details Modal -->
+    <div class="modal fade" id="bidModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-list"></i> Current Bids - <span id="modalMonthTitle"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="bidModalBody">
+                    <!-- Bid details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showBids(monthNumber) {
+            document.getElementById('modalMonthTitle').textContent = 'Month ' + monthNumber;
+
+            // Load bids via AJAX
+            fetch('get_month_bids.php?group_id=<?= $groupId ?>&month=' + monthNumber)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('bidModalBody').innerHTML = data;
+                    new bootstrap.Modal(document.getElementById('bidModal')).show();
+                })
+                .catch(error => {
+                    document.getElementById('bidModalBody').innerHTML =
+                        '<div class="alert alert-danger">Error loading bids</div>';
+                    new bootstrap.Modal(document.getElementById('bidModal')).show();
+                });
+        }
+
+        function calculateBidImpact(bidAmount, totalCollection, totalMembers) {
+            const bid = parseFloat(bidAmount);
+
+            if (isNaN(bid) || bid <= 0) {
+                document.getElementById('bidImpactCalculator').style.display = 'none';
+                return;
+            }
+
+            // BC System Logic:
+            // 1. Winner gets: Total Collection - Bid Amount
+            // 2. Everyone pays: Winner Amount ÷ Total Members (including winner)
+            // 3. Net benefit: Winner gets - What winner pays
+
+            const winnerAmount = totalCollection - bid;
+            const perMemberAmount = winnerAmount / totalMembers;
+            const netBenefit = winnerAmount - perMemberAmount;
+
+            // Update display
+            document.getElementById('bidAmountDisplay').textContent = bid.toLocaleString();
+            document.getElementById('winnerAmount').textContent = winnerAmount.toLocaleString();
+            document.getElementById('perMemberAmount').textContent = Math.round(perMemberAmount).toLocaleString();
+            document.getElementById('netBenefit').textContent = Math.round(netBenefit).toLocaleString();
+
+            // Show calculator
+            document.getElementById('bidImpactCalculator').style.display = 'block';
+        }
+
+        // Auto-calculate on page load if there's a value
+        document.addEventListener('DOMContentLoaded', function() {
+            const bidInput = document.querySelector('input[name="bid_amount"]');
+            if (bidInput && bidInput.value) {
+                const totalCollection = <?= $group['total_monthly_collection'] ?? 0 ?>;
+                const totalMembers = <?= $group['total_members'] ?? 0 ?>;
+                calculateBidImpact(bidInput.value, totalCollection, totalMembers);
+            }
+        });
+    </script>
+</body>
+</html>
+

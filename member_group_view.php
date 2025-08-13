@@ -216,7 +216,7 @@ foreach ($memberSummary as $summary) {
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
         <div class="container-fluid">
             <a class="navbar-brand" href="member_dashboard.php">
-                <i class="fas fa-user-circle"></i> Member Portal
+                <i class="fas fa-users text-warning me-2"></i>Mitra Niidhi Samooh
             </a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">

@@ -1,6 +1,6 @@
-# Simple BC Management System
+# Mitra Niidhi Samooh - Community Fund Management System
 
-A clean, minimal PHP-based system for managing BC (Bidding Committee) groups that exactly matches Excel spreadsheet format.
+A clean, minimal PHP-based system for managing Niidhi (Community Fund) groups that exactly matches Excel spreadsheet format. Mitra Niidhi Samooh helps communities organize and manage their collective savings and bidding committees efficiently.
 
 ## Features
 
@@ -59,7 +59,7 @@ A clean, minimal PHP-based system for managing BC (Bidding Committee) groups tha
 └── README.md              # This file
 ```
 
-## How BC Groups Work
+## How Niidhi Groups Work
 
 1. **Create Group**: Set group name, number of members, and monthly contribution
 2. **Add Members**: Enter all member names
@@ -70,7 +70,7 @@ A clean, minimal PHP-based system for managing BC (Bidding Committee) groups tha
 
 ## Sample Data
 
-The system comes with a sample BC group "Family BC Group" with 9 members and ₹2000 monthly contribution, showing 4 months of completed transactions.
+The system comes with a sample Niidhi group "Family BC Group" with 9 members and ₹2000 monthly contribution, showing 4 months of completed transactions.
 
 ## Requirements
 

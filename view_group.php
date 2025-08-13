@@ -231,7 +231,7 @@ foreach ($memberSummary as $summary) {
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php">
-                <i class="fas fa-coins"></i> <?= APP_NAME ?>
+                <i class="fas fa-handshake text-warning me-2"></i><?= APP_NAME ?>
             </a>
             <div class="navbar-nav ms-auto">
                 <a class="nav-link text-white" href="index.php">
@@ -255,6 +255,9 @@ foreach ($memberSummary as $summary) {
             <div class="col-12">
                 <h2><?= htmlspecialchars($group['group_name']) ?></h2>
                 <div class="d-flex gap-3 mb-3">
+                    <a href="admin_bidding.php?group_id=<?= $groupId ?>" class="btn btn-warning btn-sm">
+                        <i class="fas fa-gavel"></i> Manage Bidding
+                    </a>
                     <a href="add_bid.php?group_id=<?= $groupId ?>" class="btn btn-success btn-sm">
                         <i class="fas fa-plus"></i> Add Monthly Bid
                     </a>

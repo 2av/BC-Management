@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Setup - BC Management System</title>
+    <title>Setup - Mitra Niidhi Samooh</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -78,9 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card setup-card">
                     <div class="card-body p-5">
                         <div class="text-center mb-4">
-                            <i class="fas fa-cogs fa-3x text-primary mb-3"></i>
-                            <h3>BC Management System Setup</h3>
-                            <p class="text-muted">Configure your database connection</p>
+                            <i class="fas fa-handshake fa-3x text-primary mb-3"></i>
+                            <h3 class="text-primary fw-bold">Mitra Niidhi Samooh Setup</h3>
+                            <p class="text-muted"><i class="fas fa-database me-1"></i>Configure your database connection</p>
                         </div>
                         
                         <?php if ($error): ?>

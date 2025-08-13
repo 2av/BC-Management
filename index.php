@@ -121,13 +121,75 @@ $recentActivities = $stmt->fetchAll();
         .stat-card-info {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
+
+        /* Interactive button effects */
+        .btn-interactive {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-interactive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .btn-interactive:active {
+            transform: translateY(0);
+        }
+
+        .btn-interactive::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-interactive:hover::before {
+            left: 100%;
+        }
+
+        /* Enhanced navbar */
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.4rem;
+        }
+
+        .navbar-brand:hover {
+            transform: scale(1.05);
+            transition: transform 0.3s ease;
+        }
+
+        /* Icon animations */
+        .fas, .far {
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover .fas,
+        .btn:hover .far {
+            transform: scale(1.1);
+        }
+
+        /* Card hover effects */
+        .card {
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand" href="index.php">
-                <i class="fas fa-coins"></i> <?= APP_NAME ?>
+                <i class="fas fa-handshake text-warning me-2"></i><?= APP_NAME ?>
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -199,21 +261,21 @@ $recentActivities = $stmt->fetchAll();
 
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1>BC Management Dashboard</h1>
+                <h1><i class="fas fa-users-cog text-primary me-2"></i>Mitra Niidhi Samooh Dashboard</h1>
                 <p class="text-muted mb-0">
-                    <i class="fas fa-calendar"></i> <?= date('l, F j, Y') ?> |
-                    <i class="fas fa-clock"></i> <?= date('g:i A') ?>
+                    <i class="fas fa-calendar-alt text-info"></i> <?= date('l, F j, Y') ?> |
+                    <i class="fas fa-clock text-success"></i> <?= date('g:i A') ?>
                 </p>
             </div>
             <div class="d-flex gap-2">
-                <a href="admin_members.php" class="btn btn-outline-success">
-                    <i class="fas fa-users"></i> Manage Members
+                <a href="admin_members.php" class="btn btn-outline-success btn-interactive">
+                    <i class="fas fa-users-cog me-1"></i> Manage Members
                 </a>
-                <a href="admin_change_password.php" class="btn btn-outline-primary">
-                    <i class="fas fa-key"></i> Change Password
+                <a href="admin_change_password.php" class="btn btn-outline-primary btn-interactive">
+                    <i class="fas fa-shield-alt me-1"></i> Change Password
                 </a>
-                <a href="create_group.php" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Create New Group
+                <a href="create_group.php" class="btn btn-primary btn-interactive">
+                    <i class="fas fa-plus-circle me-1"></i> Create New Group
                 </a>
             </div>
         </div>

@@ -1,5 +1,5 @@
 <?php
-// Simple BC Management System Configuration
+// Mitra Niidhi Samooh - Community Fund Management System
 session_start();
 
 // Database Configuration
@@ -9,7 +9,7 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 
 // Application Configuration
-define('APP_NAME', 'BC Management System');
+define('APP_NAME', 'Mitra Niidhi Samooh');
 
 // Database Connection
 function getDB() {
@@ -242,5 +242,53 @@ function updateMemberSummary($groupId, $memberId) {
 function calculateGainPerMember($totalCollection, $bidAmount, $totalMembers) {
     $netPayable = $totalCollection - $bidAmount;
     return $netPayable / $totalMembers;
+}
+
+// Bidding System Functions
+function getOpenBiddingMonths($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT * FROM month_bidding_status
+        WHERE group_id = ? AND bidding_status = 'open'
+        ORDER BY month_number
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+function getMemberBids($groupId, $memberId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT mb.*, mbs.bidding_status
+        FROM member_bids mb
+        JOIN month_bidding_status mbs ON mb.group_id = mbs.group_id AND mb.month_number = mbs.month_number
+        WHERE mb.group_id = ? AND mb.member_id = ?
+        ORDER BY mb.month_number
+    ");
+    $stmt->execute([$groupId, $memberId]);
+    return $stmt->fetchAll();
+}
+
+function canMemberBid($memberId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT has_won_month FROM members WHERE id = ?");
+    $stmt->execute([$memberId]);
+    $member = $stmt->fetch();
+    return !$member['has_won_month'];
+}
+
+function getBiddingStatistics($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT
+            COUNT(CASE WHEN bidding_status = 'open' THEN 1 END) as open_months,
+            COUNT(CASE WHEN bidding_status = 'closed' THEN 1 END) as closed_months,
+            COUNT(CASE WHEN bidding_status = 'completed' THEN 1 END) as completed_months,
+            COUNT(CASE WHEN bidding_status = 'not_started' THEN 1 END) as pending_months
+        FROM month_bidding_status
+        WHERE group_id = ?
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetch();
 }
 ?>
