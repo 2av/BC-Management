@@ -1,3 +1,4 @@
+
 <?php
 require_once 'config.php';
 requireMemberLogin();
@@ -57,8 +58,75 @@ $totalPaid = $mySummary['total_paid'] ?? 0;
 $totalReceived = $mySummary['given_amount'] ?? 0;
 $netPosition = $totalReceived - $totalPaid;
 
-// Get recent group activities
+// Function to get current active month
+function getCurrentActiveMonth($groupId, $pdo) {
+    // First, try to find an open month
+    $stmt = $pdo->prepare("
+        SELECT * FROM month_bidding_status
+        WHERE group_id = ? AND bidding_status = 'open'
+        ORDER BY month_number LIMIT 1
+    ");
+    $stmt->execute([$groupId]);
+    $openMonth = $stmt->fetch();
+
+    if ($openMonth) {
+        return $openMonth;
+    }
+
+    // If no open month, find the next month after completed ones
+    $stmt = $pdo->prepare("
+        SELECT MIN(month_number) as next_month
+        FROM month_bidding_status
+        WHERE group_id = ? AND bidding_status = 'not_started'
+    ");
+    $stmt->execute([$groupId]);
+    $result = $stmt->fetch();
+
+    if ($result && $result['next_month']) {
+        $stmt = $pdo->prepare("
+            SELECT * FROM month_bidding_status
+            WHERE group_id = ? AND month_number = ?
+        ");
+        $stmt->execute([$groupId, $result['next_month']]);
+        return $stmt->fetch();
+    }
+
+    return null;
+}
+
+// Get current active month and payment status
 $pdo = getDB();
+$currentActiveMonth = getCurrentActiveMonth($groupId, $pdo);
+$currentMonthPaymentInfo = null;
+
+if ($currentActiveMonth) {
+    // Check if there's a completed bid for current month
+    $stmt = $pdo->prepare("
+        SELECT mb.*, m.member_name as winner_name
+        FROM monthly_bids mb
+        LEFT JOIN members m ON mb.taken_by_member_id = m.id
+        WHERE mb.group_id = ? AND mb.month_number = ?
+    ");
+    $stmt->execute([$groupId, $currentActiveMonth['month_number']]);
+    $currentMonthBid = $stmt->fetch();
+
+    // Check if current member has payment for this month
+    $currentMonthPayment = $myPaymentsByMonth[$currentActiveMonth['month_number']] ?? null;
+
+    $currentMonthPaymentInfo = [
+        'month_number' => $currentActiveMonth['month_number'],
+        'bidding_status' => $currentActiveMonth['bidding_status'],
+        'bid_exists' => (bool)$currentMonthBid,
+        'payment_exists' => (bool)$currentMonthPayment,
+        'payment_status' => $currentMonthPayment['payment_status'] ?? 'pending',
+        'payment_amount' => $currentMonthPayment['payment_amount'] ?? ($currentMonthBid['gain_per_member'] ?? $group['monthly_contribution']),
+        'payment_date' => $currentMonthPayment['payment_date'] ?? null,
+        'winner_name' => $currentMonthBid['winner_name'] ?? null,
+        'bid_amount' => $currentMonthBid['bid_amount'] ?? null
+    ];
+}
+
+// Get recent group activities
 $stmt = $pdo->prepare("
     SELECT
         mb.month_number,
@@ -294,6 +362,83 @@ $recentActivities = $stmt->fetchAll();
                 </div>
             </div>
         </div>
+
+        <!-- Current Month Payment Status -->
+        <?php if ($currentMonthPaymentInfo): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-<?= $currentMonthPaymentInfo['payment_status'] === 'paid' ? 'success' : 'warning' ?>">
+                    <div class="card-header bg-<?= $currentMonthPaymentInfo['payment_status'] === 'paid' ? 'success' : 'warning' ?> text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-check me-2"></i>Current Month Payment Status - Month <?= $currentMonthPaymentInfo['month_number'] ?>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <?php if ($currentMonthPaymentInfo['bidding_status'] === 'completed' && $currentMonthPaymentInfo['bid_exists']): ?>
+                                    <?php if ($currentMonthPaymentInfo['payment_status'] === 'paid'): ?>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle text-success fa-2x me-3"></i>
+                                            <div>
+                                                <h6 class="mb-1 text-success">Payment Completed</h6>
+                                                <p class="mb-1">You have paid <strong><?= formatCurrency($currentMonthPaymentInfo['payment_amount']) ?></strong> for Month <?= $currentMonthPaymentInfo['month_number'] ?></p>
+                                                <small class="text-muted">
+                                                    Paid on: <?= $currentMonthPaymentInfo['payment_date'] ? formatDate($currentMonthPaymentInfo['payment_date']) : 'Date not recorded' ?>
+                                                    <?php if ($currentMonthPaymentInfo['winner_name']): ?>
+                                                        | Winner: <?= htmlspecialchars($currentMonthPaymentInfo['winner_name']) ?>
+                                                        (Bid: <?= formatCurrency($currentMonthPaymentInfo['bid_amount']) ?>)
+                                                    <?php endif; ?>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-exclamation-triangle text-warning fa-2x me-3"></i>
+                                            <div>
+                                                <h6 class="mb-1 text-warning">Payment Pending</h6>
+                                                <p class="mb-1">Amount due: <strong><?= formatCurrency($currentMonthPaymentInfo['payment_amount']) ?></strong> for Month <?= $currentMonthPaymentInfo['month_number'] ?></p>
+                                                <small class="text-muted">
+                                                    Bid has been confirmed.
+                                                    <?php if ($currentMonthPaymentInfo['winner_name']): ?>
+                                                        Winner: <?= htmlspecialchars($currentMonthPaymentInfo['winner_name']) ?>
+                                                        (Bid: <?= formatCurrency($currentMonthPaymentInfo['bid_amount']) ?>)
+                                                    <?php endif; ?>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-clock text-info fa-2x me-3"></i>
+                                        <div>
+                                            <h6 class="mb-1 text-info">Bidding in Progress</h6>
+                                            <p class="mb-1">Month <?= $currentMonthPaymentInfo['month_number'] ?> - <?= ucfirst(str_replace('_', ' ', $currentMonthPaymentInfo['bidding_status'])) ?></p>
+                                            <small class="text-muted">Payment amount will be determined after bid confirmation</small>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <?php if ($currentMonthPaymentInfo['bidding_status'] === 'open'): ?>
+                                    <a href="member_bidding.php" class="btn btn-primary">
+                                        <i class="fas fa-gavel me-1"></i> Place Bid
+                                    </a>
+                                <?php elseif ($currentMonthPaymentInfo['payment_status'] === 'pending' && $currentMonthPaymentInfo['bid_exists']): ?>
+                                    <div class="text-center">
+                                        <div class="badge bg-warning text-dark fs-6 p-2">
+                                            <i class="fas fa-hourglass-half me-1"></i>
+                                            Awaiting Payment
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Statistics Cards -->
         <div class="row mb-4">
@@ -863,3 +1008,4 @@ $recentActivities = $stmt->fetchAll();
     </script>
 </body>
 </html>
+

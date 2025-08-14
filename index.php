@@ -368,6 +368,41 @@ $recentActivities = $stmt->fetchAll();
             </div>
         </div>
 
+        <!-- Group-wise Pending Payments Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-header">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-exclamation-triangle text-warning"></i> Group-wise Pending Payments
+                                </h5>
+                                <small class="text-muted">Click on groups to expand and view month-wise details</small>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="d-flex gap-2 justify-content-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="loadPendingPayments()">
+                                        <i class="fas fa-sync-alt"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="pendingPaymentsContent">
+                            <div class="text-center text-muted py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading group-wise pending payments...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Charts Section -->
         <div class="row mb-4">
             <div class="col-md-8">
@@ -716,6 +751,69 @@ $recentActivities = $stmt->fetchAll();
             console.log('Auto-refreshing dashboard data...');
             // In a real application, you'd fetch updated data via AJAX here
         }, 300000); // 5 minutes
+
+        function loadPendingPayments() {
+            const contentDiv = document.getElementById('pendingPaymentsContent');
+
+            // Show loading
+            contentDiv.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading group-wise pending payments...</p>
+                </div>
+            `;
+
+            // Fetch pending payments summary
+            fetch(`admin_get_pending_payments.php?action=summary`)
+                .then(response => response.text())
+                .then(data => {
+                    contentDiv.innerHTML = data;
+                })
+                .catch(error => {
+                    contentDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Error loading pending payments data. Please try again.
+                        </div>
+                    `;
+                });
+        }
+
+        function loadMonthDetails(groupId, monthNumber) {
+            const contentDiv = document.getElementById('pendingPaymentsContent');
+
+            // Show loading
+            contentDiv.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading member details for Month ${monthNumber}...</p>
+                </div>
+            `;
+
+            // Fetch month details
+            fetch(`admin_get_pending_payments.php?action=month_details&group_id=${groupId}&month=${monthNumber}`)
+                .then(response => response.text())
+                .then(data => {
+                    contentDiv.innerHTML = data;
+                })
+                .catch(error => {
+                    contentDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Error loading month details. Please try again.
+                        </div>
+                    `;
+                });
+        }
+
+        // Auto-load pending payments summary on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPendingPayments();
+        });
 
         // Add fade-in animation CSS
         const style = document.createElement('style');
