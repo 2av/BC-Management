@@ -8,6 +8,14 @@ define('DB_NAME', 'bc_simple');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
+
+// Live configuration
+// define('DB_HOST', 'localhost:3306');
+// define('DB_NAME', 'priyank2_bc');
+// define('DB_USER', 'priyank2');
+// define('DB_PASS', '3nS3r-L!15AxHn');
+
+
 // Application Configuration
 define('APP_NAME', 'Mitra Niidhi Samooh');
 
@@ -290,5 +298,86 @@ function getBiddingStatistics($groupId) {
     ");
     $stmt->execute([$groupId]);
     return $stmt->fetch();
+}
+
+function getMemberGroups($memberId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT g.*, m.id as member_id, m.member_number, m.status as member_status, m.created_at as member_joined_date
+        FROM bc_groups g
+        JOIN members m ON g.id = m.group_id
+        WHERE m.member_name = (SELECT member_name FROM members WHERE id = ?) AND m.status = 'active'
+        ORDER BY g.start_date DESC
+    ");
+    $stmt->execute([$memberId]);
+    return $stmt->fetchAll();
+}
+
+function getCurrentMonthPaymentInfo($groupId, $memberInGroupId) {
+    $pdo = getDB();
+
+    // Get group info to determine total months
+    $stmt = $pdo->prepare("SELECT * FROM bc_groups WHERE id = ?");
+    $stmt->execute([$groupId]);
+    $group = $stmt->fetch();
+
+    if (!$group) {
+        return null;
+    }
+
+    // Get all monthly bids for this group to determine current month
+    $stmt = $pdo->prepare("
+        SELECT month_number FROM monthly_bids
+        WHERE group_id = ?
+        ORDER BY month_number DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$groupId]);
+    $lastBidMonth = $stmt->fetch();
+
+    // Current month is either the next month after last bid, or month 1 if no bids yet
+    $currentMonth = $lastBidMonth ? $lastBidMonth['month_number'] + 1 : 1;
+
+    // If current month exceeds total months, the group is complete
+    if ($currentMonth > $group['total_members']) {
+        $currentMonth = $group['total_members']; // Show last month
+    }
+
+    // Check if there's a completed bid for current month
+    $stmt = $pdo->prepare("
+        SELECT mb.*, m.member_name as winner_name
+        FROM monthly_bids mb
+        LEFT JOIN members m ON mb.taken_by_member_id = m.id
+        WHERE mb.group_id = ? AND mb.month_number = ?
+    ");
+    $stmt->execute([$groupId, $currentMonth]);
+    $currentMonthBid = $stmt->fetch();
+
+    // Check if current member has payment for this month
+    $stmt = $pdo->prepare("
+        SELECT * FROM member_payments
+        WHERE group_id = ? AND member_id = ? AND month_number = ?
+    ");
+    $stmt->execute([$groupId, $memberInGroupId, $currentMonth]);
+    $currentMonthPayment = $stmt->fetch();
+
+    // Determine bidding status
+    $biddingStatus = 'open';
+    if ($currentMonthBid) {
+        $biddingStatus = 'completed';
+    } elseif ($currentMonth > $group['total_members']) {
+        $biddingStatus = 'closed';
+    }
+
+    return [
+        'month_number' => $currentMonth,
+        'bidding_status' => $biddingStatus,
+        'bid_exists' => (bool)$currentMonthBid,
+        'bid_amount' => $currentMonthBid ? $currentMonthBid['bid_amount'] : null,
+        'winner_name' => $currentMonthBid ? $currentMonthBid['winner_name'] : null,
+        'payment_status' => $currentMonthPayment ? $currentMonthPayment['payment_status'] : 'pending',
+        'payment_amount' => $currentMonthPayment ? $currentMonthPayment['payment_amount'] : null,
+        'payment_date' => $currentMonthPayment ? $currentMonthPayment['payment_date'] : null
+    ];
 }
 ?>

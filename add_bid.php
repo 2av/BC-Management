@@ -33,11 +33,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'This month already has a bid entry.';
     } elseif (!$takenByMemberId) {
         $error = 'Please select a member.';
-    } elseif ($isBid === 'Yes' && $bidAmount <= 0) {
-        $error = 'Bid amount must be greater than 0 when bidding.';
-    } elseif ($isBid === 'Yes' && $bidAmount >= $group['total_monthly_collection']) {
-        $error = 'Bid amount must be less than total monthly collection.';
     } else {
+        // Validate that the selected member belongs to this group
+        $memberExists = false;
+        foreach ($members as $member) {
+            if ($member['id'] == $takenByMemberId) {
+                $memberExists = true;
+                break;
+            }
+        }
+        if (!$memberExists) {
+            $error = 'Selected member does not belong to this group.';
+        } else {
+            // Check if the selected member has already won a month
+            $selectedMember = null;
+            foreach ($members as $member) {
+                if ($member['id'] == $takenByMemberId) {
+                    $selectedMember = $member;
+                    break;
+                }
+            }
+            if ($selectedMember && isset($selectedMember['has_won_month']) && $selectedMember['has_won_month']) {
+                $error = "Selected member has already won in Month {$selectedMember['has_won_month']}. Each member can only win once.";
+            }
+        }
+    }
+
+    if (!$error && $isBid === 'Yes' && $bidAmount <= 0) {
+        $error = 'Bid amount must be greater than 0 when bidding.';
+    } elseif (!$error && $isBid === 'Yes' && $bidAmount >= $group['total_monthly_collection']) {
+        $error = 'Bid amount must be less than total monthly collection.';
+    }
+
+    if (!$error) {
         try {
             $pdo = getDB();
             $pdo->beginTransaction();
@@ -62,22 +90,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $paymentDate ?: null
             ]);
             
-            // Add payments for all members for this month
+            // Check if payments already exist for this month
+            $stmt = $pdo->prepare("SELECT member_id FROM member_payments WHERE group_id = ? AND month_number = ?");
+            $stmt->execute([$groupId, $monthNumber]);
+            $existingPayments = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            // Add payments for all members for this month (only if they don't already exist)
             $stmt = $pdo->prepare("
-                INSERT INTO member_payments (group_id, member_id, month_number, payment_amount, payment_status, payment_date) 
+                INSERT INTO member_payments (group_id, member_id, month_number, payment_amount, payment_status, payment_date)
                 VALUES (?, ?, ?, ?, 'paid', ?)
             ");
-            
+
             foreach ($members as $member) {
-                $stmt->execute([
-                    $groupId, 
-                    $member['id'], 
-                    $monthNumber, 
-                    $gainPerMember, 
-                    $paymentDate ?: null
-                ]);
+                // Skip if payment already exists for this member and month
+                if (!in_array($member['id'], $existingPayments)) {
+                    $stmt->execute([
+                        $groupId,
+                        $member['id'],
+                        $monthNumber,
+                        $gainPerMember,
+                        $paymentDate ?: null
+                    ]);
+                }
             }
             
+            // Update the winner member's won status
+            $stmt = $pdo->prepare("UPDATE members SET has_won_month = ?, won_amount = ? WHERE id = ?");
+            $stmt->execute([$monthNumber, $netPayable, $takenByMemberId]);
+
             // Update member summaries
             foreach ($members as $member) {
                 updateMemberSummary($groupId, $member['id']);
@@ -90,7 +130,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         } catch (Exception $e) {
             $pdo->rollBack();
-            $error = 'Failed to add bid. Please try again.';
+            // Better error handling for debugging
+            if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
+                if (strpos($e->getMessage(), 'unique_month_per_group') !== false) {
+                    $error = 'This month already has a bid entry. Please refresh the page and try again.';
+                } elseif (strpos($e->getMessage(), 'unique_payment_per_member_month') !== false) {
+                    $error = 'Payment records for this month already exist. This might happen if the bid was partially added before.';
+                } else {
+                    $error = 'Duplicate entry detected. Please check if this bid already exists.';
+                }
+            } else {
+                // Log the actual error for debugging (in production, log to file)
+                error_log("Add bid error: " . $e->getMessage());
+                $error = 'Failed to add bid. Error: ' . $e->getMessage();
+            }
         }
     }
 }
@@ -133,6 +186,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
                             </div>
                         <?php endif; ?>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> <strong>First Month Guidelines:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>For the first month, typically the organizer takes the money (no bidding)</li>
+                                <li>Set "Is Bid?" to "No" and "Bid Amount" to 0</li>
+                                <li>Select the organizer as the member who takes the money</li>
+                                <li>Members who have already won are shown in gray and cannot be selected again</li>
+                            </ul>
+                        </div>
                         
                         <form method="POST" id="bidForm">
                             <div class="row">
@@ -158,8 +221,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <select class="form-control" id="taken_by_member_id" name="taken_by_member_id" required>
                                             <option value="">Select Member</option>
                                             <?php foreach ($members as $member): ?>
-                                                <option value="<?= $member['id'] ?>" <?= ($_POST['taken_by_member_id'] ?? '') == $member['id'] ? 'selected' : '' ?>>
-                                                    <?= htmlspecialchars($member['member_name']) ?>
+                                                <?php
+                                                $hasWon = isset($member['has_won_month']) && $member['has_won_month'];
+                                                $optionText = "#" . $member['member_number'] . " - " . htmlspecialchars($member['member_name']);
+                                                if ($hasWon) {
+                                                    $optionText .= " (Already won Month " . $member['has_won_month'] . ")";
+                                                }
+                                                ?>
+                                                <option value="<?= $member['id'] ?>"
+                                                        <?= ($_POST['taken_by_member_id'] ?? '') == $member['id'] ? 'selected' : '' ?>
+                                                        <?= $hasWon ? 'style="color: #6c757d; font-style: italic;"' : '' ?>>
+                                                    <?= $optionText ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>

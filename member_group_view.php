@@ -3,12 +3,32 @@ require_once 'config.php';
 requireMemberLogin();
 
 $member = getCurrentMember();
-$groupId = $_SESSION['group_id'];
-$group = getGroupById($groupId);
-$members = getGroupMembers($groupId);
-$monthlyBids = getMonthlyBids($groupId);
-$memberPayments = getMemberPayments($groupId);
-$memberSummary = getMemberSummary($groupId);
+$currentGroupId = $_SESSION['group_id'];
+
+// Get all groups the member belongs to
+$memberGroups = getMemberGroups($member['id']);
+
+// Determine which group to display
+$selectedGroupId = isset($_GET['group_id']) ? (int)$_GET['group_id'] : $currentGroupId;
+
+// Verify member has access to selected group
+$hasAccess = false;
+foreach ($memberGroups as $memberGroup) {
+    if ($memberGroup['id'] == $selectedGroupId) {
+        $hasAccess = true;
+        break;
+    }
+}
+
+if (!$hasAccess) {
+    $selectedGroupId = $currentGroupId;
+}
+
+$group = getGroupById($selectedGroupId);
+$members = getGroupMembers($selectedGroupId);
+$monthlyBids = getMonthlyBids($selectedGroupId);
+$memberPayments = getMemberPayments($selectedGroupId);
+$memberSummary = getMemberSummary($selectedGroupId);
 
 // Organize payments by member and month
 $paymentsMatrix = [];
@@ -20,6 +40,15 @@ foreach ($memberPayments as $payment) {
 $summaryByMember = [];
 foreach ($memberSummary as $summary) {
     $summaryByMember[$summary['member_id']] = $summary;
+}
+
+// Find current member's ID in the selected group
+$currentMemberInGroup = null;
+foreach ($members as $memberInGroup) {
+    if ($memberInGroup['member_name'] == $member['member_name']) {
+        $currentMemberInGroup = $memberInGroup;
+        break;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -246,6 +275,40 @@ foreach ($memberSummary as $summary) {
             </div>
         </div>
 
+        <!-- Group Selector -->
+        <?php if (count($memberGroups) > 1): ?>
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exchange-alt me-2"></i>Switch Group View
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="GET" action="" class="d-flex align-items-center gap-3">
+                            <label for="group_id" class="form-label mb-0 fw-bold">Select Group:</label>
+                            <select name="group_id" id="group_id" class="form-select" style="width: auto;" onchange="this.form.submit()">
+                                <?php foreach ($memberGroups as $memberGroup): ?>
+                                    <option value="<?= $memberGroup['id'] ?>"
+                                            <?= $selectedGroupId == $memberGroup['id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($memberGroup['group_name']) ?>
+                                        <?php if ($memberGroup['id'] == $currentGroupId): ?>
+                                            (Current Group)
+                                        <?php endif; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">
+                                View complete details for any of your groups
+                            </small>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Basic Info Table -->
         <div class="row mb-4">
             <div class="col-12">
@@ -295,7 +358,7 @@ foreach ($memberSummary as $summary) {
                                     $bid = reset($bid);
                                     if ($bid) {
                                         $name = htmlspecialchars($bid['member_name']);
-                                        if ($bid['taken_by_member_id'] == $member['id']) {
+                                        if ($currentMemberInGroup && $bid['taken_by_member_id'] == $currentMemberInGroup['id']) {
                                             echo '<strong style="color: green;">' . $name . ' (You)</strong>';
                                         } else {
                                             echo $name;
@@ -406,12 +469,12 @@ foreach ($memberSummary as $summary) {
                     </thead>
                     <tbody>
                         <?php foreach ($members as $memberRow): ?>
-                            <tr class="<?= $memberRow['id'] == $member['id'] ? 'my-row' : '' ?>">
+                            <tr class="<?= ($currentMemberInGroup && $memberRow['id'] == $currentMemberInGroup['id']) ? 'my-row' : '' ?>">
                                 <td class="text-left fw-bold sticky-col">
                                     <span class="name-tooltip" data-full-name="<?= htmlspecialchars($memberRow['member_name']) ?>" title="<?= htmlspecialchars($memberRow['member_name']) ?>">
                                         <?= htmlspecialchars($memberRow['member_name']) ?>
                                     </span>
-                                    <?php if ($memberRow['id'] == $member['id']): ?>
+                                    <?php if ($currentMemberInGroup && $memberRow['id'] == $currentMemberInGroup['id']): ?>
                                         <span class="badge bg-success ms-1">You</span>
                                     <?php endif; ?>
                                 </td>

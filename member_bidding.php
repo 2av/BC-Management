@@ -4,7 +4,24 @@ require_once 'config.php';
 requireMemberLogin();
 
 $member = getCurrentMember();
-$groupId = $_SESSION['group_id'];
+
+// Get all groups this member belongs to
+$allMemberGroups = getMemberGroups($member['id']);
+
+// Determine which group to use (from URL parameter or default to first group)
+$selectedGroupId = isset($_GET['group_id']) ? (int)$_GET['group_id'] : null;
+
+// If no group selected or invalid group, use the first available group
+if (!$selectedGroupId || !in_array($selectedGroupId, array_column($allMemberGroups, 'id'))) {
+    $selectedGroupId = $allMemberGroups[0]['id'] ?? null;
+}
+
+if (!$selectedGroupId) {
+    setMessage("You are not a member of any group.", 'error');
+    redirect('member_dashboard.php');
+}
+
+$groupId = $selectedGroupId;
 $group = getGroupById($groupId);
 
 // Handle bid submission
@@ -19,52 +36,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_bid'])) {
         $errors[] = "Bid amount must be greater than 0";
     }
 
-    // Check if member has already won
-    if ($member['has_won_month']) {
-        $errors[] = "You have already won in month " . $member['has_won_month'];
-    }
-
-    // Check if bidding is open for this month and get bidding limits
+    // Check if member has already won in this group
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT * FROM month_bidding_status WHERE group_id = ? AND month_number = ?");
-    $stmt->execute([$groupId, $monthNumber]);
-    $biddingStatus = $stmt->fetch();
+    $groupMembers = getGroupMembers($groupId);
+    $memberInGroup = array_filter($groupMembers, fn($m) => $m['member_name'] === $member['member_name']);
+    $memberInGroup = reset($memberInGroup);
 
-    if (!$biddingStatus || $biddingStatus['bidding_status'] !== 'open') {
-        $errors[] = "Bidding is not open for this month";
+    if (!$memberInGroup) {
+        $errors[] = "You are not a member of this group";
     } else {
-        // Check bidding limits from month_bidding_status
-        if ($biddingStatus['minimum_bid_amount'] > 0 && $bidAmount < $biddingStatus['minimum_bid_amount']) {
-            $errors[] = "Bid amount must be at least ₹" . number_format($biddingStatus['minimum_bid_amount']);
-        }
+        // Check if member has already won in this group
+        $stmt = $pdo->prepare("SELECT month_number FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+        $stmt->execute([$groupId, $memberInGroup['id']]);
+        $wonMonth = $stmt->fetch();
 
-        if ($biddingStatus['maximum_bid_amount'] > 0 && $bidAmount > $biddingStatus['maximum_bid_amount']) {
-            $errors[] = "Bid amount cannot exceed ₹" . number_format($biddingStatus['maximum_bid_amount']);
-        }
-
-        // Fallback to total collection if no maximum set
-        if ($biddingStatus['maximum_bid_amount'] == 0 && $bidAmount >= $group['total_monthly_collection']) {
-            $errors[] = "Bid amount must be less than total monthly collection (₹" . number_format($group['total_monthly_collection']) . ")";
+        if ($wonMonth) {
+            $errors[] = "You have already won in month " . $wonMonth['month_number'] . " in this group";
         }
     }
-    
-    // Check if member already placed a bid for this month
-    $stmt = $pdo->prepare("SELECT id FROM member_bids WHERE group_id = ? AND member_id = ? AND month_number = ?");
-    $stmt->execute([$groupId, $member['id'], $monthNumber]);
-    if ($stmt->fetch()) {
-        $errors[] = "You have already placed a bid for this month";
+
+    // Check if this month already has a winner
+    $stmt = $pdo->prepare("SELECT * FROM monthly_bids WHERE group_id = ? AND month_number = ?");
+    $stmt->execute([$groupId, $monthNumber]);
+    $existingBid = $stmt->fetch();
+
+    if ($existingBid) {
+        $errors[] = "This month already has a winner";
+    }
+
+    // Basic bid validation
+    if ($bidAmount >= $group['total_monthly_collection']) {
+        $errors[] = "Bid amount must be less than total monthly collection (₹" . number_format($group['total_monthly_collection']) . ")";
     }
     
-    if (empty($errors)) {
+    // Check if member already placed a bid for this month (only if member is valid)
+    if ($memberInGroup && empty($errors)) {
+        $stmt = $pdo->prepare("SELECT id FROM member_bids WHERE group_id = ? AND member_id = ? AND month_number = ?");
+        $stmt->execute([$groupId, $memberInGroup['id'], $monthNumber]);
+        if ($stmt->fetch()) {
+            $errors[] = "You have already placed a bid for this month";
+        }
+    }
+
+    if (empty($errors) && $memberInGroup) {
         // Insert the bid
         $stmt = $pdo->prepare("
-            INSERT INTO member_bids (group_id, member_id, month_number, bid_amount) 
+            INSERT INTO member_bids (group_id, member_id, month_number, bid_amount)
             VALUES (?, ?, ?, ?)
         ");
-        
-        if ($stmt->execute([$groupId, $member['id'], $monthNumber, $bidAmount])) {
+
+        if ($stmt->execute([$groupId, $memberInGroup['id'], $monthNumber, $bidAmount])) {
             setMessage("Your bid of ₹" . number_format($bidAmount) . " for Month $monthNumber has been submitted successfully!", 'success');
-            redirect('member_bidding.php');
+            redirect('member_bidding.php?group_id=' . $groupId);
         } else {
             $errors[] = "Failed to submit bid. Please try again.";
         }
@@ -78,54 +101,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_bid'])) {
 // Get available months for bidding
 function getAvailableBiddingMonths($groupId, $memberId) {
     $pdo = getDB();
-    $stmt = $pdo->prepare("
-        SELECT mbs.*,
-               (SELECT COUNT(*) FROM member_bids mb WHERE mb.group_id = mbs.group_id AND mb.month_number = mbs.month_number) as total_bids,
-               (SELECT COUNT(*) FROM member_bids mb WHERE mb.group_id = mbs.group_id AND mb.month_number = mbs.month_number AND mb.member_id = ?) as my_bid_count
-        FROM month_bidding_status mbs
-        WHERE mbs.group_id = ?
-        ORDER BY mbs.month_number
-    ");
-    $stmt->execute([$memberId, $groupId]);
-    return $stmt->fetchAll();
+
+    // Get group info to determine total months
+    $stmt = $pdo->prepare("SELECT total_members FROM bc_groups WHERE id = ?");
+    $stmt->execute([$groupId]);
+    $group = $stmt->fetch();
+
+    if (!$group) {
+        return [];
+    }
+
+    $totalMonths = $group['total_members'];
+    $months = [];
+
+    // Get all monthly bids to determine which months are completed
+    $stmt = $pdo->prepare("SELECT month_number FROM monthly_bids WHERE group_id = ?");
+    $stmt->execute([$groupId]);
+    $completedMonths = array_column($stmt->fetchAll(), 'month_number');
+
+    for ($month = 1; $month <= $totalMonths; $month++) {
+        // Determine bidding status
+        $isCompleted = in_array($month, $completedMonths);
+        $bidding_status = $isCompleted ? 'completed' : 'open';
+
+        // Get bid counts
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ?");
+        $stmt->execute([$groupId, $month]);
+        $totalBids = $stmt->fetch()['count'];
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ? AND member_id = ?");
+        $stmt->execute([$groupId, $month, $memberId]);
+        $myBidCount = $stmt->fetch()['count'];
+
+        $months[] = [
+            'month_number' => $month,
+            'group_id' => $groupId,
+            'bidding_status' => $bidding_status,
+            'minimum_bid_amount' => 1,
+            'maximum_bid_amount' => 0, // 0 means no limit
+            'bidding_end_date' => null,
+            'total_bids' => $totalBids,
+            'my_bid_count' => $myBidCount
+        ];
+    }
+
+    return $months;
 }
 
 // Get current active month (next month to be bid on)
 function getCurrentActiveMonth($groupId) {
     $pdo = getDB();
 
-    // First, try to find an open month
-    $stmt = $pdo->prepare("
-        SELECT * FROM month_bidding_status
-        WHERE group_id = ? AND bidding_status = 'open'
-        ORDER BY month_number LIMIT 1
-    ");
+    // Get group info to determine total months
+    $stmt = $pdo->prepare("SELECT total_members FROM bc_groups WHERE id = ?");
     $stmt->execute([$groupId]);
-    $openMonth = $stmt->fetch();
+    $group = $stmt->fetch();
 
-    if ($openMonth) {
-        return $openMonth;
+    if (!$group) {
+        return null;
     }
 
-    // If no open month, find the next month after completed ones
+    // Get the last completed month
     $stmt = $pdo->prepare("
-        SELECT MIN(month_number) as next_month
-        FROM month_bidding_status
-        WHERE group_id = ? AND bidding_status = 'not_started'
+        SELECT MAX(month_number) as last_month
+        FROM monthly_bids
+        WHERE group_id = ?
     ");
     $stmt->execute([$groupId]);
-    $result = $stmt->fetch();
+    $lastCompletedMonth = $stmt->fetch()['last_month'] ?? 0;
 
-    if ($result && $result['next_month']) {
-        $stmt = $pdo->prepare("
-            SELECT * FROM month_bidding_status
-            WHERE group_id = ? AND month_number = ?
-        ");
-        $stmt->execute([$groupId, $result['next_month']]);
-        return $stmt->fetch();
+    // Current active month is the next month after last completed
+    $currentMonth = $lastCompletedMonth + 1;
+
+    // If current month exceeds total months, the group is complete
+    if ($currentMonth > $group['total_members']) {
+        return null; // No active month, group is complete
     }
 
-    return null;
+    return [
+        'month_number' => $currentMonth,
+        'group_id' => $groupId,
+        'bidding_status' => 'open',
+        'minimum_bid_amount' => 1,
+        'maximum_bid_amount' => 0, // 0 means no limit
+        'bidding_end_date' => null
+    ];
 }
 
 // Get current bids for a specific month
@@ -142,7 +202,12 @@ function getCurrentBids($groupId, $monthNumber) {
     return $stmt->fetchAll();
 }
 
-$availableMonths = getAvailableBiddingMonths($groupId, $member['id']);
+// Get member info in selected group
+$groupMembers = getGroupMembers($groupId);
+$memberInGroup = array_filter($groupMembers, fn($m) => $m['member_name'] === $member['member_name']);
+$memberInGroup = reset($memberInGroup);
+
+$availableMonths = getAvailableBiddingMonths($groupId, $memberInGroup['id'] ?? 0);
 $currentActiveMonth = getCurrentActiveMonth($groupId);
 ?>
 <!DOCTYPE html>
@@ -252,21 +317,62 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
             </div>
         </div>
 
+        <!-- Group Selector -->
+        <?php if (count($allMemberGroups) > 1): ?>
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users text-primary me-2"></i>Select Group for Bidding
+                        </h5>
+                        <small class="text-muted">You are a member of multiple groups</small>
+                    </div>
+                    <div class="col-md-6">
+                        <select class="form-select" onchange="changeGroup(this.value)">
+                            <?php foreach ($allMemberGroups as $memberGroup): ?>
+                                <option value="<?= $memberGroup['id'] ?>" <?= $memberGroup['id'] == $groupId ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($memberGroup['group_name']) ?>
+                                    (<?= $memberGroup['total_members'] ?> members - ₹<?= number_format($memberGroup['total_monthly_collection']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Group Info Card -->
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <strong>Group:</strong> Family BC Group
+                        <strong>Group:</strong> <?= htmlspecialchars($group['group_name']) ?>
                     </div>
                     <div class="col-md-3">
-                        <strong>Monthly Collection:</strong> ₹18,000
+                        <strong>Monthly Collection:</strong> ₹<?= number_format($group['total_monthly_collection']) ?>
                     </div>
                     <div class="col-md-3">
-                        <strong>Your Member #:</strong> 5
+                        <strong>Your Member #:</strong>
+                        <?php
+                        // Get member number in this specific group
+                        $groupMembers = getGroupMembers($groupId);
+                        $memberInGroup = array_filter($groupMembers, fn($m) => $m['member_name'] === $member['member_name']);
+                        $memberInGroup = reset($memberInGroup);
+                        echo $memberInGroup ? $memberInGroup['member_number'] : 'N/A';
+                        ?>
                     </div>
                     <div class="col-md-3">
-                        <strong>Won Month:</strong> Not yet
+                        <strong>Won Month:</strong>
+                        <?php
+                        // Check if member has won in this group
+                        $pdo = getDB();
+                        $stmt = $pdo->prepare("SELECT month_number FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+                        $stmt->execute([$groupId, $memberInGroup['id'] ?? 0]);
+                        $wonMonth = $stmt->fetch();
+                        echo $wonMonth ? "Month " . $wonMonth['month_number'] : "Not yet";
+                        ?>
                     </div>
                 </div>
             </div>
@@ -328,12 +434,18 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                                 <div class="col-md-4">
                                     <strong><i class="fas fa-trophy text-warning"></i> Your Status:</strong><br>
                                     <span class="h6">
-                                        <?php if ($member['has_won_month']): ?>
-                                            <span class="text-muted">Won Month <?= $member['has_won_month'] ?></span>
+                                        <?php
+                                        // Check if member has won in this group
+                                        $stmt = $pdo->prepare("SELECT month_number FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+                                        $stmt->execute([$groupId, $memberInGroup['id'] ?? 0]);
+                                        $wonMonth = $stmt->fetch();
+                                        ?>
+                                        <?php if ($wonMonth): ?>
+                                            <span class="text-muted">Won Month <?= $wonMonth['month_number'] ?></span>
                                         <?php else: ?>
                                             <?php
                                             $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ? AND member_id = ?");
-                                            $stmt->execute([$groupId, $currentActiveMonth['month_number'], $member['id']]);
+                                            $stmt->execute([$groupId, $currentActiveMonth['month_number'], $memberInGroup['id'] ?? 0]);
                                             $myBidCount = $stmt->fetch()['count'];
                                             ?>
                                             <?php if ($myBidCount > 0): ?>
@@ -348,10 +460,16 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                         </div>
 
                         <div class="col-md-4 text-center">
-                            <?php if ($currentActiveMonth['bidding_status'] === 'open' && !$member['has_won_month']): ?>
+                            <?php
+                            // Check if member has won in this group
+                            $stmt = $pdo->prepare("SELECT month_number FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+                            $stmt->execute([$groupId, $memberInGroup['id'] ?? 0]);
+                            $memberHasWon = $stmt->fetch();
+                            ?>
+                            <?php if ($currentActiveMonth['bidding_status'] === 'open' && !$memberHasWon): ?>
                                 <?php
                                 $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ? AND member_id = ?");
-                                $stmt->execute([$groupId, $currentActiveMonth['month_number'], $member['id']]);
+                                $stmt->execute([$groupId, $currentActiveMonth['month_number'], $memberInGroup['id'] ?? 0]);
                                 $alreadyBid = $stmt->fetch()['count'] > 0;
                                 ?>
 
@@ -424,11 +542,11 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                                         You have placed your bid for this month.
                                     </div>
                                 <?php endif; ?>
-                            <?php elseif ($member['has_won_month']): ?>
+                            <?php elseif ($memberHasWon): ?>
                                 <div class="alert alert-info">
                                     <i class="fas fa-trophy"></i>
                                     <strong>Already Won!</strong><br>
-                                    You won Month <?= $member['has_won_month'] ?>
+                                    You won Month <?= $memberHasWon['month_number'] ?>
                                 </div>
                             <?php else: ?>
                                 <div class="alert alert-secondary">
@@ -481,7 +599,7 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                                 <i class="fas fa-users"></i> Total Bids: <?= $month['total_bids'] ?>
                             </p>
                             
-                            <?php if ($month['bidding_status'] === 'open' && !$member['has_won_month'] && $month['my_bid_count'] == 0): ?>
+                            <?php if ($month['bidding_status'] === 'open' && !$memberHasWon && $month['my_bid_count'] == 0): ?>
                                 <!-- Bid Form -->
                                 <form method="POST" class="mt-3">
                                     <input type="hidden" name="month_number" value="<?= $month['month_number'] ?>">
@@ -511,9 +629,9 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                                 <div class="alert alert-warning">
                                     <i class="fas fa-check-circle"></i> You have already placed a bid for this month
                                 </div>
-                            <?php elseif ($member['has_won_month']): ?>
+                            <?php elseif ($memberHasWon): ?>
                                 <div class="alert alert-info">
-                                    <i class="fas fa-trophy"></i> You have already won in Month <?= $member['has_won_month'] ?>
+                                    <i class="fas fa-trophy"></i> You have already won in Month <?= $memberHasWon['month_number'] ?>
                                 </div>
                             <?php endif; ?>
                             
@@ -547,6 +665,10 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function changeGroup(groupId) {
+            window.location.href = 'member_bidding.php?group_id=' + groupId;
+        }
+
         function showBids(monthNumber) {
             document.getElementById('modalMonthTitle').textContent = 'Month ' + monthNumber;
 

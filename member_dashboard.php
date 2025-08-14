@@ -8,8 +8,65 @@ if (isset($_GET['logout'])) {
 }
 
 $member = getCurrentMember();
-$groupId = $_SESSION['group_id'];
-$group = getGroupById($groupId);
+$currentGroupId = $_SESSION['group_id'];
+$currentGroup = getGroupById($currentGroupId);
+
+// Get all groups where this member name exists
+$pdo = getDB();
+$stmt = $pdo->prepare("
+    SELECT DISTINCT g.*, m.id as member_id, m.member_number, m.status as member_status, m.created_at as member_joined_date
+    FROM bc_groups g
+    JOIN members m ON g.id = m.group_id
+    WHERE m.member_name = ? AND m.status = 'active'
+    ORDER BY g.start_date DESC
+");
+$stmt->execute([$member['member_name']]);
+$allMemberGroups = $stmt->fetchAll();
+
+// Calculate comprehensive data for all groups
+$groupsData = [];
+foreach ($allMemberGroups as $groupInfo) {
+    $gId = $groupInfo['id'];
+    $gMembers = getGroupMembers($gId);
+    $gMonthlyBids = getMonthlyBids($gId);
+    $gMemberPayments = getMemberPayments($gId);
+    $gMemberSummary = getMemberSummary($gId);
+
+    // Calculate group progress
+    $totalMonths = $groupInfo['total_members'];
+    $completedMonths = count($gMonthlyBids);
+    $progressPercentage = ($completedMonths / $totalMonths) * 100;
+
+    // Calculate estimated end date
+    $startDate = new DateTime($groupInfo['start_date']);
+    $estimatedEndDate = clone $startDate;
+    $estimatedEndDate->add(new DateInterval('P' . ($totalMonths - 1) . 'M'));
+
+    // Get member's data in this group
+    $memberInGroup = array_filter($gMembers, fn($m) => $m['member_name'] === $member['member_name']);
+    $memberInGroup = reset($memberInGroup);
+
+    $memberPaymentsInGroup = array_filter($gMemberPayments, fn($p) => $p['member_id'] == $memberInGroup['id']);
+    $memberSummaryInGroup = array_filter($gMemberSummary, fn($s) => $s['member_id'] == $memberInGroup['id']);
+    $memberSummaryInGroup = reset($memberSummaryInGroup);
+
+    $groupsData[] = [
+        'group' => $groupInfo,
+        'member_in_group' => $memberInGroup,
+        'total_months' => $totalMonths,
+        'completed_months' => $completedMonths,
+        'progress_percentage' => $progressPercentage,
+        'estimated_end_date' => $estimatedEndDate,
+        'member_payments' => $memberPaymentsInGroup,
+        'member_summary' => $memberSummaryInGroup,
+        'monthly_bids' => $gMonthlyBids,
+        'is_current_group' => $gId == $currentGroupId
+    ];
+}
+
+// For backward compatibility, keep current group data
+$groupId = $currentGroupId;
+$group = $currentGroup;
 $members = getGroupMembers($groupId);
 $monthlyBids = getMonthlyBids($groupId);
 $memberPayments = getMemberPayments($groupId);
@@ -285,6 +342,64 @@ $recentActivities = $stmt->fetchAll();
             transform: translateY(-5px);
             box-shadow: 0 15px 35px rgba(0,0,0,0.2);
         }
+
+        .table-responsive {
+            border-radius: 0.375rem;
+        }
+
+        .table th {
+            border-top: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 1rem 0.75rem;
+        }
+
+        .table td {
+            padding: 1rem 0.75rem;
+            vertical-align: middle;
+        }
+
+        .progress {
+            border-radius: 10px;
+        }
+
+        .progress-bar {
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+        }
+
+        .table-success {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        /* Group selection styles */
+        .group-row {
+            transition: all 0.3s ease;
+        }
+
+        .group-row:hover {
+            background-color: #f8f9fa !important;
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .group-row.table-success {
+            background-color: #d1e7dd !important;
+            border-left: 4px solid #28a745;
+        }
+
+        .group-row.table-success:hover {
+            background-color: #c3e6cb !important;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -327,24 +442,9 @@ $recentActivities = $stmt->fetchAll();
                     </div>
                     <div class="col-md-6">
                         <h3 class="mb-1"><i class="fas fa-hand-holding-heart me-2"></i>Welcome, <?= htmlspecialchars($member['member_name']) ?>!</h3>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p class="mb-1">
-                                    <i class="fas fa-users-cog text-warning"></i> <strong>Group:</strong> <?= htmlspecialchars($group['group_name']) ?>
-                                </p>
-                                <p class="mb-1">
-                                    <i class="fas fa-id-badge text-info"></i> <strong>Member #:</strong> <?= $member['member_number'] ?>
-                                </p>
-                            </div>
-                            <div class="col-md-6">
-                                <p class="mb-1">
-                                    <i class="fas fa-coins text-warning"></i> <strong>Monthly:</strong> <?= formatCurrency($group['monthly_contribution']) ?>
-                                </p>
-                                <p class="mb-1">
-                                    <i class="fas fa-calendar-alt text-info"></i> <strong>Started:</strong> <?= formatDate($group['start_date']) ?>
-                                </p>
-                            </div>
-                        </div>
+                        <p class="mb-2 text-muted">
+                            <i class="fas fa-info-circle"></i> You are a member of <?= count($groupsData) ?> group(s)
+                        </p>
                     </div>
                     <div class="col-md-4 text-center">
                         <div class="d-flex flex-column gap-2">
@@ -363,31 +463,317 @@ $recentActivities = $stmt->fetchAll();
             </div>
         </div>
 
-        <!-- Current Month Payment Status -->
-        <?php if ($currentMonthPaymentInfo): ?>
+        <!-- All Groups Information -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="card border-<?= $currentMonthPaymentInfo['payment_status'] === 'paid' ? 'success' : 'warning' ?>">
-                    <div class="card-header bg-<?= $currentMonthPaymentInfo['payment_status'] === 'paid' ? 'success' : 'warning' ?> text-white">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
                         <h5 class="mb-0">
-                            <i class="fas fa-calendar-check me-2"></i>Current Month Payment Status - Month <?= $currentMonthPaymentInfo['month_number'] ?>
+                            <i class="fas fa-users me-2"></i>My Groups Overview
+                            <small class="ms-3 text-light">Click on a group to view detailed information</small>
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="fas fa-users-cog"></i> Group Name</th>
+                                        <th><i class="fas fa-coins"></i> Monthly Amount</th>
+                                        <th><i class="fas fa-calendar-alt"></i> Start Date</th>
+                                        <th><i class="fas fa-calendar-check"></i> Est. End Date</th>
+                                        <th><i class="fas fa-chart-pie"></i> Progress</th>
+                                        <th><i class="fas fa-trophy"></i> Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($groupsData as $groupData): ?>
+                                    <tr class="<?= $groupData['is_current_group'] ? 'table-success' : '' ?> group-row"
+                                        style="cursor: pointer;"
+                                        onclick="selectGroup(<?= $groupData['group']['id'] ?>)"
+                                        title="Click to view detailed information for this group">
+                                        <td>
+                                            <strong><?= htmlspecialchars($groupData['group']['group_name']) ?></strong>
+                                            <?php if ($groupData['is_current_group']): ?>
+                                                <span class="badge bg-success ms-2">Selected</span>
+                                            <?php endif; ?>
+                                            <br>
+                                            <small class="text-muted">
+                                                <i class="fas fa-id-badge"></i> Member #<?= $groupData['member_in_group']['member_number'] ?>
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <strong><?= formatCurrency($groupData['group']['monthly_contribution']) ?></strong>
+                                        </td>
+                                        <td>
+                                            <?= formatDate($groupData['group']['start_date']) ?>
+                                        </td>
+                                        <td>
+                                            <?= $groupData['estimated_end_date']->format('d/m/Y') ?>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar bg-success" role="progressbar"
+                                                     style="width: <?= $groupData['progress_percentage'] ?>%">
+                                                    <?= number_format($groupData['progress_percentage'], 1) ?>%
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">
+                                                <?= $groupData['completed_months'] ?> / <?= $groupData['total_months'] ?> months
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <?php if ($groupData['group']['status'] === 'completed'): ?>
+                                                <span class="badge bg-success">Completed</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-primary">Active</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Multi-Group Summary -->
+        <?php if (count($groupsData) > 1): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Overall Summary Across All Groups
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <?php
+                        // Calculate overall statistics
+                        $totalMonthlyContributions = 0;
+                        $totalPaidAmount = 0;
+                        $totalReceivedAmount = 0;
+                        $totalActiveGroups = 0;
+                        $totalCompletedGroups = 0;
+
+                        foreach ($groupsData as $groupData) {
+                            $totalMonthlyContributions += $groupData['group']['monthly_contribution'];
+                            if ($groupData['member_summary']) {
+                                $totalPaidAmount += $groupData['member_summary']['total_paid'];
+                                $totalReceivedAmount += $groupData['member_summary']['given_amount'];
+                            }
+                            if ($groupData['group']['status'] === 'active') {
+                                $totalActiveGroups++;
+                            } else {
+                                $totalCompletedGroups++;
+                            }
+                        }
+
+                        $netPosition = $totalReceivedAmount - $totalPaidAmount;
+                        ?>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                                    <h6>Total Groups</h6>
+                                    <h4 class="text-primary"><?= count($groupsData) ?></h4>
+                                    <small class="text-muted"><?= $totalActiveGroups ?> Active, <?= $totalCompletedGroups ?> Completed</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-coins fa-2x text-warning mb-2"></i>
+                                    <h6>Monthly Contributions</h6>
+                                    <h4 class="text-warning"><?= formatCurrency($totalMonthlyContributions) ?></h4>
+                                    <small class="text-muted">Combined across all groups</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-arrow-up fa-2x text-danger mb-2"></i>
+                                    <h6>Total Paid</h6>
+                                    <h4 class="text-danger"><?= formatCurrency($totalPaidAmount) ?></h4>
+                                    <small class="text-muted">Amount contributed</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <i class="fas fa-arrow-down fa-2x text-success mb-2"></i>
+                                    <h6>Total Received</h6>
+                                    <h4 class="text-success"><?= formatCurrency($totalReceivedAmount) ?></h4>
+                                    <small class="text-muted">Amount received</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="text-center p-3 <?= $netPosition >= 0 ? 'bg-success' : 'bg-danger' ?> text-white rounded">
+                                    <i class="fas fa-balance-scale fa-2x mb-2"></i>
+                                    <h6>Net Position</h6>
+                                    <h4><?= formatCurrency(abs($netPosition)) ?></h4>
+                                    <small>
+                                        <?php if ($netPosition > 0): ?>
+                                            You have received ₹<?= number_format($netPosition) ?> more than you have paid
+                                        <?php elseif ($netPosition < 0): ?>
+                                            You have paid ₹<?= number_format(abs($netPosition)) ?> more than you have received
+                                        <?php else: ?>
+                                            Your payments and receipts are balanced
+                                        <?php endif; ?>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Group Selector for Detailed View -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-filter me-2"></i>Detailed View - Select Group
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="GET" action="" class="d-flex align-items-center gap-3">
+                            <label for="selected_group" class="form-label mb-0 fw-bold">View Details for:</label>
+                            <select name="selected_group" id="selected_group" class="form-select" style="width: auto;" onchange="this.form.submit()">
+                                <?php foreach ($groupsData as $groupData): ?>
+                                    <option value="<?= $groupData['group']['id'] ?>"
+                                            <?= (isset($_GET['selected_group']) ? $_GET['selected_group'] : $currentGroupId) == $groupData['group']['id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($groupData['group']['group_name']) ?>
+                                        <?php if ($groupData['is_current_group']): ?>
+                                            (Current Group)
+                                        <?php endif; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="text-muted">
+                                The sections below will show data for the selected group only
+                            </small>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <?php
+        // Determine which group to show detailed data for
+        $selectedGroupId = isset($_GET['selected_group']) ? (int)$_GET['selected_group'] : $currentGroupId;
+        $selectedGroupData = null;
+        foreach ($groupsData as $groupData) {
+            if ($groupData['group']['id'] == $selectedGroupId) {
+                $selectedGroupData = $groupData;
+                break;
+            }
+        }
+
+        // If selected group data found, override the current group variables for detailed sections
+        if ($selectedGroupData) {
+            $groupId = $selectedGroupData['group']['id'];
+            $group = $selectedGroupData['group'];
+            $members = getGroupMembers($groupId);
+            $monthlyBids = getMonthlyBids($groupId);
+            $memberPayments = getMemberPayments($groupId);
+            $memberSummary = getMemberSummary($groupId);
+
+            // Get the member's ID in the selected group
+            $memberInSelectedGroup = $selectedGroupData['member_in_group'];
+            $memberIdInSelectedGroup = $memberInSelectedGroup ? $memberInSelectedGroup['id'] : null;
+
+            if ($memberIdInSelectedGroup) {
+                // Recalculate member-specific data for selected group
+                $myPayments = array_filter($memberPayments, fn($p) => $p['member_id'] == $memberIdInSelectedGroup);
+                $mySummary = array_filter($memberSummary, fn($s) => $s['member_id'] == $memberIdInSelectedGroup);
+                $mySummary = reset($mySummary);
+
+                // Organize payments by month
+                $myPaymentsByMonth = [];
+                foreach ($myPayments as $payment) {
+                    $myPaymentsByMonth[$payment['month_number']] = $payment;
+                }
+
+                // Calculate additional statistics
+                $totalMonths = $group['total_members'];
+                $paidMonths = count(array_filter($myPayments, fn($p) => $p['payment_status'] === 'paid'));
+                $pendingMonths = count(array_filter($myPayments, fn($p) => $p['payment_status'] === 'pending'));
+                $remainingMonths = $totalMonths - $paidMonths - $pendingMonths;
+
+                // Get my bid wins
+                $myBidWins = array_filter($monthlyBids, fn($b) => $b['taken_by_member_id'] == $memberIdInSelectedGroup);
+
+                // Calculate payment progress data for chart
+                $paymentProgressData = [];
+                for ($month = 1; $month <= $totalMonths; $month++) {
+                    $payment = $myPaymentsByMonth[$month] ?? null;
+                    $paymentProgressData[] = [
+                        'month' => $month,
+                        'status' => $payment ? $payment['payment_status'] : 'pending',
+                        'amount' => $payment ? $payment['payment_amount'] : $group['monthly_contribution'],
+                        'date' => $payment ? $payment['payment_date'] : null
+                    ];
+                }
+
+                // Get recent activities for selected group
+                $stmt = $pdo->prepare("
+                    SELECT
+                        mb.month_number,
+                        mb.bid_amount,
+                        mb.net_payable,
+                        mb.payment_date,
+                        m.member_name as winner_name,
+                        m.member_number as winner_number
+                    FROM monthly_bids mb
+                    JOIN members m ON mb.taken_by_member_id = m.id
+                    WHERE mb.group_id = ?
+                    ORDER BY mb.month_number DESC
+                    LIMIT 5
+                ");
+                $stmt->execute([$groupId]);
+                $recentActivities = $stmt->fetchAll();
+            }
+        }
+        ?>
+
+        <!-- Current Month Payment Status for Selected Group -->
+        <?php
+        // Get current month payment info for selected group
+        $selectedCurrentMonthPaymentInfo = null;
+        if ($selectedGroupData && isset($memberIdInSelectedGroup)) {
+            $selectedCurrentMonthPaymentInfo = getCurrentMonthPaymentInfo($selectedGroupId, $memberIdInSelectedGroup);
+        }
+        ?>
+        <?php if ($selectedCurrentMonthPaymentInfo): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-<?= $selectedCurrentMonthPaymentInfo['payment_status'] === 'paid' ? 'success' : 'warning' ?>">
+                    <div class="card-header bg-<?= $selectedCurrentMonthPaymentInfo['payment_status'] === 'paid' ? 'success' : 'warning' ?> text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-check me-2"></i>Current Month Payment Status - Month <?= $selectedCurrentMonthPaymentInfo['month_number'] ?>
+                            <small class="ms-2">(<?= htmlspecialchars($selectedGroupData['group']['group_name']) ?>)</small>
                         </h5>
                     </div>
                     <div class="card-body">
                         <div class="row align-items-center">
                             <div class="col-md-8">
-                                <?php if ($currentMonthPaymentInfo['bidding_status'] === 'completed' && $currentMonthPaymentInfo['bid_exists']): ?>
-                                    <?php if ($currentMonthPaymentInfo['payment_status'] === 'paid'): ?>
+                                <?php if ($selectedCurrentMonthPaymentInfo['bidding_status'] === 'completed' && $selectedCurrentMonthPaymentInfo['bid_exists']): ?>
+                                    <?php if ($selectedCurrentMonthPaymentInfo['payment_status'] === 'paid'): ?>
                                         <div class="d-flex align-items-center">
                                             <i class="fas fa-check-circle text-success fa-2x me-3"></i>
                                             <div>
                                                 <h6 class="mb-1 text-success">Payment Completed</h6>
-                                                <p class="mb-1">You have paid <strong><?= formatCurrency($currentMonthPaymentInfo['payment_amount']) ?></strong> for Month <?= $currentMonthPaymentInfo['month_number'] ?></p>
+                                                <p class="mb-1">You have paid <strong><?= formatCurrency($selectedCurrentMonthPaymentInfo['payment_amount']) ?></strong> for Month <?= $selectedCurrentMonthPaymentInfo['month_number'] ?></p>
                                                 <small class="text-muted">
-                                                    Paid on: <?= $currentMonthPaymentInfo['payment_date'] ? formatDate($currentMonthPaymentInfo['payment_date']) : 'Date not recorded' ?>
-                                                    <?php if ($currentMonthPaymentInfo['winner_name']): ?>
-                                                        | Winner: <?= htmlspecialchars($currentMonthPaymentInfo['winner_name']) ?>
-                                                        (Bid: <?= formatCurrency($currentMonthPaymentInfo['bid_amount']) ?>)
+                                                    Paid on: <?= $selectedCurrentMonthPaymentInfo['payment_date'] ? formatDate($selectedCurrentMonthPaymentInfo['payment_date']) : 'Date not recorded' ?>
+                                                    <?php if ($selectedCurrentMonthPaymentInfo['winner_name']): ?>
+                                                        | Winner: <?= htmlspecialchars($selectedCurrentMonthPaymentInfo['winner_name']) ?>
+                                                        (Bid: <?= formatCurrency($selectedCurrentMonthPaymentInfo['bid_amount']) ?>)
                                                     <?php endif; ?>
                                                 </small>
                                             </div>
@@ -397,12 +783,12 @@ $recentActivities = $stmt->fetchAll();
                                             <i class="fas fa-exclamation-triangle text-warning fa-2x me-3"></i>
                                             <div>
                                                 <h6 class="mb-1 text-warning">Payment Pending</h6>
-                                                <p class="mb-1">Amount due: <strong><?= formatCurrency($currentMonthPaymentInfo['payment_amount']) ?></strong> for Month <?= $currentMonthPaymentInfo['month_number'] ?></p>
+                                                <p class="mb-1">Amount due: <strong><?= formatCurrency($selectedCurrentMonthPaymentInfo['payment_amount']) ?></strong> for Month <?= $selectedCurrentMonthPaymentInfo['month_number'] ?></p>
                                                 <small class="text-muted">
                                                     Bid has been confirmed.
-                                                    <?php if ($currentMonthPaymentInfo['winner_name']): ?>
-                                                        Winner: <?= htmlspecialchars($currentMonthPaymentInfo['winner_name']) ?>
-                                                        (Bid: <?= formatCurrency($currentMonthPaymentInfo['bid_amount']) ?>)
+                                                    <?php if ($selectedCurrentMonthPaymentInfo['winner_name']): ?>
+                                                        Winner: <?= htmlspecialchars($selectedCurrentMonthPaymentInfo['winner_name']) ?>
+                                                        (Bid: <?= formatCurrency($selectedCurrentMonthPaymentInfo['bid_amount']) ?>)
                                                     <?php endif; ?>
                                                 </small>
                                             </div>
@@ -413,23 +799,30 @@ $recentActivities = $stmt->fetchAll();
                                         <i class="fas fa-clock text-info fa-2x me-3"></i>
                                         <div>
                                             <h6 class="mb-1 text-info">Bidding in Progress</h6>
-                                            <p class="mb-1">Month <?= $currentMonthPaymentInfo['month_number'] ?> - <?= ucfirst(str_replace('_', ' ', $currentMonthPaymentInfo['bidding_status'])) ?></p>
+                                            <p class="mb-1">Month <?= $selectedCurrentMonthPaymentInfo['month_number'] ?> - <?= ucfirst(str_replace('_', ' ', $selectedCurrentMonthPaymentInfo['bidding_status'])) ?></p>
                                             <small class="text-muted">Payment amount will be determined after bid confirmation</small>
                                         </div>
                                     </div>
                                 <?php endif; ?>
                             </div>
                             <div class="col-md-4 text-end">
-                                <?php if ($currentMonthPaymentInfo['bidding_status'] === 'open'): ?>
+                                <?php if ($selectedCurrentMonthPaymentInfo['bidding_status'] === 'open' && $selectedGroupId == $currentGroupId): ?>
                                     <a href="member_bidding.php" class="btn btn-primary">
                                         <i class="fas fa-gavel me-1"></i> Place Bid
                                     </a>
-                                <?php elseif ($currentMonthPaymentInfo['payment_status'] === 'pending' && $currentMonthPaymentInfo['bid_exists']): ?>
+                                <?php elseif ($selectedCurrentMonthPaymentInfo['payment_status'] === 'pending' && $selectedCurrentMonthPaymentInfo['bid_exists']): ?>
                                     <div class="text-center">
                                         <div class="badge bg-warning text-dark fs-6 p-2">
                                             <i class="fas fa-hourglass-half me-1"></i>
                                             Awaiting Payment
                                         </div>
+                                    </div>
+                                <?php elseif ($selectedGroupId != $currentGroupId): ?>
+                                    <div class="text-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Viewing different group
+                                        </small>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -440,57 +833,21 @@ $recentActivities = $stmt->fetchAll();
         </div>
         <?php endif; ?>
 
-        <!-- Statistics Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card stat-card">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-money-bill fa-2x mb-2"></i>
-                        <h4><?= formatCurrency($totalPaid) ?></h4>
-                        <p class="mb-0">Total Paid</p>
-                        <small><?= $paidMonths ?> of <?= $totalMonths ?> months</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stat-card-info">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-hand-holding-usd fa-2x mb-2"></i>
-                        <h4><?= formatCurrency($totalReceived) ?></h4>
-                        <p class="mb-0">Amount Received</p>
-                        <small><?= count($myBidWins) ?> bid(s) won</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stat-card-<?= $netPosition >= 0 ? 'warning' : 'danger' ?>">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-chart-line fa-2x mb-2"></i>
-                        <h4><?= formatCurrency(abs($netPosition)) ?></h4>
-                        <p class="mb-0"><?= $netPosition >= 0 ? 'Net Gain' : 'Net Investment' ?></p>
-                        <small><?= $netPosition >= 0 ? 'Profit so far' : 'Amount invested' ?></small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stat-card">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-percentage fa-2x mb-2"></i>
-                        <h4><?= number_format(($paidMonths / $totalMonths) * 100, 1) ?>%</h4>
-                        <p class="mb-0">Payment Progress</p>
-                        <small><?= $remainingMonths ?> months remaining</small>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <?php
+        // Calculate statistics for selected group (needed for charts and other sections)
+        $selectedTotalPaid = $mySummary ? $mySummary['total_paid'] : 0;
+        $selectedTotalReceived = $mySummary ? $mySummary['given_amount'] : 0;
+        $selectedNetPosition = $selectedTotalReceived - $selectedTotalPaid;
+        ?>
 
-        <!-- Charts and Progress Section -->
+        <!-- Charts and Progress Section for Selected Group -->
         <div class="row mb-4">
             <div class="col-md-8">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">
                             <i class="fas fa-chart-line"></i> My Payment Progress
+                            <small class="text-muted ms-2">(<?= htmlspecialchars($selectedGroupData['group']['group_name']) ?>)</small>
                         </h5>
                     </div>
                     <div class="card-body">
@@ -536,18 +893,18 @@ $recentActivities = $stmt->fetchAll();
                         <div class="mt-3">
                             <div class="row text-center">
                                 <div class="col-4">
-                                    <h6 class="text-success"><?= formatCurrency($totalPaid) ?></h6>
+                                    <h6 class="text-success"><?= formatCurrency($selectedTotalPaid) ?></h6>
                                     <small class="text-muted">Paid</small>
                                 </div>
                                 <div class="col-4">
-                                    <h6 class="text-info"><?= formatCurrency($totalReceived) ?></h6>
+                                    <h6 class="text-info"><?= formatCurrency($selectedTotalReceived) ?></h6>
                                     <small class="text-muted">Received</small>
                                 </div>
                                 <div class="col-4">
-                                    <h6 class="text-<?= $netPosition >= 0 ? 'warning' : 'danger' ?>">
-                                        <?= formatCurrency(abs($netPosition)) ?>
+                                    <h6 class="text-<?= $selectedNetPosition >= 0 ? 'warning' : 'danger' ?>">
+                                        <?= formatCurrency(abs($selectedNetPosition)) ?>
                                     </h6>
-                                    <small class="text-muted"><?= $netPosition >= 0 ? 'Gain' : 'Investment' ?></small>
+                                    <small class="text-muted"><?= $selectedNetPosition >= 0 ? 'Gain' : 'Investment' ?></small>
                                 </div>
                             </div>
                         </div>
@@ -559,6 +916,7 @@ $recentActivities = $stmt->fetchAll();
                     <div class="card-header">
                         <h5 class="mb-0">
                             <i class="fas fa-clock"></i> Recent Group Activities
+                            <small class="text-muted ms-2">(<?= htmlspecialchars($selectedGroupData['group']['group_name']) ?>)</small>
                         </h5>
                     </div>
                     <div class="card-body" style="max-height: 350px; overflow-y: auto;">
@@ -597,7 +955,7 @@ $recentActivities = $stmt->fetchAll();
             </div>
         </div>
 
-        <!-- My Bids Won Section -->
+        <!-- My Bids Won Section for Selected Group -->
         <?php if (!empty($myBidWins)): ?>
             <div class="row mb-4">
                 <div class="col-12">
@@ -605,6 +963,7 @@ $recentActivities = $stmt->fetchAll();
                         <div class="card-header">
                             <h5 class="mb-0">
                                 <i class="fas fa-trophy"></i> My Winning Bids
+                                <small class="text-muted ms-2">(<?= htmlspecialchars($selectedGroupData['group']['group_name']) ?>)</small>
                             </h5>
                         </div>
                         <div class="card-body">
@@ -641,7 +1000,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="card status-card">
                     <div class="card-body text-center">
                         <i class="fas fa-rupee-sign fa-2x text-success mb-2"></i>
-                        <h4><?= $mySummary ? formatCurrency($mySummary['total_paid']) : '₹0' ?></h4>
+                        <h4><?= formatCurrency($selectedTotalPaid) ?></h4>
                         <small class="text-muted">Total Paid</small>
                     </div>
                 </div>
@@ -650,7 +1009,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="card status-card">
                     <div class="card-body text-center">
                         <i class="fas fa-gift fa-2x text-primary mb-2"></i>
-                        <h4><?= $mySummary ? formatCurrency($mySummary['given_amount']) : '₹0' ?></h4>
+                        <h4><?= formatCurrency($selectedTotalReceived) ?></h4>
                         <small class="text-muted">Amount Received</small>
                     </div>
                 </div>
@@ -749,90 +1108,7 @@ $recentActivities = $stmt->fetchAll();
         </div>
 
         <!-- Group Summary -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-info-circle"></i> Group Information
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-sm">
-                            <tr>
-                                <td><strong>Group Name:</strong></td>
-                                <td><?= htmlspecialchars($group['group_name']) ?></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Total Members:</strong></td>
-                                <td><?= $group['total_members'] ?></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Monthly Contribution:</strong></td>
-                                <td><?= formatCurrency($group['monthly_contribution']) ?></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Total Collection:</strong></td>
-                                <td><?= formatCurrency($group['total_monthly_collection']) ?></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Start Date:</strong></td>
-                                <td><?= formatDate($group['start_date']) ?></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Status:</strong></td>
-                                <td>
-                                    <span class="badge bg-<?= $group['status'] === 'active' ? 'success' : 'secondary' ?>">
-                                        <?= ucfirst($group['status']) ?>
-                                    </span>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-chart-pie"></i> Progress Overview
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between">
-                                <small>Completed Months</small>
-                                <small><?= count($monthlyBids) ?> / <?= $group['total_members'] ?></small>
-                            </div>
-                            <div class="progress">
-                                <div class="progress-bar bg-success" style="width: <?= (count($monthlyBids) / $group['total_members']) * 100 ?>%"></div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between">
-                                <small>My Payments</small>
-                                <small><?= count($myPayments) ?> / <?= count($monthlyBids) ?></small>
-                            </div>
-                            <div class="progress">
-                                <div class="progress-bar bg-primary" style="width: <?= count($monthlyBids) > 0 ? (count($myPayments) / count($monthlyBids)) * 100 : 0 ?>%"></div>
-                            </div>
-                        </div>
-                        
-                        <div class="text-center mt-3">
-                            <small class="text-muted">
-                                <?php if (count($monthlyBids) < $group['total_members']): ?>
-                                    <?= $group['total_members'] - count($monthlyBids) ?> months remaining
-                                <?php else: ?>
-                                    BC Group Completed!
-                                <?php endif; ?>
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1004,6 +1280,26 @@ $recentActivities = $stmt->fetchAll();
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Group selection function
+        function selectGroup(groupId) {
+            window.location.href = 'member_dashboard.php?selected_group=' + groupId;
+        }
+
+        // Add hover effect to group rows
+        document.addEventListener('DOMContentLoaded', function() {
+            const groupRows = document.querySelectorAll('.group-row');
+            groupRows.forEach(row => {
+                row.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#f8f9fa';
+                });
+                row.addEventListener('mouseleave', function() {
+                    if (!this.classList.contains('table-success')) {
+                        this.style.backgroundColor = '';
+                    }
+                });
+            });
         });
     </script>
 </body>
