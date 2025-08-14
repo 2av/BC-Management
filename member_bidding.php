@@ -64,9 +64,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_bid'])) {
         $errors[] = "This month already has a winner";
     }
 
+    // Get bid limits from month_bidding_status table
+    $stmt = $pdo->prepare("SELECT minimum_bid_amount, maximum_bid_amount FROM month_bidding_status WHERE group_id = ? AND month_number = ?");
+    $stmt->execute([$groupId, $monthNumber]);
+    $bidLimits = $stmt->fetch();
+
     // Basic bid validation
     if ($bidAmount >= $group['total_monthly_collection']) {
         $errors[] = "Bid amount must be less than total monthly collection (₹" . number_format($group['total_monthly_collection']) . ")";
+    }
+
+    // Validate against bid limits if they exist
+    if ($bidLimits) {
+        if ($bidLimits['minimum_bid_amount'] > 0 && $bidAmount < $bidLimits['minimum_bid_amount']) {
+            $errors[] = "Bid amount must be at least ₹" . number_format($bidLimits['minimum_bid_amount']);
+        }
+        if ($bidLimits['maximum_bid_amount'] > 0 && $bidAmount > $bidLimits['maximum_bid_amount']) {
+            $errors[] = "Bid amount cannot exceed ₹" . number_format($bidLimits['maximum_bid_amount']);
+        }
     }
     
     // Check if member already placed a bid for this month (only if member is valid)
@@ -122,7 +137,6 @@ function getAvailableBiddingMonths($groupId, $memberId) {
     for ($month = 1; $month <= $totalMonths; $month++) {
         // Determine bidding status
         $isCompleted = in_array($month, $completedMonths);
-        $bidding_status = $isCompleted ? 'completed' : 'open';
 
         // Get bid counts
         $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM member_bids WHERE group_id = ? AND month_number = ?");
@@ -133,16 +147,38 @@ function getAvailableBiddingMonths($groupId, $memberId) {
         $stmt->execute([$groupId, $month, $memberId]);
         $myBidCount = $stmt->fetch()['count'];
 
-        $months[] = [
-            'month_number' => $month,
-            'group_id' => $groupId,
-            'bidding_status' => $bidding_status,
-            'minimum_bid_amount' => 1,
-            'maximum_bid_amount' => 0, // 0 means no limit
-            'bidding_end_date' => null,
-            'total_bids' => $totalBids,
-            'my_bid_count' => $myBidCount
-        ];
+        // Get bidding status and limits from month_bidding_status table
+        $stmt = $pdo->prepare("
+            SELECT * FROM month_bidding_status
+            WHERE group_id = ? AND month_number = ?
+        ");
+        $stmt->execute([$groupId, $month]);
+        $biddingStatus = $stmt->fetch();
+
+        if ($biddingStatus) {
+            $months[] = [
+                'month_number' => $month,
+                'group_id' => $groupId,
+                'bidding_status' => $isCompleted ? 'completed' : $biddingStatus['bidding_status'],
+                'minimum_bid_amount' => $biddingStatus['minimum_bid_amount'],
+                'maximum_bid_amount' => $biddingStatus['maximum_bid_amount'],
+                'bidding_end_date' => $biddingStatus['bidding_end_date'],
+                'total_bids' => $totalBids,
+                'my_bid_count' => $myBidCount
+            ];
+        } else {
+            // Default values if no bidding status record exists
+            $months[] = [
+                'month_number' => $month,
+                'group_id' => $groupId,
+                'bidding_status' => $isCompleted ? 'completed' : 'not_started',
+                'minimum_bid_amount' => 0,
+                'maximum_bid_amount' => 0,
+                'bidding_end_date' => null,
+                'total_bids' => $totalBids,
+                'my_bid_count' => $myBidCount
+            ];
+        }
     }
 
     return $months;
@@ -178,12 +214,31 @@ function getCurrentActiveMonth($groupId) {
         return null; // No active month, group is complete
     }
 
+    // Get bidding status and limits from month_bidding_status table
+    $stmt = $pdo->prepare("
+        SELECT * FROM month_bidding_status
+        WHERE group_id = ? AND month_number = ?
+    ");
+    $stmt->execute([$groupId, $currentMonth]);
+    $biddingStatus = $stmt->fetch();
+
+    if ($biddingStatus) {
+        return [
+            'month_number' => $currentMonth,
+            'group_id' => $groupId,
+            'bidding_status' => $biddingStatus['bidding_status'],
+            'minimum_bid_amount' => $biddingStatus['minimum_bid_amount'],
+            'maximum_bid_amount' => $biddingStatus['maximum_bid_amount'],
+            'bidding_end_date' => $biddingStatus['bidding_end_date']
+        ];
+    }
+
     return [
         'month_number' => $currentMonth,
         'group_id' => $groupId,
-        'bidding_status' => 'open',
-        'minimum_bid_amount' => 1,
-        'maximum_bid_amount' => 0, // 0 means no limit
+        'bidding_status' => 'not_started',
+        'minimum_bid_amount' => 0,
+        'maximum_bid_amount' => 0,
         'bidding_end_date' => null
     ];
 }
@@ -483,7 +538,7 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                                             <div class="mb-3">
                                                 <label class="form-label text-dark">Bid Amount (₹)</label>
                                                 <?php
-                                                $minBid = max(1, $currentActiveMonth['minimum_bid_amount']);
+                                                $minBid = $currentActiveMonth['minimum_bid_amount'] > 0 ? $currentActiveMonth['minimum_bid_amount'] : 1;
                                                 $maxBid = $currentActiveMonth['maximum_bid_amount'] > 0 ?
                                                          $currentActiveMonth['maximum_bid_amount'] :
                                                          ($group['total_monthly_collection'] - 1);
@@ -599,14 +654,14 @@ $currentActiveMonth = getCurrentActiveMonth($groupId);
                                 <i class="fas fa-users"></i> Total Bids: <?= $month['total_bids'] ?>
                             </p>
                             
-                            <?php if ($month['bidding_status'] === 'open' && !$memberHasWon && $month['my_bid_count'] == 0): ?>
+                            <?php if ($isCurrentMonth && $month['bidding_status'] === 'open' && !$memberHasWon && $month['my_bid_count'] == 0): ?>
                                 <!-- Bid Form -->
                                 <form method="POST" class="mt-3">
                                     <input type="hidden" name="month_number" value="<?= $month['month_number'] ?>">
                                     <div class="mb-3">
                                         <label class="form-label">Your Bid Amount (₹)</label>
                                         <?php
-                                        $minBid = max(1, $month['minimum_bid_amount']);
+                                        $minBid = $month['minimum_bid_amount'] > 0 ? $month['minimum_bid_amount'] : 1;
                                         $maxBid = $month['maximum_bid_amount'] > 0 ?
                                                  $month['maximum_bid_amount'] :
                                                  ($group['total_monthly_collection'] - 1);
