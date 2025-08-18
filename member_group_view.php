@@ -455,8 +455,11 @@ foreach ($members as $memberInGroup) {
 
                                     if ($bid || $randomPick) {
                                         echo '<span class="text-muted">Done</span>';
+                                    } elseif ($i == 1) {
+                                        // Month 1 is always taken by organizer, no random pick needed
+                                        echo '<span class="text-muted" title="Month 1 is reserved for organizer">👑 Organizer</span>';
                                     } elseif ($currentActiveMonth && $i == $currentActiveMonth) {
-                                        // Only show random pick button for current active month
+                                        // Only show random pick button for current active month (excluding month 1)
                                         echo '<button class="btn btn-sm btn-warning random-pick-btn"
                                                 data-group-id="' . $selectedGroupId . '"
                                                 data-month="' . $i . '"

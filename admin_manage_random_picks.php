@@ -17,6 +17,9 @@ if (!$group) {
 $message = '';
 $error = '';
 
+// Get current active month first (needed for validation)
+$currentActiveMonth = getCurrentActiveMonthNumber($groupId);
+
 // Handle admin override of random pick
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['override_random_pick'])) {
@@ -110,8 +113,7 @@ $randomPicks = getRandomPicks($groupId);
 $members = getGroupMembers($groupId);
 $monthlyBids = getMonthlyBids($groupId);
 
-// Get current active month
-$currentActiveMonth = getCurrentActiveMonthNumber($groupId);
+// Current active month already retrieved above
 
 // Separate random picks into available and completed
 $availableMonthsForOverride = [];
@@ -273,6 +275,33 @@ foreach ($randomPicks as $pick) {
                         $overrideMember = reset($overrideMember);
                     }
 
+                    // Get who clicked the random pick button
+                    $pickedByInfo = null;
+                    if ($pick['picked_by'] && $pick['picked_by_type']) {
+                        if ($pick['picked_by_type'] === 'admin') {
+                            // Get admin info
+                            $stmt = $pdo->prepare("SELECT username FROM admins WHERE id = ?");
+                            $stmt->execute([$pick['picked_by']]);
+                            $adminInfo = $stmt->fetch();
+                            if ($adminInfo) {
+                                $pickedByInfo = [
+                                    'name' => $adminInfo['username'],
+                                    'type' => 'Admin'
+                                ];
+                            }
+                        } elseif ($pick['picked_by_type'] === 'member') {
+                            // Get member info
+                            $memberInfo = array_filter($members, fn($m) => $m['id'] == $pick['picked_by']);
+                            $memberInfo = reset($memberInfo);
+                            if ($memberInfo) {
+                                $pickedByInfo = [
+                                    'name' => $memberInfo['member_name'],
+                                    'type' => 'Member'
+                                ];
+                            }
+                        }
+                    }
+
                     // Get the bid details
                     $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $pick['month_number']);
                     $bid = reset($bid);
@@ -291,6 +320,9 @@ foreach ($randomPicks as $pick) {
                                     <span class="text-primary"><?= htmlspecialchars($randomMember['member_name']) ?></span>
                                     <small class="text-muted d-block">
                                         Picked on <?= date('d/m/Y H:i', strtotime($pick['picked_at'])) ?>
+                                        <?php if ($pickedByInfo): ?>
+                                            <br>by <?= htmlspecialchars($pickedByInfo['name']) ?> (<?= $pickedByInfo['type'] ?>)
+                                        <?php endif; ?>
                                     </small>
                                 </div>
 
@@ -419,6 +451,7 @@ foreach ($randomPicks as $pick) {
                                         <tr>
                                             <th>Month</th>
                                             <th>Random Pick</th>
+                                            <th>Picked By</th>
                                             <th>Admin Override</th>
                                             <th>Final Selection</th>
                                             <th>Status</th>
@@ -438,6 +471,31 @@ foreach ($randomPicks as $pick) {
                                             
                                             $hasBid = array_filter($monthlyBids, fn($bid) => $bid['month_number'] == $pick['month_number']);
                                             $finalMember = $overrideMember ?: $randomMember;
+
+                                            // Get who clicked the random pick button for table
+                                            $pickedByInfo = null;
+                                            if ($pick['picked_by'] && $pick['picked_by_type']) {
+                                                if ($pick['picked_by_type'] === 'admin') {
+                                                    $stmt = $pdo->prepare("SELECT username FROM admins WHERE id = ?");
+                                                    $stmt->execute([$pick['picked_by']]);
+                                                    $adminInfo = $stmt->fetch();
+                                                    if ($adminInfo) {
+                                                        $pickedByInfo = [
+                                                            'name' => $adminInfo['username'],
+                                                            'type' => 'Admin'
+                                                        ];
+                                                    }
+                                                } elseif ($pick['picked_by_type'] === 'member') {
+                                                    $memberInfo = array_filter($members, fn($m) => $m['id'] == $pick['picked_by']);
+                                                    $memberInfo = reset($memberInfo);
+                                                    if ($memberInfo) {
+                                                        $pickedByInfo = [
+                                                            'name' => $memberInfo['member_name'],
+                                                            'type' => 'Member'
+                                                        ];
+                                                    }
+                                                }
+                                            }
                                             ?>
                                             <tr>
                                                 <td><strong>Month <?= $pick['month_number'] ?></strong></td>
@@ -446,6 +504,16 @@ foreach ($randomPicks as $pick) {
                                                     <small class="text-muted d-block">
                                                         <?= date('d/m/Y', strtotime($pick['picked_at'])) ?>
                                                     </small>
+                                                </td>
+                                                <td>
+                                                    <?php if ($pickedByInfo): ?>
+                                                        <span class="badge bg-<?= $pickedByInfo['type'] === 'Admin' ? 'primary' : 'info' ?>">
+                                                            <?= htmlspecialchars($pickedByInfo['name']) ?>
+                                                        </span>
+                                                        <small class="text-muted d-block"><?= $pickedByInfo['type'] ?></small>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">-</span>
+                                                    <?php endif; ?>
                                                 </td>
                                                 <td>
                                                     <?php if ($overrideMember): ?>
