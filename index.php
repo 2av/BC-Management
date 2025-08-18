@@ -92,11 +92,300 @@ $recentActivities = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= APP_NAME ?></title>
+    <title>Admin Dashboard - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="assets/css/modern-design.css?v=<?= time() ?>" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        body {
+            background: linear-gradient(135deg, var(--gray-50) 0%, #f8fafc 100%);
+            font-family: var(--font-family-sans);
+        }
+
+        /* Modern Dashboard Header */
+        .dashboard-header {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary-gradient);
+        }
+
+        .dashboard-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .dashboard-subtitle {
+            color: var(--gray-600);
+            font-size: 1.1rem;
+            margin-bottom: 0;
+        }
+
+        .dashboard-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        /* Enhanced Stat Cards */
+        .stat-card-modern-enhanced {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .stat-card-modern-enhanced:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-2xl);
+        }
+
+        .stat-card-primary {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+        }
+
+        .stat-card-secondary {
+            background: var(--secondary-gradient);
+            color: white;
+            border: none;
+        }
+
+        .stat-card-accent {
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-dark) 100%);
+            color: white;
+            border: none;
+        }
+
+        .stat-card-info {
+            background: linear-gradient(135deg, var(--info-color) 0%, #2563eb 100%);
+            color: white;
+            border: none;
+        }
+
+        .stat-icon-modern {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+            background: rgba(255, 255, 255, 0.2);
+            animation: pulse-gentle 2s infinite;
+        }
+
+        .stat-number-modern {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            line-height: 1;
+        }
+
+        .stat-label-modern {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-sublabel-modern {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+
+        .stat-action-modern {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        /* Quick Actions Section */
+        .quick-actions {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 2rem;
+        }
+
+        .quick-actions h5 {
+            color: var(--gray-900);
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .quick-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--gray-100);
+            color: var(--gray-700);
+            text-decoration: none;
+            border-radius: var(--radius-lg);
+            transition: all var(--transition-normal);
+            font-weight: 500;
+            border: 1px solid var(--gray-200);
+        }
+
+        .quick-action-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Groups Section */
+        .groups-section {
+            background: white;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+        }
+
+        .groups-header {
+            background: linear-gradient(135deg, var(--gray-50) 0%, white 100%);
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .groups-header h4 {
+            color: var(--gray-900);
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+
+        .group-card-modern {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all var(--transition-normal);
+            position: relative;
+        }
+
+        .group-card-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-color);
+        }
+
+        .group-status-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .group-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .group-meta {
+            color: var(--gray-600);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .group-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .group-action-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            border-radius: var(--radius-md);
+            transition: all var(--transition-normal);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 2rem;
+        }
+
+        .chart-header {
+            margin-bottom: 2rem;
+        }
+
+        .chart-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .chart-subtitle {
+            color: var(--gray-600);
+            font-size: 0.9rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 1.5rem;
+                text-align: center;
+            }
+
+            .dashboard-title {
+                font-size: 2rem;
+            }
+
+            .dashboard-actions {
+                justify-content: center;
+                margin-top: 1rem;
+            }
+
+            .stat-card-modern-enhanced {
+                padding: 1.5rem;
+            }
+
+            .stat-number-modern {
+                font-size: 2.5rem;
+            }
+        }
+
         .dashboard-card {
             transition: transform 0.2s;
         }
@@ -260,123 +549,131 @@ $recentActivities = $stmt->fetchAll();
     <div class="container mt-4">
         <?php $msg = getMessage(); ?>
         <?php if ($msg): ?>
-            <div class="alert alert-<?= $msg['type'] ?> alert-dismissible fade show">
+            <div class="alert alert-<?= $msg['type'] === 'success' ? 'success-modern' : ($msg['type'] === 'error' ? 'danger-modern' : 'info-modern') ?>">
+                <i class="fas fa-<?= $msg['type'] === 'success' ? 'check-circle' : ($msg['type'] === 'error' ? 'exclamation-triangle' : 'info-circle') ?>"></i>
                 <?= htmlspecialchars($msg['message']) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h1><i class="fas fa-users-cog text-primary me-2"></i>Mitra Niidhi Samooh Dashboard</h1>
-                <p class="text-muted mb-0">
-                    <i class="fas fa-calendar-alt text-info"></i> <?= date('l, F j, Y') ?> |
-                    <i class="fas fa-clock text-success"></i> <?= date('g:i A') ?>
-                </p>
-            </div>
-            <div class="d-flex gap-2">
-                <a href="admin_members.php" class="btn btn-outline-success btn-interactive">
-                    <i class="fas fa-users-cog me-1"></i> Manage Members
-                </a>
-                <a href="admin_change_password.php" class="btn btn-outline-primary btn-interactive">
-                    <i class="fas fa-shield-alt me-1"></i> Change Password
-                </a>
-                <a href="admin_create_group_simple.php" class="btn btn-primary btn-interactive">
-                    <i class="fas fa-plus-circle me-1"></i> Create New Group
-                </a>
+        <!-- Dashboard Header -->
+        <div class="dashboard-header animate-fadeInUp">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <h1 class="dashboard-title">
+                        <i class="fas fa-tachometer-alt text-gradient-primary me-3"></i>
+                        Admin Dashboard
+                    </h1>
+                    <p class="dashboard-subtitle">
+                        <i class="fas fa-calendar-alt me-2"></i><?= date('l, F j, Y') ?>
+                        <span class="mx-2">•</span>
+                        <i class="fas fa-clock me-2"></i><?= date('g:i A') ?>
+                        <span class="mx-2">•</span>
+                        <i class="fas fa-user-shield me-2"></i>Welcome back, Admin
+                    </p>
+                </div>
+                <div class="dashboard-actions">
+                    <a href="admin_members.php" class="btn btn-outline-modern">
+                        <i class="fas fa-users-cog me-2"></i>Manage Members
+                    </a>
+                    <a href="admin_change_password.php" class="btn btn-outline-modern">
+                        <i class="fas fa-shield-alt me-2"></i>Security
+                    </a>
+                    <a href="admin_create_group_simple.php" class="btn btn-primary-modern">
+                        <i class="fas fa-plus-circle me-2"></i>Create Group
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- Statistics Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <a href="#groupsList" class="text-decoration-none" onclick="scrollToGroups()">
-                    <div class="card stat-card dashboard-card">
-                        <div class="card-body text-center">
-                            <i class="fas fa-users fa-2x mb-2"></i>
-                            <h3><?= $totalGroups ?></h3>
-                            <p class="mb-0">Total Groups</p>
-                            <small><?= $activeGroups ?> Active, <?= $completedGroups ?> Completed</small>
-                            <div class="mt-2">
-                                <i class="fas fa-arrow-down"></i> <small>Click to view</small>
-                            </div>
-                        </div>
+        <div class="row mb-4 animate-stagger">
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="stat-card-modern-enhanced stat-card-primary" onclick="scrollToGroups()">
+                    <div class="stat-icon-modern">
+                        <i class="fas fa-users"></i>
                     </div>
-                </a>
-            </div>
-            <div class="col-md-3">
-                <a href="admin_members.php" class="text-decoration-none">
-                    <div class="card stat-card-success dashboard-card">
-                        <div class="card-body text-center text-white">
-                            <i class="fas fa-user-friends fa-2x mb-2"></i>
-                            <h3><?= $totalMembers ?></h3>
-                            <p class="mb-0">Total Members</p>
-                            <small>Across all groups</small>
-                            <div class="mt-2">
-                                <i class="fas fa-external-link-alt"></i> <small>Manage members</small>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col-md-3">
-                <div class="card stat-card-info dashboard-card" style="cursor: pointer;" onclick="showCollectionDetails()">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-rupee-sign fa-2x mb-2"></i>
-                        <h3><?= formatCurrency($totalCollected) ?></h3>
-                        <p class="mb-0">Total Collected</p>
-                        <small>All payments received</small>
-                        <div class="mt-2">
-                            <i class="fas fa-info-circle"></i> <small>Click for details</small>
-                        </div>
+                    <div class="stat-number-modern"><?= $totalGroups ?></div>
+                    <div class="stat-label-modern">Total Groups</div>
+                    <div class="stat-sublabel-modern"><?= $activeGroups ?> Active • <?= $completedGroups ?> Completed</div>
+                    <div class="stat-action-modern">
+                        <i class="fas fa-arrow-down"></i>
+                        <span>Click to view groups</span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="card stat-card-warning dashboard-card" style="cursor: pointer;" onclick="showDistributionDetails()">
-                    <div class="card-body text-center text-white">
-                        <i class="fas fa-hand-holding-usd fa-2x mb-2"></i>
-                        <h3><?= formatCurrency($totalDistributed) ?></h3>
-                        <p class="mb-0">Total Distributed</p>
-                        <small>Amount given to winners</small>
-                        <div class="mt-2">
-                            <i class="fas fa-info-circle"></i> <small>Click for details</small>
-                        </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="stat-card-modern-enhanced stat-card-secondary" onclick="window.location.href='admin_members.php'">
+                    <div class="stat-icon-modern">
+                        <i class="fas fa-user-friends"></i>
+                    </div>
+                    <div class="stat-number-modern"><?= $totalMembers ?></div>
+                    <div class="stat-label-modern">Total Members</div>
+                    <div class="stat-sublabel-modern">Across all groups</div>
+                    <div class="stat-action-modern">
+                        <i class="fas fa-external-link-alt"></i>
+                        <span>Manage members</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="stat-card-modern-enhanced stat-card-info" onclick="showCollectionDetails()">
+                    <div class="stat-icon-modern">
+                        <i class="fas fa-rupee-sign"></i>
+                    </div>
+                    <div class="stat-number-modern"><?= formatCurrency($totalCollected) ?></div>
+                    <div class="stat-label-modern">Total Collected</div>
+                    <div class="stat-sublabel-modern">All payments received</div>
+                    <div class="stat-action-modern">
+                        <i class="fas fa-info-circle"></i>
+                        <span>View details</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="stat-card-modern-enhanced stat-card-accent" onclick="showDistributionDetails()">
+                    <div class="stat-icon-modern">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div class="stat-number-modern"><?= formatCurrency($totalDistributed) ?></div>
+                    <div class="stat-label-modern">Total Distributed</div>
+                    <div class="stat-sublabel-modern">Amount given to winners</div>
+                    <div class="stat-action-modern">
+                        <i class="fas fa-info-circle"></i>
+                        <span>View details</span>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Quick Actions Bar -->
-        <div class="card mb-4" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h6 class="mb-1"><i class="fas fa-bolt text-warning"></i> Quick Actions</h6>
-                        <p class="text-muted mb-0">Frequently used admin functions</p>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex gap-2 justify-content-end">
-                            <a href="admin_add_member.php" class="btn btn-sm btn-outline-success" title="Add New Member">
-                                <i class="fas fa-user-plus"></i>
-                            </a>
-                            <a href="admin_payment_config.php" class="btn btn-sm btn-outline-primary" title="QR Code Settings">
-                                <i class="fas fa-qrcode"></i>
-                            </a>
-                            <a href="admin_payment_status.php" class="btn btn-sm btn-outline-warning" title="Payment Status">
-                                <i class="fas fa-credit-card"></i>
-                            </a>
-                            <a href="admin_bulk_import.php" class="btn btn-sm btn-outline-info" title="Bulk Import">
-                                <i class="fas fa-upload"></i>
-                            </a>
-                            <a href="admin_create_group_simple.php" class="btn btn-sm btn-outline-primary" title="Create Group">
-                                <i class="fas fa-plus"></i>
-                            </a>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()" title="Refresh Data">
-                                <i class="fas fa-sync-alt"></i>
-                            </button>
-                        </div>
-                    </div>
+        <div class="quick-actions animate-slideInRight">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <h5><i class="fas fa-bolt text-warning me-2"></i>Quick Actions</h5>
+                    <p class="text-muted mb-0">Frequently used admin functions</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="admin_add_member.php" class="quick-action-btn" title="Add New Member">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Add Member</span>
+                    </a>
+                    <a href="admin_payment_config.php" class="quick-action-btn" title="QR Code Settings">
+                        <i class="fas fa-qrcode"></i>
+                        <span>QR Settings</span>
+                    </a>
+                    <a href="admin_payment_status.php" class="quick-action-btn" title="Payment Status">
+                        <i class="fas fa-credit-card"></i>
+                        <span>Payments</span>
+                    </a>
+                    <a href="admin_bulk_import.php" class="quick-action-btn" title="Bulk Import">
+                        <i class="fas fa-upload"></i>
+                        <span>Import</span>
+                    </a>
+                    <button class="quick-action-btn" onclick="refreshDashboard()" title="Refresh Data">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -384,22 +681,23 @@ $recentActivities = $stmt->fetchAll();
         <!-- Group-wise Pending Payments Section -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="card dashboard-card">
-                    <div class="card-header">
-                        <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <h5 class="mb-0">
-                                    <i class="fas fa-exclamation-triangle text-warning"></i> Group-wise Pending Payments
-                                </h5>
-                                <small class="text-muted">Click on groups to expand and view month-wise details</small>
+                <div class="chart-container animate-fadeInUp">
+                    <div class="chart-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <div>
+                                <h4 class="chart-title">
+                                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                    Group-wise Pending Payments
+                                </h4>
+                                <p class="chart-subtitle">Click on groups to expand and view month-wise details</p>
                             </div>
-                            <div class="col-md-4">
-                                <div class="d-flex gap-2 justify-content-end">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="loadPendingPayments()">
-                                        <i class="fas fa-sync-alt"></i> Refresh
-                                    </button>
-                                </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-modern btn-sm" onclick="loadPendingPayments()">
+                                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                                </button>
                             </div>
+                        </div>
+                    </div>
                         </div>
                     </div>
                     <div class="card-body">
@@ -506,42 +804,73 @@ $recentActivities = $stmt->fetchAll();
         </div>
 
         <!-- BC Groups List -->
-        <div class="card dashboard-card" id="groupsList">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="fas fa-list"></i> All BC Groups
-                </h5>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-primary" onclick="filterGroups('all')" id="filterAll">
-                        All
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="filterGroups('active')" id="filterActive">
-                        Active
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="filterGroups('completed')" id="filterCompleted">
-                        Completed
-                    </button>
+        <div class="groups-section animate-fadeInUp" id="groupsList">
+            <div class="groups-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                        <h4><i class="fas fa-layer-group me-2"></i>All BC Groups</h4>
+                        <p class="text-muted mb-0">Manage and monitor all your BC groups</p>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-outline-modern btn-sm" onclick="filterGroups('all')" id="filterAll">
+                            <i class="fas fa-list me-1"></i>All
+                        </button>
+                        <button class="btn btn-outline-modern btn-sm" onclick="filterGroups('active')" id="filterActive">
+                            <i class="fas fa-play me-1"></i>Active
+                        </button>
+                        <button class="btn btn-outline-modern btn-sm" onclick="filterGroups('completed')" id="filterCompleted">
+                            <i class="fas fa-check me-1"></i>Completed
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="p-3">
                 <div class="row">
                     <?php if (!empty($groups)): ?>
                 <?php foreach ($groups as $group): ?>
-                    <div class="col-md-6 col-lg-4 mb-3" data-group-status="<?= $group['status'] ?>">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title"><?= htmlspecialchars($group['group_name']) ?></h5>
-                                <p class="card-text">
-                                    <strong>Members:</strong> <?= $group['total_members'] ?><br>
-                                    <strong>Monthly:</strong> <?= formatCurrency($group['monthly_contribution']) ?><br>
-                                    <strong>Total Collection:</strong> <?= formatCurrency($group['total_monthly_collection']) ?><br>
-                                    <strong>Start Date:</strong> <?= formatDate($group['start_date']) ?><br>
-                                    <span class="badge bg-<?= $group['status'] === 'active' ? 'success' : 'secondary' ?>">
-                                        <?= ucfirst($group['status']) ?>
-                                    </span>
-                                </p>
-                                <a href="view_group.php?id=<?= $group['id'] ?>" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-eye"></i> View Details
+                    <div class="col-md-6 col-lg-4 mb-4" data-group-status="<?= $group['status'] ?>">
+                        <div class="group-card-modern">
+                            <div class="group-status-badge">
+                                <span class="badge badge-<?= $group['status'] === 'active' ? 'success' : 'secondary' ?>-modern">
+                                    <i class="fas fa-<?= $group['status'] === 'active' ? 'play' : 'check' ?> me-1"></i>
+                                    <?= ucfirst($group['status']) ?>
+                                </span>
+                            </div>
+
+                            <div class="group-name"><?= htmlspecialchars($group['group_name']) ?></div>
+
+                            <div class="group-meta">
+                                <div class="row text-center mb-3">
+                                    <div class="col-4">
+                                        <div class="fw-bold text-primary"><?= $group['total_members'] ?></div>
+                                        <small class="text-muted">Members</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="fw-bold text-success"><?= formatCurrency($group['monthly_contribution']) ?></div>
+                                        <small class="text-muted">Monthly</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="fw-bold text-info"><?= formatCurrency($group['total_monthly_collection']) ?></div>
+                                        <small class="text-muted">Total</small>
+                                    </div>
+                                </div>
+                                <div class="text-center mb-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        Started: <?= formatDate($group['start_date']) ?>
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="group-actions">
+                                <a href="view_group.php?id=<?= $group['id'] ?>" class="btn btn-primary-modern group-action-btn">
+                                    <i class="fas fa-eye me-1"></i>View Details
+                                </a>
+                                <a href="admin_bidding.php?group_id=<?= $group['id'] ?>" class="btn btn-outline-modern group-action-btn">
+                                    <i class="fas fa-gavel me-1"></i>Bidding
+                                </a>
+                                <a href="admin_payment_status.php?group_id=<?= $group['id'] ?>" class="btn btn-outline-modern group-action-btn">
+                                    <i class="fas fa-credit-card me-1"></i>Payments
                                 </a>
                             </div>
                         </div>

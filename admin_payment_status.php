@@ -166,171 +166,440 @@ $upiId = !empty($configs['upi_id']) ? $configs['upi_id'] : '9768985225kotak@ybl'
     <title>Payment Status Management - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="assets/css/modern-design.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, var(--gray-50) 0%, #f8fafc 100%);
+            font-family: var(--font-family-sans);
+        }
+
+        /* Payment Status Page Specific Styles */
+        .payment-header {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .payment-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, var(--warning-color) 0%, var(--accent-color) 100%);
+        }
+
+        .payment-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .payment-subtitle {
+            color: var(--gray-600);
+            font-size: 1rem;
+        }
+
+        .group-selector {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 2rem;
+        }
+
+        .qr-info-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(99, 102, 241, 0.05) 100%);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .qr-info-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--info-color);
+            margin-bottom: 1rem;
+        }
+
+        .qr-image {
+            width: 60px;
+            height: 60px;
+            border-radius: var(--radius-md);
+            border: 2px solid var(--gray-300);
+            object-fit: cover;
+        }
+
+        .group-info-card {
+            background: white;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 2rem;
+        }
+
+        .group-info-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 1rem;
+        }
+
+        .group-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .group-stat-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-200);
+        }
+
+        .group-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .group-stat-label {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            font-weight: 500;
+        }
+
+        .payments-table-container {
+            background: white;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+        }
+
+        .payments-table-header {
+            background: linear-gradient(135deg, var(--gray-50) 0%, white 100%);
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .payments-table-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 0;
+        }
+
+        .payment-row {
+            transition: all var(--transition-normal);
+        }
+
+        .payment-row:hover {
+            background-color: var(--gray-50);
+            transform: scale(1.01);
+        }
+
+        .payment-status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .payment-status-paid {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+        }
+
+        .payment-status-pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+
+        .payment-status-failed {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+        }
+
+        .update-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all var(--transition-normal);
+        }
+
+        .update-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .payment-header {
+                padding: 1.5rem;
+                text-align: center;
+            }
+
+            .payment-title {
+                font-size: 1.75rem;
+            }
+
+            .group-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
 </head>
 <body class="bg-light">
     <?php include 'admin_navbar.php'; ?>
     
     <div class="container mt-4">
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">
-                            <i class="fas fa-list-check"></i> Payment Status Management
-                        </h4>
+        <!-- Payment Status Header -->
+        <div class="payment-header animate-fadeInUp">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <h1 class="payment-title">
+                        <i class="fas fa-credit-card text-gradient-primary me-3"></i>
+                        Payment Status Management
+                    </h1>
+                    <p class="payment-subtitle mb-0">
+                        Monitor and manage payment status for all group members
+                    </p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="admin_payment_config.php" class="btn btn-outline-modern">
+                        <i class="fas fa-cog me-2"></i>QR Settings
+                    </a>
+                    <a href="test_qr_image_setup.php" class="btn btn-outline-modern">
+                        <i class="fas fa-test-tube me-2"></i>Test QR
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <?php if ($error): ?>
+            <div class="alert-modern alert-danger-modern">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span><?= htmlspecialchars($error) ?></span>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($success): ?>
+            <div class="alert-modern alert-success-modern">
+                <i class="fas fa-check-circle"></i>
+                <span><?= htmlspecialchars($success) ?></span>
+            </div>
+        <?php endif; ?>
+
+        <!-- Group Selection -->
+        <div class="group-selector animate-slideInRight">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <h5 class="mb-1">
+                        <i class="fas fa-filter me-2"></i>Select Group
+                    </h5>
+                    <p class="text-muted mb-0">Choose a group to view payment status</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <form method="GET" class="d-flex">
+                        <select name="group_id" class="form-control-modern me-2" required style="min-width: 250px;">
+                            <option value="">Select a Group</option>
+                            <?php foreach ($groups as $group): ?>
+                                <option value="<?= $group['id'] ?>" <?= $selectedGroupId == $group['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($group['group_name']) ?>
+                                    (<?= ucfirst($group['status']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" class="btn btn-primary-modern">
+                            <i class="fas fa-search me-1"></i>View
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current QR Code Info -->
+        <div class="qr-info-card animate-fadeInUp">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <div>
+                    <h6 class="qr-info-title">
+                        <i class="fas fa-qrcode me-2"></i>Current Payment Setup
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>UPI ID:</strong> <?= htmlspecialchars($upiId) ?>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>QR Image:</strong> QRCode.jpeg
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Status:</strong>
+                            <?= isQrPaymentEnabled() ? '<span class="badge badge-success-modern">Enabled</span>' : '<span class="badge badge-danger-modern">Disabled</span>' ?>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <?php if ($error): ?>
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($success): ?>
-                            <div class="alert alert-success">
-                                <i class="fas fa-check-circle"></i> <?= htmlspecialchars($success) ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <!-- Group Selection -->
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <form method="GET" class="d-flex">
-                                    <select name="group_id" class="form-select me-2" required>
-                                        <option value="">Select a Group</option>
-                                        <?php foreach ($groups as $group): ?>
-                                            <option value="<?= $group['id'] ?>" <?= $selectedGroupId == $group['id'] ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($group['group_name']) ?> 
-                                                (<?= ucfirst($group['status']) ?>)
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-search"></i> View
-                                    </button>
-                                </form>
-                            </div>
-                            <div class="col-md-6 text-end">
-                                <div class="btn-group">
-                                    <a href="admin_payment_config.php" class="btn btn-outline-secondary btn-sm">
-                                        <i class="fas fa-cog"></i> QR Settings
-                                    </a>
-                                    <a href="test_qr_image_setup.php" class="btn btn-outline-info btn-sm">
-                                        <i class="fas fa-test-tube"></i> Test QR
-                                    </a>
-                                </div>
-                            </div>
+                </div>
+                <div>
+                    <?php if (file_exists('QRCode.jpeg')): ?>
+                        <img src="QRCode.jpeg" alt="QR Code" class="qr-image">
+                    <?php else: ?>
+                        <div class="qr-image d-flex align-items-center justify-content-center bg-light">
+                            <i class="fas fa-image text-muted"></i>
                         </div>
-                        
-                        <!-- Current QR Code Info -->
-                        <div class="alert alert-info">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <h6><i class="fas fa-qrcode"></i> Current Payment Setup:</h6>
-                                    <p class="mb-0">
-                                        <strong>UPI ID:</strong> <?= htmlspecialchars($upiId) ?> | 
-                                        <strong>QR Image:</strong> QRCode.jpeg | 
-                                        <strong>Status:</strong> <?= isQrPaymentEnabled() ? '<span class="text-success">Enabled</span>' : '<span class="text-danger">Disabled</span>' ?>
-                                    </p>
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    <?php if (file_exists('QRCode.jpeg')): ?>
-                                        <img src="QRCode.jpeg" alt="QR Code" style="max-width: 60px; border: 1px solid #ddd; border-radius: 5px;">
-                                    <?php else: ?>
-                                        <span class="text-muted">QR Image Missing</span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
                         
                         <?php if ($groupInfo): ?>
                             <!-- Group Info -->
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-users"></i> <?= htmlspecialchars($groupInfo['group_name']) ?>
-                                        <span class="badge bg-<?= $groupInfo['status'] === 'active' ? 'success' : 'secondary' ?> ms-2">
+                            <div class="group-info-card animate-fadeInUp">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div>
+                                        <h2 class="group-info-title">
+                                            <i class="fas fa-users me-2"></i>
+                                            <?= htmlspecialchars($groupInfo['group_name']) ?>
+                                        </h2>
+                                    </div>
+                                    <div>
+                                        <span class="badge badge-<?= $groupInfo['status'] === 'active' ? 'success' : 'secondary' ?>-modern">
+                                            <i class="fas fa-<?= $groupInfo['status'] === 'active' ? 'play' : 'check' ?> me-1"></i>
                                             <?= ucfirst($groupInfo['status']) ?>
                                         </span>
-                                    </h5>
+                                    </div>
                                 </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-3">
-                                            <strong>Total Members:</strong> <?= $groupInfo['total_members'] ?>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <strong>Monthly Contribution:</strong> ₹<?= number_format($groupInfo['monthly_contribution'], 2) ?>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <strong>Total Collection:</strong> ₹<?= number_format($groupInfo['total_monthly_collection'], 2) ?>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <strong>Start Date:</strong> <?= formatDate($groupInfo['start_date']) ?>
-                                        </div>
+
+                                <div class="group-stats-grid">
+                                    <div class="group-stat-item">
+                                        <div class="group-stat-value"><?= $groupInfo['total_members'] ?></div>
+                                        <div class="group-stat-label">Total Members</div>
+                                    </div>
+                                    <div class="group-stat-item">
+                                        <div class="group-stat-value">₹<?= number_format($groupInfo['monthly_contribution'], 0) ?></div>
+                                        <div class="group-stat-label">Monthly Contribution</div>
+                                    </div>
+                                    <div class="group-stat-item">
+                                        <div class="group-stat-value">₹<?= number_format($groupInfo['total_monthly_collection'], 0) ?></div>
+                                        <div class="group-stat-label">Total Collection</div>
+                                    </div>
+                                    <div class="group-stat-item">
+                                        <div class="group-stat-value"><?= formatDate($groupInfo['start_date']) ?></div>
+                                        <div class="group-stat-label">Start Date</div>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <!-- Payment Status Table -->
                             <?php if (!empty($payments)): ?>
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h5 class="mb-0">
-                                            <i class="fas fa-table"></i> Payment Status 
-                                            <span class="badge bg-info ms-2"><?= count($payments) ?> Records</span>
-                                        </h5>
+                                <div class="payments-table-container animate-slideInRight">
+                                    <div class="payments-table-header">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h3 class="payments-table-title">
+                                                    <i class="fas fa-table me-2"></i>Payment Status
+                                                </h3>
+                                                <p class="text-muted mb-0"><?= count($payments) ?> payment records</p>
+                                            </div>
+                                            <div>
+                                                <span class="badge badge-info-modern">
+                                                    <i class="fas fa-list me-1"></i><?= count($payments) ?> Records
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="card-body">
+                                    <div class="p-0">
                                         <div class="table-responsive">
-                                            <table class="table table-striped table-hover">
-                                                <thead class="table-dark">
+                                            <table class="table-modern mb-0">
+                                                <thead>
                                                     <tr>
-                                                        <th>Month</th>
-                                                        <th>Member</th>
-                                                        <th>Winner</th>
-                                                        <th>Expected Amount</th>
-                                                        <th>Paid Amount</th>
-                                                        <th>Status</th>
-                                                        <th>Payment Date</th>
-                                                        <th>Actions</th>
+                                                        <th><i class="fas fa-calendar me-1"></i>Month</th>
+                                                        <th><i class="fas fa-user me-1"></i>Member</th>
+                                                        <th><i class="fas fa-trophy me-1"></i>Winner</th>
+                                                        <th><i class="fas fa-coins me-1"></i>Expected Amount</th>
+                                                        <th><i class="fas fa-money-bill me-1"></i>Paid Amount</th>
+                                                        <th><i class="fas fa-check-circle me-1"></i>Status</th>
+                                                        <th><i class="fas fa-calendar-check me-1"></i>Payment Date</th>
+                                                        <th><i class="fas fa-cog me-1"></i>Actions</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($payments as $payment): ?>
-                                                        <tr>
+                                                        <tr class="payment-row">
                                                             <td>
-                                                                <span class="badge bg-primary">Month <?= $payment['month_number'] ?></span>
+                                                                <span class="badge badge-primary-modern">
+                                                                    <i class="fas fa-calendar me-1"></i>Month <?= $payment['month_number'] ?>
+                                                                </span>
                                                             </td>
                                                             <td>
-                                                                <strong><?= htmlspecialchars($payment['member_name']) ?></strong><br>
-                                                                <small class="text-muted">#<?= $payment['member_number'] ?></small>
+                                                                <div class="fw-bold"><?= htmlspecialchars($payment['member_name']) ?></div>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-id-badge me-1"></i>#<?= $payment['member_number'] ?>
+                                                                </small>
                                                             </td>
                                                             <td>
-                                                                <?= $payment['winner_name'] ? htmlspecialchars($payment['winner_name']) : '<span class="text-muted">Not decided</span>' ?>
+                                                                <?php if ($payment['winner_name']): ?>
+                                                                    <div class="fw-bold text-success">
+                                                                        <i class="fas fa-crown me-1"></i>
+                                                                        <?= htmlspecialchars($payment['winner_name']) ?>
+                                                                    </div>
+                                                                <?php else: ?>
+                                                                    <span class="text-muted">
+                                                                        <i class="fas fa-clock me-1"></i>Not decided
+                                                                    </span>
+                                                                <?php endif; ?>
                                                             </td>
                                                             <td>
-                                                                ₹<?= number_format($payment['gain_per_member'] ?? $groupInfo['monthly_contribution'], 2) ?>
+                                                                <div class="fw-bold text-primary">
+                                                                    ₹<?= number_format($payment['gain_per_member'] ?? $groupInfo['monthly_contribution'], 0) ?>
+                                                                </div>
                                                             </td>
                                                             <td>
-                                                                ₹<?= number_format($payment['payment_amount'], 2) ?>
+                                                                <div class="fw-bold text-success">
+                                                                    ₹<?= number_format($payment['payment_amount'], 0) ?>
+                                                                </div>
                                                             </td>
                                                             <td>
-                                                                <span class="badge bg-<?= 
-                                                                    $payment['payment_status'] === 'paid' ? 'success' : 
-                                                                    ($payment['payment_status'] === 'failed' ? 'danger' : 'warning') 
-                                                                ?>">
+                                                                <span class="payment-status-badge payment-status-<?= $payment['payment_status'] ?>">
+                                                                    <i class="fas fa-<?=
+                                                                        $payment['payment_status'] === 'paid' ? 'check-circle' :
+                                                                        ($payment['payment_status'] === 'failed' ? 'times-circle' : 'clock')
+                                                                    ?> me-1"></i>
                                                                     <?= ucfirst($payment['payment_status']) ?>
                                                                 </span>
                                                             </td>
                                                             <td>
-                                                                <?= $payment['payment_date'] ? formatDate($payment['payment_date']) : '<span class="text-muted">-</span>' ?>
+                                                                <?php if ($payment['payment_date']): ?>
+                                                                    <div class="fw-bold"><?= formatDate($payment['payment_date']) ?></div>
+                                                                <?php else: ?>
+                                                                    <span class="text-muted">
+                                                                        <i class="fas fa-minus me-1"></i>Not set
+                                                                    </span>
+                                                                <?php endif; ?>
                                                             </td>
                                                             <td>
-                                                                <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                                        data-bs-toggle="modal" 
+                                                                <button type="button" class="update-btn"
+                                                                        data-bs-toggle="modal"
                                                                         data-bs-target="#updateModal<?= $payment['payment_id'] ?>">
-                                                                    <i class="fas fa-edit"></i> Update
+                                                                    <i class="fas fa-edit me-1"></i>Update
                                                                 </button>
                                                             </td>
                                                         </tr>

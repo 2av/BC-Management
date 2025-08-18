@@ -31,103 +31,316 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Member Login - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="assets/css/modern-design.css" rel="stylesheet">
     <style>
         body {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
+            position: relative;
+            overflow: hidden;
         }
+
+        /* Animated background elements */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 60px 60px;
+            animation: float-reverse 25s ease-in-out infinite;
+        }
+
+        @keyframes float-reverse {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(20px) rotate(-180deg); }
+        }
+
+        .login-container {
+            position: relative;
+            z-index: 10;
+        }
+
         .login-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-2xl);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all var(--transition-normal);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--secondary-gradient);
         }
 
         .login-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            transform: translateY(-8px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem 2rem 0;
         }
 
         .login-icon {
-            animation: pulse 2s infinite;
+            width: 80px;
+            height: 80px;
+            background: var(--secondary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            animation: pulse-gentle 2s infinite;
+            box-shadow: var(--shadow-lg);
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+        .login-icon i {
+            font-size: 2rem;
+            color: white;
         }
 
-        .form-control {
-            transition: all 0.3s ease;
+        .login-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
         }
 
-        .form-control:focus {
+        .login-subtitle {
+            color: var(--gray-600);
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .login-form {
+            padding: 0 2rem 2rem;
+        }
+
+        .form-floating-modern {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-floating-modern input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            font-size: 1rem;
+            border: 2px solid var(--gray-300);
+            border-radius: var(--radius-lg);
+            background-color: white;
+            transition: all var(--transition-normal);
+            outline: none;
+        }
+
+        .form-floating-modern input:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
         }
 
-        .btn {
-            transition: all 0.3s ease;
+        .form-floating-modern .input-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-400);
+            transition: color var(--transition-normal);
         }
 
-        .btn:hover {
+        .form-floating-modern input:focus + .input-icon {
+            color: var(--secondary-color);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            background: var(--secondary-gradient);
+            color: white;
+            border: none;
+            border-radius: var(--radius-lg);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left var(--transition-slow);
+        }
+
+        .login-btn:hover::before {
+            left: 100%;
+        }
+
+        .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .login-footer {
+            text-align: center;
+            padding: 1rem 2rem 2rem;
+            border-top: 1px solid var(--gray-200);
+            margin-top: 1rem;
+        }
+
+        .admin-login-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color var(--transition-normal);
+        }
+
+        .admin-login-link:hover {
+            color: var(--primary-dark);
+        }
+
+        .alert-modern-custom {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--danger-color);
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .login-card {
+                margin: 1rem;
+            }
+
+            .login-header {
+                padding: 1.5rem 1.5rem 0;
+            }
+
+            .login-form {
+                padding: 0 1.5rem 1.5rem;
+            }
+
+            .login-footer {
+                padding: 1rem 1.5rem 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container login-container">
         <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-4">
-                <div class="card login-card">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <i class="fas fa-users fa-3x text-success mb-3 login-icon"></i>
-                            <h3 class="text-success fw-bold"><?= APP_NAME ?></h3>
-                            <p class="text-muted"><i class="fas fa-user-friends me-1"></i>Member Login</p>
+            <div class="col-md-6 col-lg-5 col-xl-4">
+                <div class="login-card animate-bounceIn">
+                    <div class="login-header">
+                        <div class="login-icon">
+                            <i class="fas fa-users"></i>
                         </div>
-                        
+                        <h1 class="login-title"><?= APP_NAME ?></h1>
+                        <p class="login-subtitle">
+                            <i class="fas fa-user-friends me-2"></i>Member Portal Access
+                        </p>
+                    </div>
+
+                    <div class="login-form">
                         <?php if ($error): ?>
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
+                            <div class="alert-modern-custom">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span><?= htmlspecialchars($error) ?></span>
                             </div>
                         <?php endif; ?>
-                        
-                        <form method="POST">
-                            <div class="mb-3">
-                                <label for="username" class="form-label">Username</label>
-                                <input type="text" class="form-control" id="username" name="username" 
-                                       value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required>
+
+                        <form method="POST" class="animate-fadeInUp">
+                            <div class="form-floating-modern">
+                                <input type="text" id="username" name="username"
+                                       value="<?= htmlspecialchars($_POST['username'] ?? '') ?>"
+                                       placeholder="Enter your username" required>
+                                <i class="fas fa-user input-icon"></i>
                             </div>
-                            
-                            <div class="mb-4">
-                                <label for="password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="password" name="password" required>
+
+                            <div class="form-floating-modern">
+                                <input type="password" id="password" name="password"
+                                       placeholder="Enter your password" required>
+                                <i class="fas fa-lock input-icon"></i>
                             </div>
-                            
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-success">
-                                    <i class="fas fa-sign-in-alt"></i> Login
-                                </button>
-                            </div>
+
+                            <button type="submit" class="login-btn">
+                                <i class="fas fa-sign-in-alt me-2"></i>
+                                Access Member Portal
+                            </button>
                         </form>
-                        
-                        <hr class="my-4">
-                        
-                        <div class="text-center">
-                            <small class="text-muted">
-                               
-                                <a href="login.php" class="text-primary">Admin Login</a>
-                            </small>
-                        </div>
+                    </div>
+
+                    <div class="login-footer">
+                        <p class="mb-0">
+                            <i class="fas fa-user-shield me-2 text-muted"></i>
+                            <span class="text-muted">Are you an admin?</span>
+                            <a href="login.php" class="admin-login-link ms-1">
+                                Login Here
+                            </a>
+                        </p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        // Add some interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Focus animation for inputs
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.style.transform = 'scale(1.02)';
+                });
+
+                input.addEventListener('blur', function() {
+                    this.parentElement.style.transform = 'scale(1)';
+                });
+            });
+
+            // Add loading state to login button
+            const loginForm = document.querySelector('form');
+            const loginBtn = document.querySelector('.login-btn');
+
+            loginForm.addEventListener('submit', function() {
+                loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Authenticating...';
+                loginBtn.disabled = true;
+            });
+        });
+    </script>
 </body>
 </html>

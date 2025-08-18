@@ -1,104 +1,106 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+<link href="assets/css/modern-design.css" rel="stylesheet">
+<nav class="navbar navbar-expand-lg navbar-modern">
     <div class="container">
-        <a class="navbar-brand" href="index.php">
-            <i class="fas fa-coins"></i> <?= APP_NAME ?>
+        <a class="navbar-brand-modern" href="index.php">
+            <i class="fas fa-handshake"></i>
+            <span><?= APP_NAME ?></span>
         </a>
-        
+
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
-        
+
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="index.php">
-                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    <a class="nav-link-modern" href="index.php">
+                        <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                     </a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-users"></i> Groups
+                    <a class="nav-link-modern dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-layer-group me-1"></i>Groups
                     </a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="admin_manage_groups.php">
-                            <i class="fas fa-list"></i> Manage Groups
+                            <i class="fas fa-list me-2"></i>Manage Groups
                         </a></li>
                         <li><a class="dropdown-item" href="admin_create_group_simple.php">
-                            <i class="fas fa-plus"></i> Create Group
+                            <i class="fas fa-plus me-2"></i>Create Group
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="create_group.php">
-                            <i class="fas fa-cogs"></i> Advanced Create
+                            <i class="fas fa-cogs me-2"></i>Advanced Create
                         </a></li>
                     </ul>
                 </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user-friends"></i> Members
+                    <a class="nav-link-modern dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-users me-1"></i>Members
                     </a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="admin_members.php">
-                            <i class="fas fa-list"></i> All Members
+                            <i class="fas fa-list me-2"></i>All Members
                         </a></li>
                         <li><a class="dropdown-item" href="admin_add_member.php">
-                            <i class="fas fa-user-plus"></i> Add Member
+                            <i class="fas fa-user-plus me-2"></i>Add Member
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="#" onclick="promptGroupId('manage_members.php')">
-                            <i class="fas fa-users-cog"></i> Manage Group Members
+                            <i class="fas fa-users-cog me-2"></i>Manage Group Members
                         </a></li>
                     </ul>
                 </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-gavel"></i> Bidding
+                    <a class="nav-link-modern dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-gavel me-1"></i>Bidding
                     </a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="admin_bidding.php">
-                            <i class="fas fa-cog"></i> Manage Bidding
+                            <i class="fas fa-cog me-2"></i>Manage Bidding
                         </a></li>
                         <li><a class="dropdown-item" href="admin_manage_random_picks.php">
-                            <i class="fas fa-dice"></i> Random Picks
+                            <i class="fas fa-dice me-2"></i>Random Picks
                         </a></li>
                     </ul>
                 </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-credit-card"></i> Payments
+                    <a class="nav-link-modern dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-credit-card me-1"></i>Payments
                     </a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="admin_payment_config.php">
-                            <i class="fas fa-qrcode"></i> QR Code Settings
+                            <i class="fas fa-qrcode me-2"></i>QR Code Settings
                         </a></li>
                         <li><a class="dropdown-item" href="admin_payment_status.php">
-                            <i class="fas fa-list-check"></i> Payment Status
+                            <i class="fas fa-list-check me-2"></i>Payment Status
                         </a></li>
                         <li><a class="dropdown-item" href="test_qr_image_setup.php">
-                            <i class="fas fa-test-tube"></i> Test QR Setup
+                            <i class="fas fa-test-tube me-2"></i>Test QR Setup
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="test_qr_payment.php">
-                            <i class="fas fa-vial"></i> Test Payment System
+                            <i class="fas fa-vial me-2"></i>Test Payment System
                         </a></li>
                     </ul>
                 </li>
             </ul>
-            
+
             <ul class="navbar-nav">
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user-shield"></i> Admin
+                    <a class="nav-link-modern dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user-shield me-1"></i>Admin
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><a class="dropdown-item" href="admin_payment_config.php">
-                            <i class="fas fa-qrcode"></i> Payment Settings
+                            <i class="fas fa-qrcode me-2"></i>Payment Settings
                         </a></li>
                         <li><a class="dropdown-item" href="admin_change_password.php">
-                            <i class="fas fa-key"></i> Change Password
+                            <i class="fas fa-key me-2"></i>Change Password
                         </a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="logout.php">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
                         </a></li>
                     </ul>
                 </li>

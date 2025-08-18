@@ -206,11 +206,264 @@ $recentActivities = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My BC Status - <?= APP_NAME ?></title>
+    <title>Member Dashboard - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="assets/css/modern-design.css?v=<?= time() ?>" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        body {
+            background: linear-gradient(135deg, var(--gray-50) 0%, #f0fdf4 100%);
+            font-family: var(--font-family-sans);
+        }
+
+        /* Member Navigation */
+        .member-navbar {
+            background: var(--secondary-gradient);
+            box-shadow: var(--shadow-lg);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .member-navbar .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+
+        .member-navbar .navbar-brand:hover {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .member-navbar .nav-link {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            transition: all var(--transition-normal);
+            margin: 0 0.25rem;
+        }
+
+        .member-navbar .nav-link:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .member-navbar .navbar-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+        }
+
+        /* Member Profile Header */
+        .member-profile-header {
+            background: white;
+            border-radius: var(--radius-2xl);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--gray-200);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .member-profile-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--secondary-gradient);
+        }
+
+        .member-avatar-modern {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--secondary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            margin: 0 auto 1rem;
+            box-shadow: var(--shadow-lg);
+            animation: pulse-gentle 2s infinite;
+        }
+
+        .member-welcome-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 0.5rem;
+        }
+
+        .member-welcome-subtitle {
+            color: var(--gray-600);
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .member-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--secondary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius-lg);
+            font-weight: 500;
+            transition: all var(--transition-normal);
+            border: none;
+            margin: 0.25rem;
+        }
+
+        .member-action-btn:hover {
+            background: var(--secondary-dark);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .member-action-btn.secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+        }
+
+        .member-action-btn.secondary:hover {
+            background: var(--gray-200);
+            color: var(--gray-800);
+        }
+
+        /* Groups Overview */
+        .groups-overview {
+            background: white;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .groups-overview-header {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--secondary-dark) 100%);
+            color: white;
+            padding: 1.5rem;
+        }
+
+        .groups-overview-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .groups-overview-subtitle {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .group-card-member {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin: 1rem;
+            transition: all var(--transition-normal);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .group-card-member:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--secondary-color);
+        }
+
+        .group-card-member.current-group {
+            border-color: var(--secondary-color);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .group-card-member.current-group::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--secondary-gradient);
+        }
+
+        .group-name-member {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 1rem;
+        }
+
+        .group-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .group-stat {
+            text-align: center;
+        }
+
+        .group-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+        }
+
+        .group-stat-label {
+            font-size: 0.85rem;
+            color: var(--gray-600);
+            margin-top: 0.25rem;
+        }
+
+        .group-progress-bar {
+            background: var(--gray-200);
+            border-radius: var(--radius-md);
+            height: 8px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .group-progress-fill {
+            background: var(--secondary-gradient);
+            height: 100%;
+            border-radius: var(--radius-md);
+            transition: width var(--transition-slow);
+        }
+
+        .group-status-badge-member {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .member-profile-header {
+                padding: 1.5rem;
+                text-align: center;
+            }
+
+            .member-welcome-title {
+                font-size: 1.75rem;
+            }
+
+            .group-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
         .member-card {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
@@ -402,25 +655,31 @@ $recentActivities = $stmt->fetchAll();
         }
     </style>
 </head>
-<body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+<body>
+    <nav class="navbar navbar-expand-lg member-navbar">
         <div class="container">
             <a class="navbar-brand" href="member_dashboard.php">
-                <i class="fas fa-users text-warning me-2"></i>Mitra Niidhi Samooh
+                <i class="fas fa-users me-2"></i>Mitra Niidhi Samooh
             </a>
-            <div class="navbar-nav ms-auto">
-                <span class="navbar-text me-3">
-                    Welcome, <?= htmlspecialchars($_SESSION['member_name']) ?>
-                </span>
-                <a class="nav-link text-white" href="member_edit_profile.php">
-                    <i class="fas fa-user-edit"></i> Edit Profile
-                </a>
-                <a class="nav-link text-white" href="member_change_password.php">
-                    <i class="fas fa-key"></i> Change Password
-                </a>
-                <a class="nav-link text-white" href="?logout=1">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#memberNavbar">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="memberNavbar">
+                <div class="navbar-nav ms-auto">
+                    <span class="navbar-text me-3">
+                        <i class="fas fa-user-circle me-1"></i>
+                        Welcome, <?= htmlspecialchars($_SESSION['member_name']) ?>
+                    </span>
+                    <a class="nav-link" href="member_edit_profile.php">
+                        <i class="fas fa-user-edit me-1"></i>Edit Profile
+                    </a>
+                    <a class="nav-link" href="member_change_password.php">
+                        <i class="fas fa-key me-1"></i>Change Password
+                    </a>
+                    <a class="nav-link" href="?logout=1">
+                        <i class="fas fa-sign-out-alt me-1"></i>Logout
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
@@ -435,115 +694,121 @@ $recentActivities = $stmt->fetchAll();
         <?php endif; ?>
 
         <!-- Member Profile Header -->
-        <div class="card member-card mb-4">
-            <div class="card-body p-4">
-                <div class="row align-items-center">
-                    <div class="col-md-2 text-center">
-                        <div class="member-avatar">
-                            <?= strtoupper(substr($member['member_name'], 0, 1)) ?>
-                        </div>
+        <div class="member-profile-header animate-fadeInUp">
+            <div class="row align-items-center">
+                <div class="col-md-3 text-center">
+                    <div class="member-avatar-modern">
+                        <?= strtoupper(substr($member['member_name'], 0, 1)) ?>
                     </div>
-                    <div class="col-md-6">
-                        <h3 class="mb-1"><i class="fas fa-hand-holding-heart me-2"></i>Welcome, <?= htmlspecialchars($member['member_name']) ?>!</h3>
-                        <p class="mb-2 text-muted">
-                            <i class="fas fa-info-circle"></i> You are a member of <?= count($groupsData) ?> group(s)
-                        </p>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <div class="d-flex flex-column gap-2">
-                            <a href="member_bidding.php" class="btn btn-warning">
-                                <i class="fas fa-gavel"></i> Place Bids
-                            </a>
-                            <a href="member_group_view.php" class="btn btn-light">
-                                <i class="fas fa-eye"></i> View Full Group
-                            </a>
-                            <a href="member_edit_profile.php" class="btn btn-outline-light">
-                                <i class="fas fa-user-edit"></i> Edit Profile
-                            </a>
-                            <a href="member_change_password.php" class="btn btn-outline-light">
-                                <i class="fas fa-key"></i> Change Password
-                            </a>
-                        </div>
+                </div>
+                <div class="col-md-6">
+                    <h1 class="member-welcome-title">
+                        <i class="fas fa-hand-holding-heart text-gradient-secondary me-2"></i>
+                        Welcome, <?= htmlspecialchars($member['member_name']) ?>!
+                    </h1>
+                    <p class="member-welcome-subtitle">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You are a member of <?= count($groupsData) ?> group(s)
+                        <span class="mx-2">•</span>
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        Member since <?= formatDate($member['created_at']) ?>
+                    </p>
+                </div>
+                <div class="col-md-3">
+                    <div class="d-flex flex-column gap-2">
+                        <a href="member_bidding.php" class="member-action-btn">
+                            <i class="fas fa-gavel"></i>
+                            <span>Place Bids</span>
+                        </a>
+                        <a href="member_group_view.php" class="member-action-btn secondary">
+                            <i class="fas fa-eye"></i>
+                            <span>View Groups</span>
+                        </a>
+                        <a href="member_edit_profile.php" class="member-action-btn secondary">
+                            <i class="fas fa-user-edit"></i>
+                            <span>Edit Profile</span>
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- All Groups Information -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-users me-2"></i>My Groups Overview
-                            <small class="ms-3 text-light">Click on a group to view detailed information</small>
-                        </h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th><i class="fas fa-users-cog"></i> Group Name</th>
-                                        <th><i class="fas fa-coins"></i> Monthly Amount</th>
-                                        <th><i class="fas fa-calendar-alt"></i> Start Date</th>
-                                        <th><i class="fas fa-calendar-check"></i> Est. End Date</th>
-                                        <th><i class="fas fa-chart-pie"></i> Progress</th>
-                                        <th><i class="fas fa-trophy"></i> Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($groupsData as $groupData): ?>
-                                    <tr class="<?= $groupData['is_current_group'] ? 'table-success' : '' ?> group-row"
-                                        style="cursor: pointer;"
-                                        onclick="selectGroup(<?= $groupData['group']['id'] ?>)"
-                                        title="Click to view detailed information for this group">
-                                        <td>
-                                            <strong><?= htmlspecialchars($groupData['group']['group_name']) ?></strong>
-                                            <?php if ($groupData['is_current_group']): ?>
-                                                <span class="badge bg-success ms-2">Selected</span>
-                                            <?php endif; ?>
-                                            <br>
-                                            <small class="text-muted">
-                                                <i class="fas fa-id-badge"></i> Member #<?= $groupData['member_in_group']['member_number'] ?>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <strong><?= formatCurrency($groupData['group']['monthly_contribution']) ?></strong>
-                                        </td>
-                                        <td>
-                                            <?= formatDate($groupData['group']['start_date']) ?>
-                                        </td>
-                                        <td>
-                                            <?= $groupData['estimated_end_date']->format('d/m/Y') ?>
-                                        </td>
-                                        <td>
-                                            <div class="progress" style="height: 20px;">
-                                                <div class="progress-bar bg-success" role="progressbar"
-                                                     style="width: <?= $groupData['progress_percentage'] ?>%">
-                                                    <?= number_format($groupData['progress_percentage'], 1) ?>%
+        <div class="groups-overview animate-slideInRight">
+            <div class="groups-overview-header">
+                <h2 class="groups-overview-title">
+                    <i class="fas fa-layer-group me-2"></i>My Groups Overview
+                </h2>
+                <p class="groups-overview-subtitle mb-0">
+                    Click on a group to view detailed information and manage your participation
+                </p>
+            </div>
+            <div class="p-0">
+                <div class="row g-0">
+                                    <?php foreach ($groupsData as $index => $groupData): ?>
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="group-card-member <?= $groupData['is_current_group'] ? 'current-group' : '' ?> animate-fadeInUp"
+                                             style="animation-delay: <?= $index * 0.1 ?>s"
+                                             onclick="selectGroup(<?= $groupData['group']['id'] ?>)"
+                                             title="Click to view detailed information for this group">
+
+                                            <div class="group-status-badge-member">
+                                                <?php if ($groupData['is_current_group']): ?>
+                                                    <span class="badge badge-success-modern">
+                                                        <i class="fas fa-check-circle me-1"></i>Selected
+                                                    </span>
+                                                <?php endif; ?>
+                                                <span class="badge badge-<?= $groupData['group']['status'] === 'completed' ? 'success' : 'primary' ?>-modern">
+                                                    <i class="fas fa-<?= $groupData['group']['status'] === 'completed' ? 'trophy' : 'play' ?> me-1"></i>
+                                                    <?= ucfirst($groupData['group']['status']) ?>
+                                                </span>
+                                            </div>
+
+                                            <div class="group-name-member">
+                                                <?= htmlspecialchars($groupData['group']['group_name']) ?>
+                                            </div>
+
+                                            <div class="text-center mb-3">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-id-badge me-1"></i>
+                                                    Member #<?= $groupData['member_in_group']['member_number'] ?>
+                                                </small>
+                                            </div>
+
+                                            <div class="group-stats">
+                                                <div class="group-stat">
+                                                    <div class="group-stat-value"><?= formatCurrency($groupData['group']['monthly_contribution']) ?></div>
+                                                    <div class="group-stat-label">Monthly</div>
+                                                </div>
+                                                <div class="group-stat">
+                                                    <div class="group-stat-value"><?= $groupData['completed_months'] ?>/<?= $groupData['total_months'] ?></div>
+                                                    <div class="group-stat-label">Progress</div>
+                                                </div>
+                                                <div class="group-stat">
+                                                    <div class="group-stat-value"><?= number_format($groupData['progress_percentage'], 1) ?>%</div>
+                                                    <div class="group-stat-label">Complete</div>
                                                 </div>
                                             </div>
-                                            <small class="text-muted">
-                                                <?= $groupData['completed_months'] ?> / <?= $groupData['total_months'] ?> months
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <?php if ($groupData['group']['status'] === 'completed'): ?>
-                                                <span class="badge bg-success">Completed</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-primary">Active</span>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
+
+                                            <div class="group-progress-bar">
+                                                <div class="group-progress-fill" style="width: <?= $groupData['progress_percentage'] ?>%"></div>
+                                            </div>
+
+                                            <div class="text-center">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-calendar-alt me-1"></i>
+                                                    Started: <?= formatDate($groupData['group']['start_date']) ?>
+                                                    <span class="mx-2">•</span>
+                                                    <i class="fas fa-calendar-check me-1"></i>
+                                                    Est. End: <?= $groupData['estimated_end_date']->format('d/m/Y') ?>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <?php endforeach; ?>
-                                </tbody>
-                            </table>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Multi-Group Summary -->
         <?php if (count($groupsData) > 1): ?>
