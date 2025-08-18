@@ -75,12 +75,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $memberId = $pdo->lastInsertId();
             
-            // Create member summary record
+            // Create member summary record with both group_id and member_id
             $stmt = $pdo->prepare("
-                INSERT INTO member_summary (member_id, total_paid, given_amount, profit) 
-                VALUES (?, 0, 0, 0)
+                INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit)
+                VALUES (?, ?, 0, 0, 0)
             ");
-            $stmt->execute([$memberId]);
+            $stmt->execute([$groupId, $memberId]);
             
             $pdo->commit();
             $success = 'Member added successfully!';

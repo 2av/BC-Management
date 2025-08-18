@@ -228,8 +228,15 @@ $recentActivities = $stmt->fetchAll();
                             <li><a class="dropdown-item" href="index.php">
                                 <i class="fas fa-list"></i> All Groups
                             </a></li>
-                            <li><a class="dropdown-item" href="create_group.php">
+                            <li><a class="dropdown-item" href="admin_create_group_simple.php">
                                 <i class="fas fa-plus"></i> Create Group
+                            </a></li>
+                            <li><a class="dropdown-item" href="admin_manage_groups.php">
+                                <i class="fas fa-cogs"></i> Manage Groups
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="create_group.php">
+                                <i class="fas fa-tools"></i> Advanced Create
                             </a></li>
                         </ul>
                     </li>
@@ -274,7 +281,7 @@ $recentActivities = $stmt->fetchAll();
                 <a href="admin_change_password.php" class="btn btn-outline-primary btn-interactive">
                     <i class="fas fa-shield-alt me-1"></i> Change Password
                 </a>
-                <a href="create_group.php" class="btn btn-primary btn-interactive">
+                <a href="admin_create_group_simple.php" class="btn btn-primary btn-interactive">
                     <i class="fas fa-plus-circle me-1"></i> Create New Group
                 </a>
             </div>
@@ -356,7 +363,7 @@ $recentActivities = $stmt->fetchAll();
                             <a href="admin_bulk_import.php" class="btn btn-sm btn-outline-info" title="Bulk Import">
                                 <i class="fas fa-upload"></i>
                             </a>
-                            <a href="create_group.php" class="btn btn-sm btn-outline-primary" title="Create Group">
+                            <a href="admin_create_group_simple.php" class="btn btn-sm btn-outline-primary" title="Create Group">
                                 <i class="fas fa-plus"></i>
                             </a>
                             <button class="btn btn-sm btn-outline-secondary" onclick="refreshDashboard()" title="Refresh Data">
@@ -540,7 +547,7 @@ $recentActivities = $stmt->fetchAll();
                         <i class="fas fa-users fa-3x text-muted mb-3"></i>
                         <h4 class="text-muted">No BC Groups Yet</h4>
                         <p class="text-muted">Create your first BC group to get started.</p>
-                        <a href="create_group.php" class="btn btn-primary">
+                        <a href="admin_create_group_simple.php" class="btn btn-primary">
                             <i class="fas fa-plus"></i> Create BC Group
                         </a>
                     </div>

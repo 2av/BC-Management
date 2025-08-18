@@ -15,8 +15,129 @@ if (!$group) {
 
 $members = getGroupMembers($groupId);
 
+// Get existing members for suggestions (excluding those already in this group)
+$pdo = getDB();
+$stmt = $pdo->prepare("
+    SELECT DISTINCT m1.member_name
+    FROM members m1
+    WHERE m1.member_name NOT IN (
+        SELECT m2.member_name
+        FROM members m2
+        WHERE m2.group_id = ?
+    )
+    ORDER BY m1.member_name
+");
+$stmt->execute([$groupId]);
+$availableMembers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
 $error = '';
 $success = '';
+
+// Handle adding new member
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
+    $memberName = trim($_POST['member_name'] ?? '');
+    $newMemberName = trim($_POST['new_member_name'] ?? '');
+
+    // Use new member name if "Add new member" was selected
+    if ($memberName === '__NEW__' && $newMemberName) {
+        $memberName = $newMemberName;
+    }
+
+    if ($memberName) {
+        try {
+            $pdo = getDB();
+            $pdo->beginTransaction();
+
+            // Check if member is already in this group
+            $checkStmt = $pdo->prepare("SELECT id FROM members WHERE group_id = ? AND member_name = ?");
+            $checkStmt->execute([$groupId, $memberName]);
+            if ($checkStmt->fetch()) {
+                throw new Exception("Member '{$memberName}' is already in this group.");
+            }
+
+            // Get next member number
+            $nextMemberNumber = count($members) + 1;
+
+            // Create simple username from member name
+            $cleanName = strtolower(str_replace([' ', '.', '-'], '', $memberName));
+            $username = $cleanName;
+
+            // Check if username already exists, if so reuse the existing member's credentials
+            $checkStmt = $pdo->prepare("SELECT username, password FROM members WHERE member_name = ? LIMIT 1");
+            $checkStmt->execute([$memberName]);
+            $existingMember = $checkStmt->fetch();
+
+            if ($existingMember) {
+                // Reuse existing username and password
+                $username = $existingMember['username'];
+                $password = $existingMember['password'];
+            } else {
+                // Create new password for new member
+                $password = password_hash('member123', PASSWORD_DEFAULT);
+
+                // Ensure username is unique
+                $counter = 1;
+                $originalUsername = $username;
+                while (true) {
+                    $checkUsernameStmt = $pdo->prepare("SELECT id FROM members WHERE username = ?");
+                    $checkUsernameStmt->execute([$username]);
+                    if (!$checkUsernameStmt->fetch()) {
+                        break; // Username is unique
+                    }
+                    $username = $originalUsername . $counter;
+                    $counter++;
+                }
+            }
+
+            // Insert member
+            $stmt = $pdo->prepare("
+                INSERT INTO members (group_id, member_name, member_number, username, password, status)
+                VALUES (?, ?, ?, ?, ?, 'active')
+            ");
+            $stmt->execute([$groupId, $memberName, $nextMemberNumber, $username, $password]);
+
+            $memberId = $pdo->lastInsertId();
+
+            // Create member summary with both group_id and member_id
+            $stmt = $pdo->prepare("
+                INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit)
+                VALUES (?, ?, 0, 0, 0)
+            ");
+            $stmt->execute([$groupId, $memberId]);
+
+            // Update group total members if needed
+            if ($nextMemberNumber > $group['total_members']) {
+                $newTotalCollection = $nextMemberNumber * $group['monthly_contribution'];
+                $stmt = $pdo->prepare("
+                    UPDATE bc_groups
+                    SET total_members = ?, total_monthly_collection = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$nextMemberNumber, $newTotalCollection, $groupId]);
+
+                // Add new month bidding status if needed
+                $stmt = $pdo->prepare("
+                    INSERT IGNORE INTO month_bidding_status (group_id, month_number, bidding_status)
+                    VALUES (?, ?, 'not_started')
+                ");
+                $stmt->execute([$groupId, $nextMemberNumber]);
+            }
+
+            $pdo->commit();
+            $success = "Member '{$memberName}' added successfully! Username: {$username}, Password: member123";
+
+            // Refresh data
+            $group = getGroupById($groupId);
+            $members = getGroupMembers($groupId);
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $error = 'Failed to add member: ' . $e->getMessage();
+        }
+    } else {
+        $error = 'Member name is required.';
+    }
+}
 
 // Handle member credential updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
@@ -85,6 +206,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
                 <i class="fas fa-check-circle"></i> <?= htmlspecialchars($success) ?>
             </div>
         <?php endif; ?>
+
+        <!-- Add New Member Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-plus"></i> Add New Member
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row align-items-end">
+                        <div class="col-md-8">
+                            <?php if (!empty($availableMembers)): ?>
+                                <label for="member_name" class="form-label">Select Member</label>
+                                <select class="form-select" name="member_name" id="member_name" required onchange="updateMemberInput(this)">
+                                    <option value="">Select existing member</option>
+                                    <?php foreach ($availableMembers as $memberName): ?>
+                                        <option value="<?= htmlspecialchars($memberName) ?>">
+                                            <?= htmlspecialchars($memberName) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                    <option value="__NEW__">+ Add new member</option>
+                                </select>
+                                <input type="text" class="form-control mt-2" name="new_member_name"
+                                       placeholder="Enter new member name" style="display: none;" id="new_member_input">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    Only showing members not already in this group
+                                </small>
+                            <?php else: ?>
+                                <label for="member_name" class="form-label">Member Name</label>
+                                <input type="text" class="form-control" name="member_name"
+                                       placeholder="Enter new member name" required>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    No existing members available to add (all existing members may already be in this group)
+                                </small>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" name="add_member" class="btn btn-success w-100">
+                                <i class="fas fa-plus"></i> Add Member
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            New members will get auto-generated usernames and default password "member123"
+                        </small>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <div class="card">
             <div class="card-header">
@@ -211,5 +386,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updateMemberInput(selectElement) {
+            const newMemberInput = document.getElementById('new_member_input');
+
+            if (selectElement.value === '__NEW__') {
+                selectElement.style.display = 'none';
+                newMemberInput.style.display = 'block';
+                newMemberInput.focus();
+                newMemberInput.required = true;
+                selectElement.required = false;
+            } else {
+                selectElement.style.display = 'block';
+                newMemberInput.style.display = 'none';
+                newMemberInput.required = false;
+                selectElement.required = true;
+            }
+        }
+    </script>
 </body>
 </html>
