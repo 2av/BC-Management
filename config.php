@@ -3,17 +3,8 @@
 session_start();
 
 // Database Configuration
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'bc_simple');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-
-
-// Live configuration
-// define('DB_HOST', 'localhost:3306');
-// define('DB_NAME', 'priyank2_bc');
-// define('DB_USER', 'priyank2');
-// define('DB_PASS', '3nS3r-L!15AxHn');
+// Include database configuration from separate file
+require_once 'db_config.php';
 
 
 // Application Configuration
@@ -22,19 +13,11 @@ define('APP_NAME', 'Mitra Niidhi Samooh');
 // Database Connection
 function getDB() {
     static $pdo = null;
-    
+
     if ($pdo === null) {
-        try {
-            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
-            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-            ]);
-        } catch (PDOException $e) {
-            die("Database connection failed: " . $e->getMessage());
-        }
+        $pdo = getDatabaseConnection();
     }
-    
+
     return $pdo;
 }
 

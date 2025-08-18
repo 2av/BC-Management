@@ -1,0 +1,56 @@
+# Database Configuration (Security)
+db_config.php
+
+# Environment Configuration
+.env
+.env.local
+.env.production
+
+# Uploaded Files
+uploads/
+QRCode.jpeg
+
+# Logs
+*.log
+logs/
+error.log
+access.log
+
+# Cache
+cache/
+tmp/
+temp/
+
+# IDE Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup Files
+*.bak
+*.backup
+*.sql.backup
+
+# Sensitive Files
+config_local.php
+settings_local.php
+credentials.php
+
+# Node Modules (if using any frontend tools)
+node_modules/
+npm-debug.log*
+
+# Composer (if using)
+vendor/
+composer.lock
+
+# Test Files (optional)
+test_*.php
+debug_*.php
