@@ -483,6 +483,85 @@ $recentActivities = $stmt->fetchAll();
             transition: transform 0.3s ease;
         }
 
+        /* Admin navbar styling */
+        .navbar-dark .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            margin: 0 0.25rem;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-dark .navbar-nav .nav-link:hover {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .navbar-dark .navbar-nav .nav-link.dropdown-toggle::after {
+            margin-left: 0.5rem;
+        }
+
+        .navbar-dark .navbar-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+            margin: 0 0.5rem;
+        }
+
+        /* Language switcher styling */
+        .language-flag {
+            font-size: 1.1em;
+            margin-right: 0.25rem;
+        }
+
+        .dropdown-item.active {
+            background-color: var(--bs-primary);
+        }
+
+        /* Ensure dropdown menu visibility */
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            min-width: 160px;
+            padding: 0.5rem 0;
+            margin: 0;
+            background-color: #fff;
+            border: 1px solid rgba(0,0,0,.15);
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,.175);
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-toggle::after {
+            display: inline-block;
+            margin-left: 0.255em;
+            vertical-align: 0.255em;
+            content: "";
+            border-top: 0.3em solid;
+            border-right: 0.3em solid transparent;
+            border-bottom: 0;
+            border-left: 0.3em solid transparent;
+        }
+
+        /* Responsive navbar adjustments */
+        @media (max-width: 991.98px) {
+            .navbar-nav {
+                padding-top: 0.5rem;
+            }
+
+            .navbar-nav .nav-link {
+                padding: 0.75rem 1rem;
+                margin: 0.25rem 0;
+            }
+        }
+
         /* Icon animations */
         .fas, .far {
             transition: all 0.3s ease;
@@ -561,9 +640,9 @@ $recentActivities = $stmt->fetchAll();
                     </li>
                 </ul>
 
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav ms-auto align-items-center">
                     <!-- Language Switcher -->
-                    <li class="nav-item dropdown me-3">
+                    <li class="nav-item dropdown me-2">
                         <a class="nav-link dropdown-toggle text-white" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-globe me-1"></i>
                             <span class="language-flag"><?= $available_languages[getCurrentLanguage()]['flag'] ?></span>
@@ -586,18 +665,19 @@ $recentActivities = $stmt->fetchAll();
                     </li>
 
                     <li class="nav-item">
-                        <span class="navbar-text me-3">
+                        <span class="navbar-text me-2">
+                            <i class="fas fa-user-shield me-1"></i>
                             <?= t('welcome') ?>, <?= htmlspecialchars($_SESSION['admin_name']) ?>
                         </span>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link text-white" href="admin_change_password.php">
-                            <i class="fas fa-key"></i> <?= t('change_password') ?>
+                            <i class="fas fa-key me-1"></i><?= t('change_password') ?>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link text-white" href="?logout=1">
-                            <i class="fas fa-sign-out-alt"></i> <?= t('logout') ?>
+                            <i class="fas fa-sign-out-alt me-1"></i><?= t('logout') ?>
                         </a>
                     </li>
                 </ul>
@@ -950,7 +1030,6 @@ $recentActivities = $stmt->fetchAll();
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Chart.js configuration
         Chart.defaults.font.family = 'Arial, sans-serif';
@@ -1257,46 +1336,62 @@ $recentActivities = $stmt->fetchAll();
     <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Language Switcher Debug Script -->
+    <!-- Language Switcher Script -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Language switcher initializing...');
-
-            // Check if Bootstrap is loaded
-            if (typeof bootstrap !== 'undefined') {
-                console.log('Bootstrap is loaded successfully');
-            } else {
-                console.error('Bootstrap is not loaded!');
-            }
-
-            // Find the language dropdown
+            // Initialize language dropdown
             const languageDropdown = document.getElementById('languageDropdown');
             if (languageDropdown) {
-                console.log('Language dropdown found');
+                // Remove any existing event listeners
+                languageDropdown.removeAttribute('data-bs-toggle');
 
-                // Add click event listener for debugging
+                // Add manual click handler
                 languageDropdown.addEventListener('click', function(e) {
-                    console.log('Language dropdown clicked');
                     e.preventDefault();
+                    e.stopPropagation();
 
-                    // Manually toggle dropdown if Bootstrap fails
                     const dropdownMenu = this.nextElementSibling;
                     if (dropdownMenu) {
-                        dropdownMenu.classList.toggle('show');
-                        this.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
+                        // Close all other dropdowns
+                        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+                            if (menu !== dropdownMenu) {
+                                menu.classList.remove('show');
+                            }
+                        });
+
+                        // Toggle current dropdown
+                        const isOpen = dropdownMenu.classList.contains('show');
+                        if (isOpen) {
+                            dropdownMenu.classList.remove('show');
+                            this.setAttribute('aria-expanded', 'false');
+                        } else {
+                            dropdownMenu.classList.add('show');
+                            this.setAttribute('aria-expanded', 'true');
+                        }
                     }
                 });
 
-                // Try to initialize Bootstrap dropdown manually
-                try {
-                    const dropdown = new bootstrap.Dropdown(languageDropdown);
-                    console.log('Bootstrap dropdown initialized manually');
-                } catch (error) {
-                    console.error('Failed to initialize Bootstrap dropdown:', error);
-                }
-            } else {
-                console.error('Language dropdown not found!');
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!languageDropdown.contains(e.target)) {
+                        const dropdownMenu = languageDropdown.nextElementSibling;
+                        if (dropdownMenu && dropdownMenu.classList.contains('show')) {
+                            dropdownMenu.classList.remove('show');
+                            languageDropdown.setAttribute('aria-expanded', 'false');
+                        }
+                    }
+                });
             }
+
+            // Initialize other Bootstrap dropdowns normally
+            const otherDropdowns = document.querySelectorAll('[data-bs-toggle="dropdown"]:not(#languageDropdown)');
+            otherDropdowns.forEach(dropdown => {
+                try {
+                    new bootstrap.Dropdown(dropdown);
+                } catch (error) {
+                    console.log('Dropdown initialization skipped for:', dropdown.id);
+                }
+            });
         });
     </script>
 </body>

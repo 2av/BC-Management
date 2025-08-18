@@ -4,6 +4,21 @@ require_once 'config.php';
 require_once 'languages/config.php';
 requireMemberLogin();
 
+// Ensure language variables are available
+if (!isset($available_languages)) {
+    $available_languages = [
+        'en' => ['name' => 'English', 'flag' => '🇺🇸'],
+        'hi' => ['name' => 'हिंदी', 'flag' => '🇮🇳']
+    ];
+}
+
+// Ensure getCurrentLanguage function works
+if (!function_exists('getCurrentLanguage')) {
+    function getCurrentLanguage() {
+        return isset($_COOKIE['language']) ? $_COOKIE['language'] : 'en';
+    }
+}
+
 if (isset($_GET['logout'])) {
     logout();
 }
@@ -256,6 +271,49 @@ $recentActivities = $stmt->fetchAll();
             font-weight: 500;
         }
 
+        /* Dropdown menu styling */
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            min-width: 160px;
+            padding: 0.5rem 0;
+            margin: 0;
+            background-color: #fff;
+            border: 1px solid rgba(0,0,0,.15);
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,.175);
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-toggle::after {
+            display: inline-block;
+            margin-left: 0.255em;
+            vertical-align: 0.255em;
+            content: "";
+            border-top: 0.3em solid;
+            border-right: 0.3em solid transparent;
+            border-bottom: 0;
+            border-left: 0.3em solid transparent;
+        }
+
+        .dropdown-item.active {
+            background-color: var(--bs-primary);
+            color: white;
+        }
+
+        .language-flag {
+            font-size: 1.1em;
+            margin-right: 0.25rem;
+        }
+
+
+
         /* Language switcher styling for member navbar */
         .member-navbar .language-flag {
             font-size: 1.2em;
@@ -283,6 +341,34 @@ $recentActivities = $stmt->fetchAll();
 
         .member-navbar .navbar-toggler-icon {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 991.98px) {
+            .member-navbar .navbar-nav {
+                padding-top: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                margin-top: 0.5rem;
+            }
+
+            .member-navbar .nav-link {
+                padding: 0.75rem 1rem;
+                margin: 0.25rem 0;
+                border-radius: var(--radius-md);
+            }
+
+            .member-navbar .navbar-text {
+                padding: 0.75rem 1rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        @media (min-width: 992px) {
+            .member-navbar .navbar-nav {
+                flex-direction: row;
+                align-items: center;
+            }
         }
 
         /* Member Profile Header */
@@ -700,8 +786,8 @@ $recentActivities = $stmt->fetchAll();
                     <li class="nav-item dropdown me-3">
                         <a class="nav-link dropdown-toggle text-white" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-globe me-1"></i>
-                            <span class="language-flag"><?= $available_languages[getCurrentLanguage()]['flag'] ?></span>
-                            <span class="d-none d-md-inline ms-1"><?= $available_languages[getCurrentLanguage()]['name'] ?></span>
+                            <span class="language-flag"><?= isset($available_languages[getCurrentLanguage()]['flag']) ? $available_languages[getCurrentLanguage()]['flag'] : '🇺🇸' ?></span>
+                            <span class="d-none d-md-inline ms-1"><?= isset($available_languages[getCurrentLanguage()]['name']) ? $available_languages[getCurrentLanguage()]['name'] : 'English' ?></span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
                             <?php foreach ($available_languages as $code => $language): ?>
@@ -726,18 +812,18 @@ $recentActivities = $stmt->fetchAll();
                         </span>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="member_edit_profile.php">
-                            <i class="fas fa-user-edit me-1"></i><?= t('edit_profile', 'Edit Profile') ?>
+                        <a class="nav-link text-white" href="member_edit_profile.php">
+                            <i class="fas fa-user-edit"></i> <?= t('edit_profile', 'Edit Profile') ?>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="member_change_password.php">
-                            <i class="fas fa-key me-1"></i><?= t('change_password', 'Change Password') ?>
+                        <a class="nav-link text-white" href="member_change_password.php">
+                            <i class="fas fa-key"></i> <?= t('change_password', 'Change Password') ?>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="?logout=1">
-                            <i class="fas fa-sign-out-alt me-1"></i><?= t('logout', 'Logout') ?>
+                        <a class="nav-link text-white" href="?logout=1">
+                            <i class="fas fa-sign-out-alt"></i> <?= t('logout', 'Logout') ?>
                         </a>
                     </li>
                 </ul>
@@ -1662,22 +1748,45 @@ $recentActivities = $stmt->fetchAll();
             // Initialize language dropdown
             const languageDropdown = document.getElementById('languageDropdown');
             if (languageDropdown) {
-                // Add click event listener for manual toggle
+                // Remove any existing event listeners
+                languageDropdown.removeAttribute('data-bs-toggle');
+
+                // Add manual click handler
                 languageDropdown.addEventListener('click', function(e) {
                     e.preventDefault();
+                    e.stopPropagation();
+
                     const dropdownMenu = this.nextElementSibling;
                     if (dropdownMenu) {
-                        dropdownMenu.classList.toggle('show');
-                        this.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
+                        // Close all other dropdowns
+                        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+                            if (menu !== dropdownMenu) {
+                                menu.classList.remove('show');
+                            }
+                        });
+
+                        // Toggle current dropdown
+                        const isOpen = dropdownMenu.classList.contains('show');
+                        if (isOpen) {
+                            dropdownMenu.classList.remove('show');
+                            this.setAttribute('aria-expanded', 'false');
+                        } else {
+                            dropdownMenu.classList.add('show');
+                            this.setAttribute('aria-expanded', 'true');
+                        }
                     }
                 });
 
-                // Initialize Bootstrap dropdown
-                try {
-                    new bootstrap.Dropdown(languageDropdown);
-                } catch (error) {
-                    console.log('Bootstrap dropdown fallback active');
-                }
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!languageDropdown.contains(e.target)) {
+                        const dropdownMenu = languageDropdown.nextElementSibling;
+                        if (dropdownMenu && dropdownMenu.classList.contains('show')) {
+                            dropdownMenu.classList.remove('show');
+                            languageDropdown.setAttribute('aria-expanded', 'false');
+                        }
+                    }
+                });
             }
         });
     </script>
