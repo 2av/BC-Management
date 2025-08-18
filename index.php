@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'languages/config.php';
 requireAdminLogin();
 
 if (isset($_GET['logout'])) {
@@ -406,6 +407,21 @@ $recentActivities = $stmt->fetchAll();
         .row.mb-5 {
             margin-bottom: 3rem !important;
         }
+
+        /* Language switcher styling */
+        .language-flag {
+            font-size: 1.2em;
+            margin-right: 0.5rem;
+        }
+
+        .dropdown-item.active {
+            background-color: var(--bs-primary);
+            color: white;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--bs-light);
+        }
         .chart-container {
             position: relative;
             height: 300px;
@@ -503,59 +519,88 @@ $recentActivities = $stmt->fetchAll();
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link" href="index.php">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                            <i class="fas fa-tachometer-alt"></i> <?= t('dashboard') ?>
                         </a>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-users"></i> Members
+                            <i class="fas fa-users"></i> <?= t('members') ?>
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="admin_members.php">
-                                <i class="fas fa-list"></i> All Members
+                                <i class="fas fa-list"></i> <?= t('all_members') ?>
                             </a></li>
                             <li><a class="dropdown-item" href="admin_add_member.php">
-                                <i class="fas fa-user-plus"></i> Add Member
+                                <i class="fas fa-user-plus"></i> <?= t('add_member') ?>
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="admin_bulk_import.php">
-                                <i class="fas fa-upload"></i> Bulk Import
+                                <i class="fas fa-upload"></i> <?= t('bulk_import') ?>
                             </a></li>
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-layer-group"></i> Groups
+                            <i class="fas fa-layer-group"></i> <?= t('groups') ?>
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="index.php">
-                                <i class="fas fa-list"></i> All Groups
+                                <i class="fas fa-list"></i> <?= t('all_groups') ?>
                             </a></li>
                             <li><a class="dropdown-item" href="admin_create_group_simple.php">
-                                <i class="fas fa-plus"></i> Create Group
+                                <i class="fas fa-plus"></i> <?= t('create_group') ?>
                             </a></li>
                             <li><a class="dropdown-item" href="admin_manage_groups.php">
-                                <i class="fas fa-cogs"></i> Manage Groups
+                                <i class="fas fa-cogs"></i> <?= t('manage_groups') ?>
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="create_group.php">
-                                <i class="fas fa-tools"></i> Advanced Create
+                                <i class="fas fa-tools"></i> <?= t('advanced_create') ?>
                             </a></li>
                         </ul>
                     </li>
                 </ul>
 
-                <div class="navbar-nav ms-auto">
-                    <span class="navbar-text me-3">
-                        Welcome, <?= htmlspecialchars($_SESSION['admin_name']) ?>
-                    </span>
-                    <a class="nav-link text-white" href="admin_change_password.php">
-                        <i class="fas fa-key"></i> Change Password
-                    </a>
-                    <a class="nav-link text-white" href="?logout=1">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </a>
-                </div>
+                <ul class="navbar-nav ms-auto">
+                    <!-- Language Switcher -->
+                    <li class="nav-item dropdown me-3">
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-globe me-1"></i>
+                            <span class="language-flag"><?= $available_languages[getCurrentLanguage()]['flag'] ?></span>
+                            <span class="d-none d-md-inline ms-1"><?= $available_languages[getCurrentLanguage()]['name'] ?></span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
+                            <?php foreach ($available_languages as $code => $language): ?>
+                                <li>
+                                    <a class="dropdown-item <?= getCurrentLanguage() === $code ? 'active' : '' ?>"
+                                       href="?change_language=<?= $code ?>">
+                                        <span class="me-2"><?= $language['flag'] ?></span>
+                                        <?= $language['name'] ?>
+                                        <?php if (getCurrentLanguage() === $code): ?>
+                                            <i class="fas fa-check text-success ms-2"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </li>
+
+                    <li class="nav-item">
+                        <span class="navbar-text me-3">
+                            <?= t('welcome') ?>, <?= htmlspecialchars($_SESSION['admin_name']) ?>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="admin_change_password.php">
+                            <i class="fas fa-key"></i> <?= t('change_password') ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="?logout=1">
+                            <i class="fas fa-sign-out-alt"></i> <?= t('logout') ?>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
@@ -576,14 +621,14 @@ $recentActivities = $stmt->fetchAll();
                 <div>
                     <h1 class="dashboard-title">
                         <i class="fas fa-tachometer-alt text-gradient-primary me-3"></i>
-                        Admin Dashboard
+                        <?= t('admin_dashboard') ?>
                     </h1>
                     <p class="dashboard-subtitle">
                         <i class="fas fa-calendar-alt me-2"></i><?= date('l, F j, Y') ?>
                         <span class="mx-2">•</span>
                         <i class="fas fa-clock me-2"></i><?= date('g:i A') ?>
                         <span class="mx-2">•</span>
-                        <i class="fas fa-user-shield me-2"></i>Welcome back, Admin
+                        <i class="fas fa-user-shield me-2"></i><?= t('welcome') ?> back, Admin
                     </p>
                 </div>
                 <div class="dashboard-actions">
@@ -608,8 +653,8 @@ $recentActivities = $stmt->fetchAll();
                         <i class="fas fa-users"></i>
                     </div>
                     <div class="stat-number-modern"><?= $totalGroups ?></div>
-                    <div class="stat-label-modern">Total Groups</div>
-                    <div class="stat-sublabel-modern"><?= $activeGroups ?> Active • <?= $completedGroups ?> Completed</div>
+                    <div class="stat-label-modern"><?= t('total_groups') ?></div>
+                    <div class="stat-sublabel-modern"><?= $activeGroups ?> <?= t('active_groups') ?> • <?= $completedGroups ?> <?= t('completed_groups') ?></div>
                     <div class="stat-action-modern">
                         <i class="fas fa-arrow-down"></i>
                         <span>Click to view groups</span>
@@ -622,7 +667,7 @@ $recentActivities = $stmt->fetchAll();
                         <i class="fas fa-user-friends"></i>
                     </div>
                     <div class="stat-number-modern"><?= $totalMembers ?></div>
-                    <div class="stat-label-modern">Total Members</div>
+                    <div class="stat-label-modern"><?= t('total_members') ?></div>
                     <div class="stat-sublabel-modern">Across all groups</div>
                     <div class="stat-action-modern">
                         <i class="fas fa-external-link-alt"></i>
@@ -636,7 +681,7 @@ $recentActivities = $stmt->fetchAll();
                         <i class="fas fa-rupee-sign"></i>
                     </div>
                     <div class="stat-number-modern"><?= formatCurrency($totalCollected) ?></div>
-                    <div class="stat-label-modern">Total Collected</div>
+                    <div class="stat-label-modern"><?= t('total_collected') ?></div>
                     <div class="stat-sublabel-modern">All payments received</div>
                     <div class="stat-action-modern">
                         <i class="fas fa-info-circle"></i>
@@ -650,7 +695,7 @@ $recentActivities = $stmt->fetchAll();
                         <i class="fas fa-hand-holding-usd"></i>
                     </div>
                     <div class="stat-number-modern"><?= formatCurrency($totalDistributed) ?></div>
-                    <div class="stat-label-modern">Total Distributed</div>
+                    <div class="stat-label-modern"><?= t('total_distributed') ?></div>
                     <div class="stat-sublabel-modern">Amount given to winners</div>
                     <div class="stat-action-modern">
                         <i class="fas fa-info-circle"></i>
@@ -701,9 +746,9 @@ $recentActivities = $stmt->fetchAll();
                             <div>
                                 <h4 class="mb-0">
                                     <i class="fas fa-exclamation-triangle me-2"></i>
-                                    Group-wise Pending Payments
+                                    <?= t('pending_payments') ?>
                                 </h4>
-                                <p class="mb-0 mt-1 small">View all pending payments by group and month</p>
+                                <p class="mb-0 mt-1 small"><?= t('view_month_details') ?></p>
                             </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-dark btn-sm" onclick="loadPendingPayments()">
@@ -718,7 +763,7 @@ $recentActivities = $stmt->fetchAll();
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
-                                <p class="mt-2">Loading group-wise pending payments...</p>
+                                <p class="mt-2"><?= t('loading_pending_payments') ?></p>
                             </div>
                         </div>
                     </div>
@@ -732,7 +777,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="card dashboard-card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-chart-line"></i> Monthly Collection Trend
+                            <i class="fas fa-chart-line"></i> <?= t('monthly_collection_trend') ?>
                         </h5>
                     </div>
                     <div class="card-body">
@@ -746,7 +791,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="card dashboard-card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-chart-pie"></i> Group Status
+                            <i class="fas fa-chart-pie"></i> <?= t('group_status') ?>
                         </h5>
                     </div>
                     <div class="card-body">
@@ -764,7 +809,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="card dashboard-card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-chart-bar"></i> Group Progress
+                            <i class="fas fa-chart-bar"></i> <?= t('group_progress') ?>
                         </h5>
                     </div>
                     <div class="card-body">
@@ -778,7 +823,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="card dashboard-card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-clock"></i> Recent Activities
+                            <i class="fas fa-clock"></i> <?= t('recent_activities') ?>
                         </h5>
                     </div>
                     <div class="card-body" style="max-height: 300px; overflow-y: auto;">
@@ -1211,5 +1256,48 @@ $recentActivities = $stmt->fetchAll();
 
     <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Language Switcher Debug Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Language switcher initializing...');
+
+            // Check if Bootstrap is loaded
+            if (typeof bootstrap !== 'undefined') {
+                console.log('Bootstrap is loaded successfully');
+            } else {
+                console.error('Bootstrap is not loaded!');
+            }
+
+            // Find the language dropdown
+            const languageDropdown = document.getElementById('languageDropdown');
+            if (languageDropdown) {
+                console.log('Language dropdown found');
+
+                // Add click event listener for debugging
+                languageDropdown.addEventListener('click', function(e) {
+                    console.log('Language dropdown clicked');
+                    e.preventDefault();
+
+                    // Manually toggle dropdown if Bootstrap fails
+                    const dropdownMenu = this.nextElementSibling;
+                    if (dropdownMenu) {
+                        dropdownMenu.classList.toggle('show');
+                        this.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
+                    }
+                });
+
+                // Try to initialize Bootstrap dropdown manually
+                try {
+                    const dropdown = new bootstrap.Dropdown(languageDropdown);
+                    console.log('Bootstrap dropdown initialized manually');
+                } catch (error) {
+                    console.error('Failed to initialize Bootstrap dropdown:', error);
+                }
+            } else {
+                console.error('Language dropdown not found!');
+            }
+        });
+    </script>
 </body>
 </html>
