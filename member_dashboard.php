@@ -412,6 +412,9 @@ $recentActivities = $stmt->fetchAll();
                 <span class="navbar-text me-3">
                     Welcome, <?= htmlspecialchars($_SESSION['member_name']) ?>
                 </span>
+                <a class="nav-link text-white" href="member_edit_profile.php">
+                    <i class="fas fa-user-edit"></i> Edit Profile
+                </a>
                 <a class="nav-link text-white" href="member_change_password.php">
                     <i class="fas fa-key"></i> Change Password
                 </a>
@@ -453,6 +456,9 @@ $recentActivities = $stmt->fetchAll();
                             </a>
                             <a href="member_group_view.php" class="btn btn-light">
                                 <i class="fas fa-eye"></i> View Full Group
+                            </a>
+                            <a href="member_edit_profile.php" class="btn btn-outline-light">
+                                <i class="fas fa-user-edit"></i> Edit Profile
                             </a>
                             <a href="member_change_password.php" class="btn btn-outline-light">
                                 <i class="fas fa-key"></i> Change Password
