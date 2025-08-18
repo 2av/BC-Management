@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'languages/config.php';
 requireAdminLogin();
 
 // Get consolidated member information
@@ -88,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Members Management - <?= APP_NAME ?></title>
+    <title><?= t('members_management') ?> - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
@@ -120,10 +121,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
             <a class="navbar-brand" href="index.php">
                 <i class="fas fa-coins"></i> <?= APP_NAME ?>
             </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="index.php">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
-                </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.php">
+                            <i class="fas fa-tachometer-alt"></i> <?= t('dashboard') ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="admin_members.php">
+                            <i class="fas fa-users"></i> <?= t('members') ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="admin_add_member.php">
+                            <i class="fas fa-user-plus"></i> <?= t('add_member') ?>
+                        </a>
+                    </li>
+                </ul>
+
+                <ul class="navbar-nav ms-auto">
+                    <!-- Language Switcher -->
+                    <li class="nav-item dropdown me-3">
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-globe me-1"></i>
+                            <span class="language-flag"><?= $available_languages[getCurrentLanguage()]['flag'] ?></span>
+                            <span class="d-none d-md-inline ms-1"><?= $available_languages[getCurrentLanguage()]['name'] ?></span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
+                            <?php foreach ($available_languages as $code => $language): ?>
+                                <li>
+                                    <a class="dropdown-item <?= getCurrentLanguage() === $code ? 'active' : '' ?>"
+                                       href="?change_language=<?= $code ?>">
+                                        <span class="me-2"><?= $language['flag'] ?></span>
+                                        <?= $language['name'] ?>
+                                        <?php if (getCurrentLanguage() === $code): ?>
+                                            <i class="fas fa-check text-success ms-2"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </li>
+
+                    <li class="nav-item">
+                        <span class="navbar-text me-3">
+                            <?= t('welcome') ?>, <?= htmlspecialchars($_SESSION['admin_name']) ?>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="admin_change_password.php">
+                            <i class="fas fa-key"></i> <?= t('change_password') ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="?logout=1">
+                            <i class="fas fa-sign-out-alt"></i> <?= t('logout') ?>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
@@ -138,13 +199,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
         <?php endif; ?>
 
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1><i class="fas fa-users"></i> Members Management</h1>
+            <h1><i class="fas fa-users"></i> <?= t('all_members') ?></h1>
             <div class="d-flex gap-2">
                 <a href="admin_add_member.php" class="btn btn-success">
-                    <i class="fas fa-user-plus"></i> Add New Member
+                    <i class="fas fa-user-plus"></i> <?= t('add_member') ?>
                 </a>
                 <a href="admin_bulk_import.php" class="btn btn-info">
-                    <i class="fas fa-upload"></i> Bulk Import
+                    <i class="fas fa-upload"></i> <?= t('bulk_import') ?>
                 </a>
             </div>
         </div>
@@ -156,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
                     <div class="card-body text-center">
                         <i class="fas fa-users fa-2x mb-2"></i>
                         <h3><?= count($consolidatedMembers) ?></h3>
-                        <p class="mb-0">Unique Members</p>
+                        <p class="mb-0"><?= t('unique_members') ?></p>
                     </div>
                 </div>
             </div>
@@ -165,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
                     <div class="card-body text-center">
                         <i class="fas fa-user-check fa-2x mb-2"></i>
                         <h3><?= count(array_filter($consolidatedMembers, fn($m) => $m['status'] === 'active')) ?></h3>
-                        <p class="mb-0">Active Members</p>
+                        <p class="mb-0"><?= t('active_members') ?></p>
                     </div>
                 </div>
             </div>
@@ -174,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
                     <div class="card-body text-center">
                         <i class="fas fa-user-times fa-2x mb-2"></i>
                         <h3><?= count(array_filter($consolidatedMembers, fn($m) => $m['status'] === 'inactive')) ?></h3>
-                        <p class="mb-0">Inactive Members</p>
+                        <p class="mb-0"><?= t('inactive_members') ?></p>
                     </div>
                 </div>
             </div>
@@ -183,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
                     <div class="card-body text-center">
                         <i class="fas fa-layer-group fa-2x mb-2"></i>
                         <h3><?= count($groups) ?></h3>
-                        <p class="mb-0">Total Groups</p>
+                        <p class="mb-0"><?= t('total_groups') ?></p>
                     </div>
                 </div>
             </div>
@@ -424,6 +485,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
                 window.open(`manage_members.php?group_id=${groupId}&add_member=${encodeURIComponent(memberName)}`, '_blank');
             }
         }
+    </script>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Language Switcher Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize language dropdown
+            const languageDropdown = document.getElementById('languageDropdown');
+            if (languageDropdown) {
+                // Add click event listener for manual toggle
+                languageDropdown.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const dropdownMenu = this.nextElementSibling;
+                    if (dropdownMenu) {
+                        dropdownMenu.classList.toggle('show');
+                        this.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
+                    }
+                });
+
+                // Initialize Bootstrap dropdown
+                try {
+                    new bootstrap.Dropdown(languageDropdown);
+                } catch (error) {
+                    console.log('Bootstrap dropdown fallback active');
+                }
+            }
+        });
     </script>
 </body>
 </html>

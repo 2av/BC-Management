@@ -105,5 +105,23 @@ $lang = [
     'this_week' => 'This Week',
     'this_month' => 'This Month',
     'last_month' => 'Last Month',
+
+    // Member Management
+    'unique_members' => 'Unique Members',
+    'active_members' => 'Active Members',
+    'inactive_members' => 'Inactive Members',
+    'members_management' => 'Members Management',
+
+    // Member Dashboard
+    'edit_profile' => 'Edit Profile',
+    'member_dashboard' => 'Member Dashboard',
+    'place_bids' => 'Place Bids',
+    'my_groups' => 'My Groups',
+    'payment_history' => 'Payment History',
+    'group_progress' => 'Group Progress',
+    'pending_amount' => 'Pending Amount',
+    'total_paid' => 'Total Paid',
+    'amount_received' => 'Amount Received',
+    'net_profit' => 'Net Profit',
 ];
 ?>

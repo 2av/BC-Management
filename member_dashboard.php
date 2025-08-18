@@ -1,6 +1,7 @@
 
 <?php
 require_once 'config.php';
+require_once 'languages/config.php';
 requireMemberLogin();
 
 if (isset($_GET['logout'])) {
@@ -206,7 +207,7 @@ $recentActivities = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Member Dashboard - <?= APP_NAME ?></title>
+    <title><?= t('member_dashboard') ?> - <?= APP_NAME ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -253,6 +254,35 @@ $recentActivities = $stmt->fetchAll();
         .member-navbar .navbar-text {
             color: rgba(255, 255, 255, 0.9);
             font-weight: 500;
+        }
+
+        /* Language switcher styling for member navbar */
+        .member-navbar .language-flag {
+            font-size: 1.2em;
+            margin-right: 0.5rem;
+        }
+
+        .member-navbar .dropdown-item.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .member-navbar .dropdown-item:hover {
+            background-color: rgba(var(--primary-color-rgb), 0.1);
+        }
+
+        /* Navbar toggler styling for member navbar */
+        .member-navbar .navbar-toggler {
+            border-color: rgba(255, 255, 255, 0.3);
+            padding: 0.25rem 0.5rem;
+        }
+
+        .member-navbar .navbar-toggler:focus {
+            box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.25);
+        }
+
+        .member-navbar .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
         }
 
         /* Member Profile Header */
@@ -661,25 +691,56 @@ $recentActivities = $stmt->fetchAll();
             <a class="navbar-brand" href="member_dashboard.php">
                 <i class="fas fa-users me-2"></i>Mitra Niidhi Samooh
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#memberNavbar">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#memberNavbar" aria-controls="memberNavbar" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="memberNavbar">
-                <div class="navbar-nav ms-auto">
-                    <span class="navbar-text me-3">
-                        <i class="fas fa-user-circle me-1"></i>
-                        Welcome, <?= htmlspecialchars($_SESSION['member_name']) ?>
-                    </span>
-                    <a class="nav-link" href="member_edit_profile.php">
-                        <i class="fas fa-user-edit me-1"></i>Edit Profile
-                    </a>
-                    <a class="nav-link" href="member_change_password.php">
-                        <i class="fas fa-key me-1"></i>Change Password
-                    </a>
-                    <a class="nav-link" href="?logout=1">
-                        <i class="fas fa-sign-out-alt me-1"></i>Logout
-                    </a>
-                </div>
+                <ul class="navbar-nav ms-auto">
+                    <!-- Language Switcher -->
+                    <li class="nav-item dropdown me-3">
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-globe me-1"></i>
+                            <span class="language-flag"><?= $available_languages[getCurrentLanguage()]['flag'] ?></span>
+                            <span class="d-none d-md-inline ms-1"><?= $available_languages[getCurrentLanguage()]['name'] ?></span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
+                            <?php foreach ($available_languages as $code => $language): ?>
+                                <li>
+                                    <a class="dropdown-item <?= getCurrentLanguage() === $code ? 'active' : '' ?>"
+                                       href="?change_language=<?= $code ?>">
+                                        <span class="me-2"><?= $language['flag'] ?></span>
+                                        <?= $language['name'] ?>
+                                        <?php if (getCurrentLanguage() === $code): ?>
+                                            <i class="fas fa-check text-success ms-2"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </li>
+
+                    <li class="nav-item">
+                        <span class="navbar-text me-3">
+                            <i class="fas fa-user-circle me-1"></i>
+                            <?= t('welcome', 'Welcome') ?>, <?= htmlspecialchars($_SESSION['member_name']) ?>
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="member_edit_profile.php">
+                            <i class="fas fa-user-edit me-1"></i><?= t('edit_profile', 'Edit Profile') ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="member_change_password.php">
+                            <i class="fas fa-key me-1"></i><?= t('change_password', 'Change Password') ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="?logout=1">
+                            <i class="fas fa-sign-out-alt me-1"></i><?= t('logout', 'Logout') ?>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
@@ -704,7 +765,7 @@ $recentActivities = $stmt->fetchAll();
                 <div class="col-md-6">
                     <h1 class="member-welcome-title">
                         <i class="fas fa-hand-holding-heart text-gradient-secondary me-2"></i>
-                        Welcome, <?= htmlspecialchars($member['member_name']) ?>!
+                        <?= t('welcome') ?>, <?= htmlspecialchars($member['member_name']) ?>!
                     </h1>
                     <p class="member-welcome-subtitle">
                         <i class="fas fa-info-circle me-2"></i>
@@ -718,15 +779,15 @@ $recentActivities = $stmt->fetchAll();
                     <div class="d-flex flex-column gap-2">
                         <a href="member_bidding.php" class="member-action-btn">
                             <i class="fas fa-gavel"></i>
-                            <span>Place Bids</span>
+                            <span><?= t('place_bids', 'Place Bids') ?></span>
                         </a>
                         <a href="member_group_view.php" class="member-action-btn secondary">
                             <i class="fas fa-eye"></i>
-                            <span>View Groups</span>
+                            <span><?= t('view', 'View') ?> <?= t('groups') ?></span>
                         </a>
                         <a href="member_edit_profile.php" class="member-action-btn secondary">
                             <i class="fas fa-user-edit"></i>
-                            <span>Edit Profile</span>
+                            <span><?= t('edit_profile') ?></span>
                         </a>
                     </div>
                 </div>
@@ -737,7 +798,7 @@ $recentActivities = $stmt->fetchAll();
         <div class="groups-overview animate-slideInRight">
             <div class="groups-overview-header">
                 <h2 class="groups-overview-title">
-                    <i class="fas fa-layer-group me-2"></i>My Groups Overview
+                    <i class="fas fa-layer-group me-2"></i><?= t('my_groups', 'My Groups') ?> Overview
                 </h2>
                 <p class="groups-overview-subtitle mb-0">
                     Click on a group to view detailed information and manage your participation
@@ -1401,7 +1462,6 @@ $recentActivities = $stmt->fetchAll();
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Chart.js configuration
         Chart.defaults.font.family = 'Arial, sans-serif';
@@ -1590,6 +1650,35 @@ $recentActivities = $stmt->fetchAll();
                     }
                 });
             });
+        });
+    </script>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Language Switcher Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize language dropdown
+            const languageDropdown = document.getElementById('languageDropdown');
+            if (languageDropdown) {
+                // Add click event listener for manual toggle
+                languageDropdown.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const dropdownMenu = this.nextElementSibling;
+                    if (dropdownMenu) {
+                        dropdownMenu.classList.toggle('show');
+                        this.setAttribute('aria-expanded', dropdownMenu.classList.contains('show'));
+                    }
+                });
+
+                // Initialize Bootstrap dropdown
+                try {
+                    new bootstrap.Dropdown(languageDropdown);
+                } catch (error) {
+                    console.log('Bootstrap dropdown fallback active');
+                }
+            }
         });
     </script>
 </body>

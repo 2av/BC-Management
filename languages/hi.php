@@ -105,5 +105,23 @@ $lang = [
     'this_week' => 'इस सप्ताह',
     'this_month' => 'इस महीने',
     'last_month' => 'पिछले महीने',
+
+    // Member Management
+    'unique_members' => 'अद्वितीय सदस्य',
+    'active_members' => 'सक्रिय सदस्य',
+    'inactive_members' => 'निष्क्रिय सदस्य',
+    'members_management' => 'सदस्य प्रबंधन',
+
+    // Member Dashboard
+    'edit_profile' => 'प्रोफ़ाइल संपादित करें',
+    'member_dashboard' => 'सदस्य डैशबोर्ड',
+    'place_bids' => 'बोली लगाएं',
+    'my_groups' => 'मेरे समूह',
+    'payment_history' => 'भुगतान इतिहास',
+    'group_progress' => 'समूह प्रगति',
+    'pending_amount' => 'लंबित राशि',
+    'total_paid' => 'कुल भुगतान',
+    'amount_received' => 'प्राप्त राशि',
+    'net_profit' => 'शुद्ध लाभ',
 ];
 ?>
