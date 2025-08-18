@@ -11,15 +11,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_payment_status
     $paymentId = (int)$_POST['payment_id'];
     $newStatus = $_POST['payment_status'];
     $paymentAmount = (float)$_POST['payment_amount'];
-    
+
     if (in_array($newStatus, ['pending', 'paid', 'failed'])) {
         try {
             $pdo = getDB();
-            $stmt = $pdo->prepare("
-                UPDATE member_payments 
-                SET payment_status = ?, payment_amount = ?, updated_at = NOW() 
-                WHERE id = ?
-            ");
+
+            // Check if member_payments table has updated_at column
+            $columns = $pdo->query("SHOW COLUMNS FROM member_payments LIKE 'updated_at'")->fetch();
+
+            if ($columns) {
+                $stmt = $pdo->prepare("
+                    UPDATE member_payments
+                    SET payment_status = ?, payment_amount = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+            } else {
+                $stmt = $pdo->prepare("
+                    UPDATE member_payments
+                    SET payment_status = ?, payment_amount = ?
+                    WHERE id = ?
+                ");
+            }
             $stmt->execute([$newStatus, $paymentAmount, $paymentId]);
             $success = 'Payment status updated successfully!';
         } catch (Exception $e) {
@@ -28,8 +40,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_payment_status
     }
 }
 
-// Get all groups
+// Get database connection and ensure member_payments table exists
 $pdo = getDB();
+
+// Check if member_payments table exists, create if missing
+try {
+    $tableExists = $pdo->query("SHOW TABLES LIKE 'member_payments'")->fetch();
+    if (!$tableExists) {
+        $createTableSQL = "
+        CREATE TABLE member_payments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            group_id INT NOT NULL,
+            member_id INT NOT NULL,
+            month_number INT NOT NULL,
+            payment_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            payment_status ENUM('pending', 'paid', 'failed') DEFAULT 'pending',
+            payment_date DATE NULL,
+            payment_method VARCHAR(50) DEFAULT 'upi',
+            transaction_id VARCHAR(100) NULL,
+            notes TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (group_id) REFERENCES bc_groups(id) ON DELETE CASCADE,
+            FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+            UNIQUE KEY unique_payment_per_member_month (group_id, member_id, month_number)
+        )";
+        $pdo->exec($createTableSQL);
+        $success = 'member_payments table created successfully!';
+    }
+} catch (Exception $e) {
+    $error = 'Database setup error: ' . $e->getMessage();
+}
+
+// Get all groups
 $groups = $pdo->query("SELECT id, group_name, status FROM bc_groups ORDER BY created_at DESC")->fetchAll();
 
 // Get payment data for selected group
@@ -41,28 +84,73 @@ if ($selectedGroupId) {
     $groupInfo = $stmt->fetch();
     
     if ($groupInfo) {
-        $stmt = $pdo->prepare("
-            SELECT 
-                mp.id as payment_id,
-                mp.member_id,
-                mp.month_number,
-                mp.payment_amount,
-                mp.payment_date,
-                mp.payment_status,
-                mp.created_at,
-                m.member_name,
-                m.member_number,
-                mb.member_name as winner_name,
-                mb.bid_amount,
-                mb.gain_per_member
-            FROM member_payments mp
-            JOIN members m ON mp.member_id = m.id
-            LEFT JOIN monthly_bids mb ON mp.group_id = mb.group_id AND mp.month_number = mb.month_number
-            WHERE mp.group_id = ?
-            ORDER BY mp.month_number, m.member_number
-        ");
-        $stmt->execute([$selectedGroupId]);
-        $payments = $stmt->fetchAll();
+        try {
+            // Check if created_at column exists
+            $hasCreatedAt = $pdo->query("SHOW COLUMNS FROM member_payments LIKE 'created_at'")->fetch();
+
+            $createdAtField = $hasCreatedAt ? 'mp.created_at' : 'NULL as created_at';
+
+            $stmt = $pdo->prepare("
+                SELECT
+                    mp.id as payment_id,
+                    mp.member_id,
+                    mp.month_number,
+                    mp.payment_amount,
+                    mp.payment_date,
+                    mp.payment_status,
+                    $createdAtField,
+                    m.member_name,
+                    m.member_number,
+                    winner.member_name as winner_name,
+                    mb.bid_amount,
+                    mb.gain_per_member
+                FROM member_payments mp
+                JOIN members m ON mp.member_id = m.id
+                LEFT JOIN monthly_bids mb ON mp.group_id = mb.group_id AND mp.month_number = mb.month_number
+                LEFT JOIN members winner ON mb.taken_by_member_id = winner.id
+                WHERE mp.group_id = ?
+                ORDER BY mp.month_number, m.member_number
+            ");
+            $stmt->execute([$selectedGroupId]);
+            $payments = $stmt->fetchAll();
+
+            // If no payments exist but group has members and bids, create payment records
+            if (empty($payments)) {
+                $memberStmt = $pdo->prepare("SELECT id, member_name FROM members WHERE group_id = ? AND status = 'active'");
+                $memberStmt->execute([$selectedGroupId]);
+                $members = $memberStmt->fetchAll();
+
+                $bidStmt = $pdo->prepare("SELECT month_number, COALESCE(gain_per_member, 0) as gain_per_member FROM monthly_bids WHERE group_id = ?");
+                $bidStmt->execute([$selectedGroupId]);
+                $bids = $bidStmt->fetchAll();
+
+                if (!empty($members) && !empty($bids)) {
+                    // Create payment records for each member and month
+                    $insertStmt = $pdo->prepare("
+                        INSERT IGNORE INTO member_payments (group_id, member_id, month_number, payment_amount, payment_status)
+                        VALUES (?, ?, ?, ?, 'pending')
+                    ");
+
+                    foreach ($members as $member) {
+                        foreach ($bids as $bid) {
+                            $insertStmt->execute([
+                                $selectedGroupId,
+                                $member['id'],
+                                $bid['month_number'],
+                                $bid['gain_per_member']
+                            ]);
+                        }
+                    }
+
+                    // Re-fetch payments after creating them
+                    $stmt->execute([$selectedGroupId]);
+                    $payments = $stmt->fetchAll();
+                }
+            }
+        } catch (Exception $e) {
+            $error = 'Error fetching payment data: ' . $e->getMessage();
+            $payments = [];
+        }
     }
 }
 
