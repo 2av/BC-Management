@@ -253,7 +253,14 @@ foreach ($memberSummary as $summary) {
         <!-- Group Header Info -->
         <div class="row mb-3">
             <div class="col-12">
-                <h2><?= htmlspecialchars($group['group_name']) ?></h2>
+                <h2>
+                    <?= htmlspecialchars($group['group_name']) ?>
+                    <?php if ($group['status'] === 'completed'): ?>
+                        <span class="badge bg-success ms-2">Completed</span>
+                    <?php else: ?>
+                        <span class="badge bg-primary ms-2">Active</span>
+                    <?php endif; ?>
+                </h2>
                 <div class="d-flex gap-3 mb-3">
                     <a href="admin_bidding.php?group_id=<?= $groupId ?>" class="btn btn-warning btn-sm">
                         <i class="fas fa-gavel"></i> Manage Bidding
@@ -273,6 +280,11 @@ foreach ($memberSummary as $summary) {
                     <a href="edit_group.php?id=<?= $groupId ?>" class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-edit"></i> Edit Group
                     </a>
+                    <?php if ($group['status'] === 'completed'): ?>
+                        <a href="clone_group.php?id=<?= $groupId ?>" class="btn btn-warning btn-sm">
+                            <i class="fas fa-copy"></i> Restart Group
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

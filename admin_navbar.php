@@ -62,6 +62,26 @@
                         </a></li>
                     </ul>
                 </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-credit-card"></i> Payments
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="admin_payment_config.php">
+                            <i class="fas fa-qrcode"></i> QR Code Settings
+                        </a></li>
+                        <li><a class="dropdown-item" href="admin_payment_status.php">
+                            <i class="fas fa-list-check"></i> Payment Status
+                        </a></li>
+                        <li><a class="dropdown-item" href="test_qr_image_setup.php">
+                            <i class="fas fa-test-tube"></i> Test QR Setup
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="test_qr_payment.php">
+                            <i class="fas fa-vial"></i> Test Payment System
+                        </a></li>
+                    </ul>
+                </li>
             </ul>
             
             <ul class="navbar-nav">
@@ -70,6 +90,9 @@
                         <i class="fas fa-user-shield"></i> Admin
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="admin_payment_config.php">
+                            <i class="fas fa-qrcode"></i> Payment Settings
+                        </a></li>
                         <li><a class="dropdown-item" href="admin_change_password.php">
                             <i class="fas fa-key"></i> Change Password
                         </a></li>

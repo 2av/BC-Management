@@ -818,10 +818,15 @@ $recentActivities = $stmt->fetchAll();
                                     </a>
                                 <?php elseif ($selectedCurrentMonthPaymentInfo['payment_status'] === 'pending' && $selectedCurrentMonthPaymentInfo['bid_exists']): ?>
                                     <div class="text-center">
-                                        <div class="badge bg-warning text-dark fs-6 p-2">
+                                        <div class="badge bg-warning text-dark fs-6 p-2 mb-2">
                                             <i class="fas fa-hourglass-half me-1"></i>
                                             Awaiting Payment
                                         </div>
+                                        <br>
+                                        <a href="member_payment.php?month=<?= $selectedCurrentMonthPaymentInfo['month_number'] ?>"
+                                           class="btn btn-success btn-sm">
+                                            <i class="fas fa-qrcode me-1"></i> Pay Now
+                                        </a>
                                     </div>
                                 <?php elseif ($selectedGroupId != $currentGroupId): ?>
                                     <div class="text-center">
@@ -1062,6 +1067,7 @@ $recentActivities = $stmt->fetchAll();
                                         <th>Status</th>
                                         <th>Month Winner</th>
                                         <th>Bid Amount</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1102,6 +1108,19 @@ $recentActivities = $stmt->fetchAll();
                                             </td>
                                             <td>
                                                 <?= $bid ? formatCurrency($bid['bid_amount']) : '-' ?>
+                                            </td>
+                                            <td>
+                                                <?php if (!$payment && $bid): ?>
+                                                    <a href="member_payment.php?month=<?= $i ?>" class="btn btn-success btn-sm">
+                                                        <i class="fas fa-qrcode"></i> Pay
+                                                    </a>
+                                                <?php elseif ($payment): ?>
+                                                    <span class="text-success">
+                                                        <i class="fas fa-check-circle"></i> Paid
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endfor; ?>

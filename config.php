@@ -129,6 +129,13 @@ function getCurrentMember() {
     return $stmt->fetch();
 }
 
+function getMemberById($memberId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM members WHERE id = ?");
+    $stmt->execute([$memberId]);
+    return $stmt->fetch();
+}
+
 // Utility Functions
 function formatCurrency($amount) {
     return '₹' . number_format($amount, 0);
@@ -453,4 +460,10 @@ function getCurrentMonthPaymentInfo($groupId, $memberInGroupId) {
         'payment_date' => $currentMonthPayment ? $currentMonthPayment['payment_date'] : null
     ];
 }
+
+// Include QR code utilities
+require_once 'qr_utils.php';
+
+// Initialize payment config table if it doesn't exist
+createPaymentConfigTable();
 ?>

@@ -94,9 +94,26 @@ CREATE TABLE admin_users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Payment configuration table for QR codes
+CREATE TABLE payment_config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    config_key VARCHAR(100) UNIQUE NOT NULL,
+    config_value TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- Insert admin user (password: admin123)
 INSERT INTO admin_users (username, password, full_name) VALUES
 ('admin', '$2y$10$EIxw8Z9mKlJZOKxGVxGOHOacnmi9tWaOYVgcENOLw8jLzKGVqb9Ky', 'Administrator');
+
+-- Insert default payment configuration
+INSERT INTO payment_config (config_key, config_value, description) VALUES
+('upi_id', '9768985225kotak@ybl', 'UPI ID for receiving payments'),
+('bank_account_name', 'BC Group Admin', 'Bank account holder name'),
+('payment_note', 'BC Group Monthly Payment', 'Default payment note/description'),
+('qr_enabled', '1', 'Enable/disable QR code payments (1=enabled, 0=disabled)');
 
 -- Insert sample BC Group
 INSERT INTO bc_groups (group_name, total_members, monthly_contribution, total_monthly_collection, start_date) VALUES 

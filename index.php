@@ -360,6 +360,12 @@ $recentActivities = $stmt->fetchAll();
                             <a href="admin_add_member.php" class="btn btn-sm btn-outline-success" title="Add New Member">
                                 <i class="fas fa-user-plus"></i>
                             </a>
+                            <a href="admin_payment_config.php" class="btn btn-sm btn-outline-primary" title="QR Code Settings">
+                                <i class="fas fa-qrcode"></i>
+                            </a>
+                            <a href="admin_payment_status.php" class="btn btn-sm btn-outline-warning" title="Payment Status">
+                                <i class="fas fa-credit-card"></i>
+                            </a>
                             <a href="admin_bulk_import.php" class="btn btn-sm btn-outline-info" title="Bulk Import">
                                 <i class="fas fa-upload"></i>
                             </a>

@@ -12,6 +12,133 @@ $success = '';
 
 // Handle group actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['clone_group'])) {
+        $originalGroupId = (int)($_POST['original_group_id'] ?? 0);
+        $newGroupName = trim($_POST['new_group_name'] ?? '');
+        $selectedMembers = $_POST['selected_members'] ?? [];
+        $newMembers = array_filter(array_map('trim', $_POST['new_members'] ?? []));
+        $startDate = $_POST['start_date'] ?? date('Y-m-d');
+
+        if ($originalGroupId && $newGroupName) {
+            try {
+                $pdo = getDB();
+                $pdo->beginTransaction();
+
+                // Get original group details
+                $originalGroup = getGroupById($originalGroupId);
+                if (!$originalGroup) {
+                    throw new Exception("Original group not found.");
+                }
+
+                // Combine selected existing members and new members
+                $allMembers = [];
+
+                // Add selected existing members
+                if (!empty($selectedMembers)) {
+                    $placeholders = str_repeat('?,', count($selectedMembers) - 1) . '?';
+                    $stmt = $pdo->prepare("SELECT member_name FROM members WHERE id IN ($placeholders)");
+                    $stmt->execute($selectedMembers);
+                    $existingMemberNames = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    $allMembers = array_merge($allMembers, $existingMemberNames);
+                }
+
+                // Add new members
+                $allMembers = array_merge($allMembers, $newMembers);
+
+                if (empty($allMembers)) {
+                    throw new Exception("At least one member is required for the new group.");
+                }
+
+                $totalMembers = count($allMembers);
+                $totalMonthlyCollection = $totalMembers * $originalGroup['monthly_contribution'];
+
+                // Create new group
+                $stmt = $pdo->prepare("
+                    INSERT INTO bc_groups (group_name, total_members, monthly_contribution, total_monthly_collection, start_date, status)
+                    VALUES (?, ?, ?, ?, ?, 'active')
+                ");
+                $stmt->execute([$newGroupName, $totalMembers, $originalGroup['monthly_contribution'], $totalMonthlyCollection, $startDate]);
+
+                $newGroupId = $pdo->lastInsertId();
+
+                // Add members to new group
+                $memberStmt = $pdo->prepare("
+                    INSERT INTO members (group_id, member_name, member_number, username, password, status)
+                    VALUES (?, ?, ?, ?, ?, 'active')
+                ");
+
+                $summaryStmt = $pdo->prepare("
+                    INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit)
+                    VALUES (?, ?, 0, 0, 0)
+                ");
+
+                foreach ($allMembers as $index => $memberName) {
+                    $memberNumber = $index + 1;
+
+                    // Create username
+                    $cleanName = strtolower(str_replace([' ', '.', '-'], '', $memberName));
+                    $username = $cleanName;
+
+                    // Check if this member already exists in system
+                    $checkStmt = $pdo->prepare("SELECT username, password FROM members WHERE member_name = ? LIMIT 1");
+                    $checkStmt->execute([$memberName]);
+                    $existingMember = $checkStmt->fetch();
+
+                    if ($existingMember) {
+                        // Reuse existing credentials
+                        $username = $existingMember['username'];
+                        $password = $existingMember['password'];
+                    } else {
+                        // Create new credentials
+                        $password = password_hash('member123', PASSWORD_DEFAULT);
+
+                        // Ensure username is unique
+                        $counter = 1;
+                        $originalUsername = $username;
+                        while (true) {
+                            $checkUsernameStmt = $pdo->prepare("SELECT id FROM members WHERE username = ?");
+                            $checkUsernameStmt->execute([$username]);
+                            if (!$checkUsernameStmt->fetch()) {
+                                break;
+                            }
+                            $username = $originalUsername . $counter;
+                            $counter++;
+                        }
+                    }
+
+                    // Insert member
+                    $memberStmt->execute([$newGroupId, $memberName, $memberNumber, $username, $password]);
+                    $memberId = $pdo->lastInsertId();
+
+                    // Create member summary
+                    $summaryStmt->execute([$newGroupId, $memberId]);
+                }
+
+                // Initialize month bidding status for all months (if table exists)
+                $tableExists = $pdo->query("SHOW TABLES LIKE 'month_bidding_status'")->fetch();
+                if ($tableExists) {
+                    $biddingStmt = $pdo->prepare("
+                        INSERT INTO month_bidding_status (group_id, month_number, bidding_status)
+                        VALUES (?, ?, 'not_started')
+                    ");
+
+                    for ($month = 1; $month <= $totalMembers; $month++) {
+                        $biddingStmt->execute([$newGroupId, $month]);
+                    }
+                }
+
+                $pdo->commit();
+                $success = "Group '{$newGroupName}' cloned successfully with {$totalMembers} members!";
+
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $error = 'Failed to clone group: ' . $e->getMessage();
+            }
+        } else {
+            $error = 'Group name is required for cloning.';
+        }
+    }
+
     if (isset($_POST['add_member'])) {
         $groupId = (int)($_POST['group_id'] ?? 0);
         $memberName = trim($_POST['member_name'] ?? '');
@@ -252,7 +379,7 @@ $groups = $stmt->fetchAll();
                                 <a href="view_group.php?id=<?= $group['id'] ?>" class="btn btn-outline-primary btn-sm">
                                     <i class="fas fa-eye"></i> View
                                 </a>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
                                         data-bs-toggle="modal" data-bs-target="#editModal<?= $group['id'] ?>">
                                     <i class="fas fa-edit"></i> Edit
                                 </button>
@@ -260,6 +387,14 @@ $groups = $stmt->fetchAll();
                                     <i class="fas fa-user-plus"></i> Members
                                 </a>
                             </div>
+
+                            <?php if ($group['status'] === 'completed'): ?>
+                                <div class="mt-2">
+                                    <a href="clone_group.php?id=<?= $group['id'] ?>" class="btn btn-warning btn-sm w-100">
+                                        <i class="fas fa-copy"></i> Restart Group
+                                    </a>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -303,6 +438,7 @@ $groups = $stmt->fetchAll();
                         </div>
                     </div>
                 </div>
+
             <?php endforeach; ?>
         </div>
         
@@ -337,6 +473,7 @@ $groups = $stmt->fetchAll();
                 selectElement.required = true;
             }
         }
+
 
         // Reset form when modal is closed
         document.addEventListener('DOMContentLoaded', function() {
