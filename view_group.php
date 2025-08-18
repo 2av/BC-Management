@@ -267,6 +267,9 @@ foreach ($memberSummary as $summary) {
                     <a href="manage_members.php?group_id=<?= $groupId ?>" class="btn btn-info btn-sm">
                         <i class="fas fa-users-cog"></i> Manage Members
                     </a>
+                    <a href="admin_manage_random_picks.php?group_id=<?= $groupId ?>" class="btn btn-warning btn-sm">
+                        <i class="fas fa-dice"></i> Manage Random Picks
+                    </a>
                     <a href="edit_group.php?id=<?= $groupId ?>" class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-edit"></i> Edit Group
                     </a>

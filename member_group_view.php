@@ -30,6 +30,12 @@ $monthlyBids = getMonthlyBids($selectedGroupId);
 $memberPayments = getMemberPayments($selectedGroupId);
 $memberSummary = getMemberSummary($selectedGroupId);
 
+// Get random picks for this group
+$randomPicks = getRandomPicks($selectedGroupId);
+
+// Get current active month
+$currentActiveMonth = getCurrentActiveMonthNumber($selectedGroupId);
+
 // Organize payments by member and month
 $paymentsMatrix = [];
 foreach ($memberPayments as $payment) {
@@ -239,6 +245,31 @@ foreach ($members as $memberInGroup) {
             border-top-color: #333;
             z-index: 1000;
         }
+
+        /* Random Pick Button Styles */
+        .random-pick-btn {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            animation: pulse 2s infinite;
+        }
+
+        .random-pick-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+        }
+
+        .random-pick-btn:disabled {
+            animation: none;
+            opacity: 0.6;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -354,8 +385,14 @@ foreach ($members as $memberInGroup) {
                             <?php for ($i = 1; $i <= $group['total_members']; $i++): ?>
                                 <td>
                                     <?php
+                                    // Check for monthly bid first
                                     $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $i);
                                     $bid = reset($bid);
+
+                                    // Check for random pick
+                                    $randomPick = array_filter($randomPicks, fn($rp) => $rp['month_number'] == $i);
+                                    $randomPick = reset($randomPick);
+
                                     if ($bid) {
                                         $name = htmlspecialchars($bid['member_name']);
                                         if ($currentMemberInGroup && $bid['taken_by_member_id'] == $currentMemberInGroup['id']) {
@@ -363,8 +400,75 @@ foreach ($members as $memberInGroup) {
                                         } else {
                                             echo $name;
                                         }
+                                    } elseif ($randomPick) {
+                                        // Check if there's an admin override
+                                        if ($randomPick['admin_override_member_id']) {
+                                            $overrideName = htmlspecialchars($randomPick['admin_override_member_name']);
+                                            $randomName = htmlspecialchars($randomPick['member_name']);
+
+                                            // If admin selected the same person as random pick, show only once
+                                            if ($randomPick['admin_override_member_id'] == $randomPick['selected_member_id']) {
+                                                if ($currentMemberInGroup && $randomPick['admin_override_member_id'] == $currentMemberInGroup['id']) {
+                                                    echo '<strong style="color: purple;">' . $overrideName . ' (You) 🎲👨‍💼</strong>';
+                                                } else {
+                                                    echo '<span style="color: purple;">' . $overrideName . ' 🎲👨‍💼</span>';
+                                                }
+                                            } else {
+                                                // Show both random pick and admin override
+                                                echo '<div style="font-size: 11px; line-height: 1.2;">';
+                                                echo '<div style="color: #888; text-decoration: line-through;">🎲 ' . $randomName . '</div>';
+                                                if ($currentMemberInGroup && $randomPick['admin_override_member_id'] == $currentMemberInGroup['id']) {
+                                                    echo '<div style="color: green;"><strong>👨‍💼 ' . $overrideName . ' (You)</strong></div>';
+                                                } else {
+                                                    echo '<div style="color: green;">👨‍💼 ' . $overrideName . '</div>';
+                                                }
+                                                echo '</div>';
+                                            }
+                                        } else {
+                                            // Only random pick, no admin override
+                                            $name = htmlspecialchars($randomPick['member_name']);
+                                            if ($currentMemberInGroup && $randomPick['selected_member_id'] == $currentMemberInGroup['id']) {
+                                                echo '<strong style="color: blue;">' . $name . ' (You) 🎲</strong>';
+                                            } else {
+                                                echo '<span style="color: blue;">' . $name . ' 🎲</span>';
+                                            }
+                                        }
                                     } else {
                                         echo '-';
+                                    }
+                                    ?>
+                                </td>
+                            <?php endfor; ?>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold sticky-col">Random Pick</td>
+                            <?php for ($i = 1; $i <= $group['total_members']; $i++): ?>
+                                <td>
+                                    <?php
+                                    // Check if month already has a winner (bid or random pick)
+                                    $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $i);
+                                    $bid = reset($bid);
+
+                                    $randomPick = array_filter($randomPicks, fn($rp) => $rp['month_number'] == $i);
+                                    $randomPick = reset($randomPick);
+
+                                    if ($bid || $randomPick) {
+                                        echo '<span class="text-muted">Done</span>';
+                                    } elseif ($currentActiveMonth && $i == $currentActiveMonth) {
+                                        // Only show random pick button for current active month
+                                        echo '<button class="btn btn-sm btn-warning random-pick-btn"
+                                                data-group-id="' . $selectedGroupId . '"
+                                                data-month="' . $i . '"
+                                                title="Randomly select a member for Month ' . $i . ' (Current Month)">
+                                                🎲 Pick
+                                              </button>';
+                                    } elseif ($i < $currentActiveMonth) {
+                                        // Past months
+                                        echo '<span class="text-muted" title="Past month - cannot pick">🔒 Past</span>';
+                                    } else {
+                                        // Future months
+                                        echo '<span class="text-muted" title="Future month - not available yet">⏳ Future</span>';
                                     }
                                     ?>
                                 </td>
@@ -422,7 +526,11 @@ foreach ($members as $memberInGroup) {
                                     <?php
                                     $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $i);
                                     $bid = reset($bid);
-                                    echo $bid ? formatCurrency($bid['gain_per_member']) : formatCurrency($group['monthly_contribution']);
+                                    if ($bid) {
+                                        echo formatCurrency($bid['gain_per_member']);
+                                    } else {
+                                        echo '<span class="text-muted">-</span>';
+                                    }
                                     ?>
                                 </td>
                             <?php endfor; ?>
@@ -485,11 +593,15 @@ foreach ($members as $memberInGroup) {
                                         if ($payment) {
                                             echo formatCurrency($payment['payment_amount']);
                                         } else {
-                                            // Show expected amount
+                                            // Show expected amount or pending indicator
                                             $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $i);
                                             $bid = reset($bid);
-                                            $expectedAmount = $bid ? $bid['gain_per_member'] : $group['monthly_contribution'];
-                                            echo '<span class="text-muted">' . formatCurrency($expectedAmount) . '</span>';
+                                            if ($bid) {
+                                                $expectedAmount = $bid['gain_per_member'];
+                                                echo '<span class="text-muted">' . formatCurrency($expectedAmount) . '</span>';
+                                            } else {
+                                                echo '<span class="text-muted">-</span>';
+                                            }
                                         }
                                         ?>
                                     </td>
@@ -516,6 +628,17 @@ foreach ($members as $memberInGroup) {
                         <?php endforeach; ?>
                     </tbody>
                     </table>
+
+                    <!-- Legend -->
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Legend:</strong>
+                            <span class="badge bg-success me-2">Green</span> = Paid
+                            <span class="badge bg-warning me-2">Yellow</span> = Pending Payment
+                            <span class="text-muted me-2">"-"</span> = Amount not yet decided
+                        </small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -560,6 +683,57 @@ foreach ($members as $memberInGroup) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // Random Pick functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle random pick button clicks
+            document.querySelectorAll('.random-pick-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const groupId = this.getAttribute('data-group-id');
+                    const monthNumber = this.getAttribute('data-month');
+
+                    // Confirm action
+                    if (!confirm(`Are you sure you want to randomly pick a member for Month ${monthNumber}? This action cannot be undone.`)) {
+                        return;
+                    }
+
+                    // Disable button and show loading
+                    this.disabled = true;
+                    this.innerHTML = '🎲 Picking...';
+
+                    // Make AJAX request
+                    fetch('random_pick_member.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `group_id=${groupId}&month_number=${monthNumber}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Show success message
+                            alert(`Random pick successful! ${data.selected_member.name} has been selected for Month ${monthNumber}.`);
+                            // Reload page to show updated data
+                            window.location.reload();
+                        } else {
+                            // Show error message
+                            alert(`Error: ${data.message}`);
+                            // Re-enable button
+                            this.disabled = false;
+                            this.innerHTML = '🎲 Pick';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while making the random pick. Please try again.');
+                        // Re-enable button
+                        this.disabled = false;
+                        this.innerHTML = '🎲 Pick';
+                    });
+                });
+            });
+        });
+
         // Enhanced mobile tooltip handling
         document.addEventListener('DOMContentLoaded', function() {
             const nameTooltips = document.querySelectorAll('.name-tooltip');

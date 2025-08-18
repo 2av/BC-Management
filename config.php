@@ -277,6 +277,79 @@ function getMemberBids($groupId, $memberId) {
     return $stmt->fetchAll();
 }
 
+function getRandomPicks($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT rp.*,
+               m.member_name,
+               om.member_name as admin_override_member_name,
+               au.full_name as admin_override_by_name
+        FROM random_picks rp
+        JOIN members m ON rp.selected_member_id = m.id
+        LEFT JOIN members om ON rp.admin_override_member_id = om.id
+        LEFT JOIN admin_users au ON rp.admin_override_by = au.id
+        WHERE rp.group_id = ?
+        ORDER BY rp.month_number
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+function getCurrentActiveMonthNumber($groupId) {
+    $pdo = getDB();
+
+    // Get group info to determine total months
+    $stmt = $pdo->prepare("SELECT total_members FROM bc_groups WHERE id = ?");
+    $stmt->execute([$groupId]);
+    $group = $stmt->fetch();
+
+    if (!$group) {
+        return null;
+    }
+
+    // Get the last completed month from monthly_bids
+    $stmt = $pdo->prepare("
+        SELECT MAX(month_number) as last_month
+        FROM monthly_bids
+        WHERE group_id = ?
+    ");
+    $stmt->execute([$groupId]);
+    $lastCompletedMonth = $stmt->fetch()['last_month'] ?? 0;
+
+    // Current active month is the next month after last completed
+    $currentMonth = $lastCompletedMonth + 1;
+
+    // If current month exceeds total months, the group is complete
+    if ($currentMonth > $group['total_members']) {
+        return null; // No active month, group is complete
+    }
+
+    return $currentMonth;
+}
+
+function getAvailableMembersForRandomPick($groupId) {
+    $pdo = getDB();
+    $stmt = $pdo->prepare("
+        SELECT m.id, m.member_name, m.member_number
+        FROM members m
+        WHERE m.group_id = ?
+        AND m.status = 'active'
+        AND m.id NOT IN (
+            SELECT DISTINCT taken_by_member_id
+            FROM monthly_bids
+            WHERE group_id = ? AND taken_by_member_id IS NOT NULL
+        )
+        AND m.id NOT IN (
+            SELECT DISTINCT COALESCE(admin_override_member_id, selected_member_id)
+            FROM random_picks
+            WHERE group_id = ? AND selected_member_id IS NOT NULL
+        )
+        ORDER BY m.member_number
+    ");
+    $stmt->execute([$groupId, $groupId, $groupId]);
+    return $stmt->fetchAll();
+}
+
 function canMemberBid($memberId) {
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT has_won_month FROM members WHERE id = ?");
