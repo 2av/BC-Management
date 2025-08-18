@@ -151,84 +151,163 @@ if ($action === 'summary') {
         </div>
     </div>
 
-    <!-- Group-wise Expandable List -->
-    <div class="accordion" id="groupAccordion">
-        <?php foreach ($groupSummaryData as $index => $groupData): ?>
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="heading<?= $index ?>">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                            data-bs-target="#collapse<?= $index ?>">
-                        <div class="d-flex justify-content-between align-items-center w-100 me-3">
-                            <div>
-                                <strong class="text-primary">
-                                    <i class="fas fa-users me-2"></i><?= htmlspecialchars($groupData['group']['group_name']) ?>
-                                </strong>
-                            </div>
-                            <div class="text-end">
-                                <div class="text-warning fw-bold"><?= formatCurrency($groupData['total_pending_amount']) ?></div>
-                            </div>
-                        </div>
-                    </button>
-                </h2>
-                <div id="collapse<?= $index ?>" class="accordion-collapse collapse"
-                     aria-labelledby="heading<?= $index ?>" data-bs-parent="#groupAccordion">
-                    <div class="accordion-body">
-                        <div class="row">
-                            <?php foreach ($groupData['months_with_pending'] as $monthData): ?>
-                                <div class="col-md-6 mb-3">
-                                    <div class="card border-warning">
-                                        <div class="card-header bg-light">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <h6 class="mb-0">
-                                                    <i class="fas fa-calendar-alt text-primary"></i>
-                                                    Month <?= $monthData['month_number'] ?>
-                                                </h6>
-                                                <span class="badge bg-warning text-dark">
-                                                    <?= $monthData['pending_count'] ?>/<?= $monthData['total_members'] ?> pending
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="card-body">
-                                            <div class="mb-2">
-                                                <div class="d-flex justify-content-between">
-                                                    <small><strong>Winner:</strong></small>
-                                                    <small><?= htmlspecialchars($monthData['winner_name']) ?></small>
-                                                </div>
-                                                <div class="d-flex justify-content-between">
-                                                    <small><strong>Bid Amount:</strong></small>
-                                                    <small><?= formatCurrency($monthData['bid_amount']) ?></small>
-                                                </div>
-                                                <div class="d-flex justify-content-between">
-                                                    <small><strong>Pending Amount:</strong></small>
-                                                    <small class="text-warning fw-bold"><?= formatCurrency($monthData['pending_amount']) ?></small>
-                                                </div>
-                                            </div>
-                                            <div class="text-center">
-                                                <button class="btn btn-sm btn-outline-primary"
-                                                        onclick="loadMonthDetails(<?= $groupData['group']['id'] ?>, <?= $monthData['month_number'] ?>)">
-                                                    <i class="fas fa-eye"></i> View Members
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-
-                        <div class="mt-3 text-center border-top pt-3">
-                            <a href="view_group.php?id=<?= $groupData['group']['id'] ?>" class="btn btn-sm btn-outline-success me-2">
-                                <i class="fas fa-chart-bar"></i> Group Dashboard
-                            </a>
-                            <a href="admin_members.php?group_filter=<?= $groupData['group']['id'] ?>" class="btn btn-sm btn-outline-info">
-                                <i class="fas fa-users"></i> All Members
-                            </a>
-                        </div>
+    <!-- Group-wise Direct Display -->
+    <?php foreach ($groupSummaryData as $index => $groupData): ?>
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="fas fa-users me-2"></i><?= htmlspecialchars($groupData['group']['group_name']) ?>
+                        </h5>
+                        <small><?= count($groupData['months_with_pending']) ?> months with pending payments</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="h4 mb-0"><?= formatCurrency($groupData['total_pending_amount']) ?></div>
+                        <small><?= $groupData['total_pending_members'] ?> pending members</small>
                     </div>
                 </div>
             </div>
-        <?php endforeach; ?>
-    </div>
-<?php 
+            <div class="card-body">
+                <?php foreach ($groupData['months_with_pending'] as $monthData): ?>
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="text-primary mb-0">
+                                <i class="fas fa-calendar-alt me-2"></i>Month <?= $monthData['month_number'] ?>
+                            </h6>
+                            <span class="badge bg-warning text-dark">
+                                <?= $monthData['pending_count'] ?>/<?= $monthData['total_members'] ?> pending
+                            </span>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <small class="text-muted">Winner:</small><br>
+                                <strong><?= htmlspecialchars($monthData['winner_name']) ?></strong>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Bid Amount:</small><br>
+                                <strong><?= formatCurrency($monthData['bid_amount']) ?></strong>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Pending Amount:</small><br>
+                                <strong class="text-warning"><?= formatCurrency($monthData['pending_amount']) ?></strong>
+                            </div>
+                        </div>
+
+                        <!-- Show Pending Members Directly -->
+                        <?php
+                        // Get pending members for this month
+                        $groupId = $groupData['group']['id'];
+                        $monthNumber = $monthData['month_number'];
+
+                        // Get all members in this group
+                        $members = getGroupMembers($groupId);
+
+                        // Get payments for this month
+                        $stmt = $pdo->prepare("
+                            SELECT mp.*, m.member_name, m.member_number
+                            FROM member_payments mp
+                            JOIN members m ON mp.member_id = m.id
+                            WHERE mp.group_id = ? AND mp.month_number = ?
+                        ");
+                        $stmt->execute([$groupId, $monthNumber]);
+                        $payments = $stmt->fetchAll();
+
+                        // Organize payments by member
+                        $paymentsByMember = [];
+                        foreach ($payments as $payment) {
+                            $paymentsByMember[$payment['member_id']] = $payment;
+                        }
+
+                        // Get monthly bid details
+                        $stmt = $pdo->prepare("
+                            SELECT gain_per_member FROM monthly_bids
+                            WHERE group_id = ? AND month_number = ?
+                        ");
+                        $stmt->execute([$groupId, $monthNumber]);
+                        $monthBid = $stmt->fetch();
+                        $expectedAmount = $monthBid ? $monthBid['gain_per_member'] : 0;
+
+                        // Separate pending members
+                        $pendingMembers = [];
+                        foreach ($members as $member) {
+                            $payment = $paymentsByMember[$member['id']] ?? null;
+                            if (!$payment || $payment['payment_status'] === 'pending') {
+                                $pendingMembers[] = [
+                                    'member' => $member,
+                                    'payment' => $payment,
+                                    'expected_amount' => $expectedAmount
+                                ];
+                            }
+                        }
+                        ?>
+
+                        <?php if (!empty($pendingMembers)): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead class="table-warning">
+                                        <tr>
+                                            <th><i class="fas fa-user me-1"></i>Member</th>
+                                            <th><i class="fas fa-id-badge me-1"></i>Number</th>
+                                            <th><i class="fas fa-money-bill me-1"></i>Expected Amount</th>
+                                            <th><i class="fas fa-info-circle me-1"></i>Status</th>
+                                            <th><i class="fas fa-cog me-1"></i>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($pendingMembers as $memberData): ?>
+                                            <tr>
+                                                <td>
+                                                    <strong><?= htmlspecialchars($memberData['member']['member_name']) ?></strong>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-secondary">#<?= $memberData['member']['member_number'] ?></span>
+                                                </td>
+                                                <td>
+                                                    <span class="text-warning fw-bold"><?= formatCurrency($memberData['expected_amount']) ?></span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-<?= $memberData['payment'] ? 'warning' : 'secondary' ?>">
+                                                        <?= $memberData['payment'] ? 'Pending' : 'Not Recorded' ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <a href="add_payment.php?group_id=<?= $groupId ?>&member_id=<?= $memberData['member']['id'] ?>&month=<?= $monthNumber ?>"
+                                                       class="btn btn-sm btn-outline-success">
+                                                        <i class="fas fa-plus"></i> Add Payment
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($monthData !== end($groupData['months_with_pending'])): ?>
+                            <hr>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+
+                <div class="text-center border-top pt-3">
+                    <a href="view_group.php?id=<?= $groupData['group']['id'] ?>" class="btn btn-outline-success me-2">
+                        <i class="fas fa-chart-bar"></i> Group Dashboard
+                    </a>
+                    <a href="admin_members.php?group_filter=<?= $groupData['group']['id'] ?>" class="btn btn-outline-info me-2">
+                        <i class="fas fa-users"></i> All Members
+                    </a>
+                    <a href="bulk_payment.php?group_id=<?= $groupData['group']['id'] ?>" class="btn btn-outline-warning">
+                        <i class="fas fa-plus"></i> Add Bulk Payments
+                    </a>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+
+
+<?php
 } else if ($action === 'month_details') {
     // Show member details for a specific group and month
     $groupId = (int)($_GET['group_id'] ?? 0);

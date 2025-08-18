@@ -139,6 +139,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
     }
 }
 
+// Handle member removal
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
+    $memberId = (int)($_POST['member_id'] ?? 0);
+    $confirmName = trim($_POST['confirm_name'] ?? '');
+
+    if ($memberId) {
+        try {
+            $pdo = getDB();
+
+            // Get member details first
+            $stmt = $pdo->prepare("SELECT * FROM members WHERE id = ? AND group_id = ?");
+            $stmt->execute([$memberId, $groupId]);
+            $memberToRemove = $stmt->fetch();
+
+            if (!$memberToRemove) {
+                throw new Exception("Member not found.");
+            }
+
+            // Verify confirmation name matches
+            if (strtolower($confirmName) !== strtolower($memberToRemove['member_name'])) {
+                throw new Exception("Confirmation name does not match. Please type the exact member name to confirm removal.");
+            }
+
+            // Check if member has any payments or bids
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+            $bidCount = $stmt->fetchColumn();
+
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM member_payments WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+            $paymentCount = $stmt->fetchColumn();
+
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM random_picks WHERE group_id = ? AND selected_member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+            $randomPickCount = $stmt->fetchColumn();
+
+            if ($bidCount > 0 || $paymentCount > 0 || $randomPickCount > 0) {
+                throw new Exception("Cannot remove member '{$memberToRemove['member_name']}' - they have existing payments, bids, or random picks. Please contact system administrator for data cleanup.");
+            }
+
+            $pdo->beginTransaction();
+
+            // Remove member from member_summary
+            $stmt = $pdo->prepare("DELETE FROM member_summary WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+
+            // Remove member record
+            $stmt = $pdo->prepare("DELETE FROM members WHERE id = ? AND group_id = ?");
+            $stmt->execute([$memberId, $groupId]);
+
+            // Update member numbers for remaining members (renumber them)
+            $stmt = $pdo->prepare("SELECT id, member_number FROM members WHERE group_id = ? ORDER BY member_number");
+            $stmt->execute([$groupId]);
+            $remainingMembers = $stmt->fetchAll();
+
+            $newMemberNumber = 1;
+            foreach ($remainingMembers as $member) {
+                if ($member['member_number'] != $newMemberNumber) {
+                    $updateStmt = $pdo->prepare("UPDATE members SET member_number = ? WHERE id = ?");
+                    $updateStmt->execute([$newMemberNumber, $member['id']]);
+                }
+                $newMemberNumber++;
+            }
+
+            // Update group total members count
+            $newTotalMembers = count($remainingMembers);
+            $newTotalCollection = $newTotalMembers * $group['monthly_contribution'];
+
+            $stmt = $pdo->prepare("
+                UPDATE bc_groups
+                SET total_members = ?, total_monthly_collection = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$newTotalMembers, $newTotalCollection, $groupId]);
+
+            // Remove any month_bidding_status entries beyond the new member count
+            $stmt = $pdo->prepare("DELETE FROM month_bidding_status WHERE group_id = ? AND month_number > ?");
+            $stmt->execute([$groupId, $newTotalMembers]);
+
+            $pdo->commit();
+            $success = "Member '{$memberToRemove['member_name']}' has been successfully removed from the group.";
+
+            // Refresh data
+            $group = getGroupById($groupId);
+            $members = getGroupMembers($groupId);
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $error = 'Failed to remove member: ' . $e->getMessage();
+        }
+    } else {
+        $error = 'Invalid member selection.';
+    }
+}
+
 // Handle member credential updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
     $memberId = (int)($_POST['member_id'] ?? 0);
@@ -296,8 +391,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
                                     <td><?= htmlspecialchars($member['phone'] ?: '-') ?></td>
                                     <td><?= htmlspecialchars($member['email'] ?: '-') ?></td>
                                     <td>
-                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal<?= $member['id'] ?>">
+                                        <button class="btn btn-sm btn-primary me-1" data-bs-toggle="modal" data-bs-target="#editModal<?= $member['id'] ?>">
                                             <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#removeModal<?= $member['id'] ?>">
+                                            <i class="fas fa-trash"></i> Remove
                                         </button>
                                     </td>
                                 </tr>
@@ -348,6 +446,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
                                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                                     <button type="submit" name="update_member" class="btn btn-primary">
                                                         <i class="fas fa-save"></i> Update
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Remove Confirmation Modal -->
+                                <div class="modal fade" id="removeModal<?= $member['id'] ?>" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form method="POST">
+                                                <div class="modal-header bg-danger text-white">
+                                                    <h5 class="modal-title">
+                                                        <i class="fas fa-exclamation-triangle"></i> Remove Member
+                                                    </h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <input type="hidden" name="member_id" value="<?= $member['id'] ?>">
+
+                                                    <div class="alert alert-danger">
+                                                        <i class="fas fa-exclamation-triangle"></i>
+                                                        <strong>Warning!</strong> This action cannot be undone.
+                                                    </div>
+
+                                                    <p>You are about to remove <strong><?= htmlspecialchars($member['member_name']) ?></strong> from this group.</p>
+
+                                                    <div class="alert alert-info">
+                                                        <i class="fas fa-info-circle"></i>
+                                                        <strong>What will happen:</strong>
+                                                        <ul class="mb-0 mt-2">
+                                                            <li>Member will be completely removed from the group</li>
+                                                            <li>All remaining members will be renumbered</li>
+                                                            <li>Group total member count will be updated</li>
+                                                            <li>Member cannot be removed if they have existing payments or bids</li>
+                                                        </ul>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label for="confirm_name<?= $member['id'] ?>" class="form-label">
+                                                            <strong>Type the member name to confirm removal:</strong>
+                                                        </label>
+                                                        <input type="text" class="form-control" id="confirm_name<?= $member['id'] ?>"
+                                                               name="confirm_name" placeholder="<?= htmlspecialchars($member['member_name']) ?>" required>
+                                                        <div class="form-text">Type exactly: <code><?= htmlspecialchars($member['member_name']) ?></code></div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" name="remove_member" class="btn btn-danger">
+                                                        <i class="fas fa-trash"></i> Remove Member
                                                     </button>
                                                 </div>
                                             </form>

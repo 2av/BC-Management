@@ -388,9 +388,23 @@ $recentActivities = $stmt->fetchAll();
 
         .dashboard-card {
             transition: transform 0.2s;
+            position: relative;
+            z-index: 1;
+            margin-bottom: 20px;
         }
         .dashboard-card:hover {
             transform: translateY(-2px);
+        }
+
+        /* Prevent overlapping of pending payments section */
+        #pendingPaymentsContent {
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Ensure proper spacing between sections */
+        .row.mb-5 {
+            margin-bottom: 3rem !important;
         }
         .chart-container {
             position: relative;
@@ -679,28 +693,26 @@ $recentActivities = $stmt->fetchAll();
         </div>
 
         <!-- Group-wise Pending Payments Section -->
-        <div class="row mb-4">
+        <div class="row mb-5">
             <div class="col-12">
-                <div class="chart-container animate-fadeInUp">
-                    <div class="chart-header">
+                <div class="card dashboard-card animate-fadeInUp" style="position: relative; z-index: 10;">
+                    <div class="card-header bg-warning text-dark">
                         <div class="d-flex justify-content-between align-items-center flex-wrap">
                             <div>
-                                <h4 class="chart-title">
-                                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                <h4 class="mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
                                     Group-wise Pending Payments
                                 </h4>
-                                <p class="chart-subtitle">Click on groups to expand and view month-wise details</p>
+                                <p class="mb-0 mt-1 small">View all pending payments by group and month</p>
                             </div>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-outline-modern btn-sm" onclick="loadPendingPayments()">
+                                <button class="btn btn-outline-dark btn-sm" onclick="loadPendingPayments()">
                                     <i class="fas fa-sync-alt me-1"></i>Refresh
                                 </button>
                             </div>
                         </div>
                     </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
+                    <div class="card-body" style="min-height: 200px; max-height: 600px; overflow-y: auto;">
                         <div id="pendingPaymentsContent">
                             <div class="text-center text-muted py-4">
                                 <div class="spinner-border text-primary" role="status">
@@ -1109,15 +1121,38 @@ $recentActivities = $stmt->fetchAll();
 
             // Fetch pending payments summary
             fetch(`admin_get_pending_payments.php?action=summary`)
-                .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.text();
+                })
                 .then(data => {
-                    contentDiv.innerHTML = data;
+                    if (data.trim() === '') {
+                        contentDiv.innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>No data received</strong>
+                                <p class="mb-0 mt-2">The server returned empty data. This could mean:</p>
+                                <ul class="mb-0 mt-1">
+                                    <li>No groups exist in the system</li>
+                                    <li>No bidding processes have been started</li>
+                                    <li>All payments are up to date</li>
+                                </ul>
+                            </div>
+                        `;
+                    } else {
+                        contentDiv.innerHTML = data;
+                    }
                 })
                 .catch(error => {
+                    console.error('Error loading pending payments:', error);
                     contentDiv.innerHTML = `
                         <div class="alert alert-danger">
                             <i class="fas fa-exclamation-triangle"></i>
-                            Error loading pending payments data. Please try again.
+                            <strong>Error loading pending payments data</strong>
+                            <p class="mb-0 mt-2">Error details: ${error.message}</p>
+                            <p class="mb-0">Please check the browser console for more details and try again.</p>
                         </div>
                     `;
                 });
@@ -1173,5 +1208,8 @@ $recentActivities = $stmt->fetchAll();
         `;
         document.head.appendChild(style);
     </script>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
