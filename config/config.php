@@ -2,12 +2,8 @@
 // BC Management System Configuration
 
 // Database Configuration
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'bc_management');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_CHARSET', 'utf8mb4');
-
+ 
+require_once '../db_config.php';
 // Application Configuration
 define('APP_NAME', 'BC Management System');
 define('APP_VERSION', '1.0.0');
