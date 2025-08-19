@@ -34,6 +34,19 @@ function isLoggedIn() {
     return isAdminLoggedIn() || isMemberLoggedIn();
 }
 
+// Multi-tenant authentication functions (if not already defined)
+if (!function_exists('isSuperAdminLoggedIn')) {
+    function isSuperAdminLoggedIn() {
+        return isset($_SESSION['super_admin_id']);
+    }
+}
+
+if (!function_exists('isClientAdminLoggedIn')) {
+    function isClientAdminLoggedIn() {
+        return isset($_SESSION['client_admin_id']) && isset($_SESSION['client_id']);
+    }
+}
+
 function requireAdminLogin() {
     if (!isAdminLoggedIn()) {
         header('Location: login.php');
@@ -57,6 +70,34 @@ function requireLogin() {
 
 function adminLogin($username, $password) {
     $pdo = getDB();
+
+    // First try client admin login (multi-tenant)
+    $stmt = $pdo->prepare("
+        SELECT ca.*, c.client_name, c.status as client_status
+        FROM client_admins ca
+        JOIN clients c ON ca.client_id = c.id
+        WHERE ca.username = ? AND ca.status = 'active' AND c.status = 'active'
+    ");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['admin_id'] = $user['id'];
+        $_SESSION['client_admin_id'] = $user['id'];
+        $_SESSION['client_id'] = $user['client_id'];
+        $_SESSION['admin_name'] = $user['full_name'];
+        $_SESSION['client_admin_name'] = $user['full_name'];
+        $_SESSION['client_name'] = $user['client_name'];
+        $_SESSION['user_type'] = 'admin';
+
+        // Update last login
+        $updateStmt = $pdo->prepare("UPDATE client_admins SET last_login = NOW() WHERE id = ?");
+        $updateStmt->execute([$user['id']]);
+
+        return true;
+    }
+
+    // Fallback to legacy admin_users table for backward compatibility
     $stmt = $pdo->prepare("SELECT * FROM admin_users WHERE username = ?");
     $stmt->execute([$username]);
     $user = $stmt->fetch();
@@ -65,6 +106,7 @@ function adminLogin($username, $password) {
         $_SESSION['admin_id'] = $user['id'];
         $_SESSION['admin_name'] = $user['full_name'];
         $_SESSION['user_type'] = 'admin';
+        $_SESSION['client_id'] = 1; // Default client for legacy users
         return true;
     }
 
@@ -73,7 +115,13 @@ function adminLogin($username, $password) {
 
 function memberLogin($username, $password) {
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT m.*, g.group_name FROM members m JOIN bc_groups g ON m.group_id = g.id WHERE m.username = ? AND m.status = 'active'");
+    $stmt = $pdo->prepare("
+        SELECT m.*, g.group_name, g.client_id, c.client_name
+        FROM members m
+        JOIN bc_groups g ON m.group_id = g.id
+        JOIN clients c ON g.client_id = c.id
+        WHERE m.username = ? AND m.status = 'active' AND c.status = 'active'
+    ");
     $stmt->execute([$username]);
     $member = $stmt->fetch();
 
@@ -82,6 +130,8 @@ function memberLogin($username, $password) {
         $_SESSION['member_name'] = $member['member_name'];
         $_SESSION['group_id'] = $member['group_id'];
         $_SESSION['group_name'] = $member['group_name'];
+        $_SESSION['client_id'] = $member['client_id'];
+        $_SESSION['client_name'] = $member['client_name'];
         $_SESSION['user_type'] = 'member';
         return true;
     }
@@ -93,10 +143,18 @@ function logout() {
     $userType = $_SESSION['user_type'] ?? 'admin';
     session_destroy();
 
-    if ($userType === 'member') {
-        header('Location: member_login.php');
-    } else {
-        header('Location: login.php');
+    // Redirect based on user type
+    switch ($userType) {
+        case 'super_admin':
+            header('Location: super_admin_login.php');
+            break;
+        case 'member':
+            header('Location: member_login.php');
+            break;
+        case 'admin':
+        default:
+            header('Location: login.php');
+            break;
     }
     exit;
 }
@@ -148,37 +206,94 @@ function getMessage() {
     return null;
 }
 
-// BC Functions
+// Client Context Functions - Load from multi_tenant_config if available
+if (file_exists(__DIR__ . '/multi_tenant_config.php')) {
+    require_once __DIR__ . '/multi_tenant_config.php';
+}
+
+// Define functions only if they don't exist (for backward compatibility)
+if (!function_exists('getCurrentClientId')) {
+    function getCurrentClientId() {
+        if (isset($_SESSION['client_id'])) {
+            return $_SESSION['client_id'];
+        }
+        if (isMemberLoggedIn()) {
+            // Get client_id through member's group
+            $member = getCurrentMember();
+            if ($member) {
+                $pdo = getDB();
+                $stmt = $pdo->prepare("SELECT client_id FROM bc_groups WHERE id = ?");
+                $stmt->execute([$member['group_id']]);
+                $group = $stmt->fetch();
+                return $group ? $group['client_id'] : null;
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('getCurrentClient')) {
+    function getCurrentClient() {
+        $clientId = getCurrentClientId();
+        if (!$clientId) return null;
+
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT * FROM clients WHERE id = ? AND status = 'active'");
+        $stmt->execute([$clientId]);
+        return $stmt->fetch();
+    }
+}
+
+// BC Functions (Updated for Multi-Tenant)
 function getAllGroups() {
+    $clientId = getCurrentClientId();
+    if (!$clientId) return [];
+
     $pdo = getDB();
-    $stmt = $pdo->query("SELECT * FROM bc_groups ORDER BY created_at DESC");
+    $stmt = $pdo->prepare("SELECT * FROM bc_groups WHERE client_id = ? ORDER BY created_at DESC");
+    $stmt->execute([$clientId]);
     return $stmt->fetchAll();
 }
 
 function getGroupById($id) {
+    $clientId = getCurrentClientId();
+    if (!$clientId) return null;
+
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT * FROM bc_groups WHERE id = ?");
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare("SELECT * FROM bc_groups WHERE id = ? AND client_id = ?");
+    $stmt->execute([$id, $clientId]);
     return $stmt->fetch();
 }
 
 function getGroupMembers($groupId) {
+    $clientId = getCurrentClientId();
+    if (!$clientId) return [];
+
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT * FROM members WHERE group_id = ? ORDER BY member_number");
-    $stmt->execute([$groupId]);
+    $stmt = $pdo->prepare("
+        SELECT m.* FROM members m
+        JOIN bc_groups g ON m.group_id = g.id
+        WHERE m.group_id = ? AND g.client_id = ?
+        ORDER BY m.member_number
+    ");
+    $stmt->execute([$groupId, $clientId]);
     return $stmt->fetchAll();
 }
 
 function getMonthlyBids($groupId) {
+    $clientId = getCurrentClientId();
+    if (!$clientId) return [];
+
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT mb.*, m.member_name 
-        FROM monthly_bids mb 
-        LEFT JOIN members m ON mb.taken_by_member_id = m.id 
-        WHERE mb.group_id = ? 
+        SELECT mb.*, m.member_name
+        FROM monthly_bids mb
+        LEFT JOIN members m ON mb.taken_by_member_id = m.id
+        JOIN bc_groups g ON mb.group_id = g.id
+        WHERE mb.group_id = ? AND g.client_id = ?
         ORDER BY mb.month_number
     ");
-    $stmt->execute([$groupId]);
+    $stmt->execute([$groupId, $clientId]);
     return $stmt->fetchAll();
 }
 
@@ -244,26 +359,34 @@ function calculateGainPerMember($totalCollection, $bidAmount, $totalMembers) {
 
 // Bidding System Functions
 function getOpenBiddingMonths($groupId) {
+    $clientId = getCurrentClientId();
+    if (!$clientId) return [];
+
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT * FROM month_bidding_status
-        WHERE group_id = ? AND bidding_status = 'open'
-        ORDER BY month_number
+        SELECT mbs.* FROM month_bidding_status mbs
+        JOIN bc_groups g ON mbs.group_id = g.id
+        WHERE mbs.group_id = ? AND mbs.bidding_status = 'open' AND g.client_id = ?
+        ORDER BY mbs.month_number
     ");
-    $stmt->execute([$groupId]);
+    $stmt->execute([$groupId, $clientId]);
     return $stmt->fetchAll();
 }
 
 function getMemberBids($groupId, $memberId) {
+    $clientId = getCurrentClientId();
+    if (!$clientId) return [];
+
     $pdo = getDB();
     $stmt = $pdo->prepare("
         SELECT mb.*, mbs.bidding_status
         FROM member_bids mb
         JOIN month_bidding_status mbs ON mb.group_id = mbs.group_id AND mb.month_number = mbs.month_number
-        WHERE mb.group_id = ? AND mb.member_id = ?
+        JOIN bc_groups g ON mb.group_id = g.id
+        WHERE mb.group_id = ? AND mb.member_id = ? AND g.client_id = ?
         ORDER BY mb.month_number
     ");
-    $stmt->execute([$groupId, $memberId]);
+    $stmt->execute([$groupId, $memberId, $clientId]);
     return $stmt->fetchAll();
 }
 

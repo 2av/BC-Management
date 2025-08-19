@@ -121,12 +121,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: 700;
             color: var(--gray-900);
             margin-bottom: 0.5rem;
+            line-height: 1.2;
+            word-wrap: break-word;
         }
 
         .login-subtitle {
             color: var(--gray-600);
             font-size: 1rem;
             font-weight: 500;
+            line-height: 1.4;
+            word-wrap: break-word;
         }
 
         .login-form {
@@ -304,13 +308,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="login-footer">
-                        <p class="mb-0">
-                            <i class="fas fa-user-shield me-2 text-muted"></i>
-                            <span class="text-muted">Are you an admin?</span>
-                            <a href="login.php" class="admin-login-link ms-1">
-                                Login Here
-                            </a>
-                        </p>
+                        <div class="mb-2">
+                            <small class="text-muted">Other Access Portals:</small>
+                        </div>
+                        <a href="login.php" class="me-3">
+                            <i class="fas fa-user-shield me-1"></i>Admin Login
+                        </a>
+                        <a href="super_admin_login.php">
+                            <i class="fas fa-crown me-1"></i>Super Admin
+                        </a>
                     </div>
                 </div>
             </div>

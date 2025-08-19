@@ -1,7 +1,7 @@
 <link href="assets/css/modern-design.css" rel="stylesheet">
 <nav class="navbar navbar-expand-lg navbar-modern">
     <div class="container">
-        <a class="navbar-brand-modern" href="index.php">
+        <a class="navbar-brand-modern" href="admin_dashboard.php">
             <i class="fas fa-handshake"></i>
             <span><?= APP_NAME ?></span>
         </a>
@@ -13,7 +13,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link-modern" href="index.php">
+                    <a class="nav-link-modern" href="admin_dashboard.php">
                         <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                     </a>
                 </li>

@@ -195,7 +195,7 @@ $biddingStatus = getBiddingStatus($groupId);
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php">
+            <a class="navbar-brand" href="admin_dashboard.php">
                 <i class="fas fa-handshake text-warning me-2"></i><?= APP_NAME ?>
             </a>
             <div class="navbar-nav ms-auto">

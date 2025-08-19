@@ -1,8 +1,9 @@
 <?php
 require_once 'config.php';
+require_once 'simple_mt_config.php';
 
 if (isAdminLoggedIn()) {
-    redirect('index.php');
+    redirect('admin_dashboard.php');
 }
 
 $error = '';
@@ -10,13 +11,19 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
+
     if (empty($username) || empty($password)) {
         $error = 'Please enter both username and password.';
     } else {
-        if (adminLogin($username, $password)) {
+        // Try client admin login first (multi-tenant)
+        if (function_exists('clientAdminLogin') && clientAdminLogin($username, $password)) {
             setMessage('Welcome back!');
-            redirect('index.php');
+            redirect('admin_dashboard.php');
+        }
+        // Then try regular admin login (legacy)
+        elseif (adminLogin($username, $password)) {
+            setMessage('Welcome back!');
+            redirect('admin_dashboard.php');
         } else {
             $error = 'Invalid username or password.';
         }
@@ -64,6 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-container {
             position: relative;
             z-index: 10;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
         }
 
         .login-card {
@@ -75,6 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: all var(--transition-normal);
             overflow: hidden;
             position: relative;
+            max-width: 500px;
+            width: 100%;
+            margin: 0 auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
 
         .login-card::before {
@@ -95,7 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-header {
             text-align: center;
             margin-bottom: 2rem;
-            padding: 2rem 2rem 0;
+            padding: 2rem 2.5rem 0;
+            overflow: hidden;
         }
 
         .login-icon {
@@ -121,16 +139,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: 700;
             color: var(--gray-900);
             margin-bottom: 0.5rem;
+            line-height: 1.2;
+            word-wrap: break-word;
+            hyphens: auto;
         }
 
         .login-subtitle {
             color: var(--gray-600);
             font-size: 1rem;
             font-weight: 500;
+            line-height: 1.4;
+            word-wrap: break-word;
+            hyphens: auto;
         }
 
         .login-form {
-            padding: 0 2rem 2rem;
+            padding: 0 2.5rem 2rem;
         }
 
         .form-floating-modern {
@@ -204,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .login-footer {
             text-align: center;
-            padding: 1rem 2rem 2rem;
+            padding: 1rem 2.5rem 2rem;
             border-top: 1px solid var(--gray-200);
             margin-top: 1rem;
         }
@@ -241,12 +265,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /* Responsive adjustments */
         @media (max-width: 768px) {
+            .login-container {
+                padding: 1rem;
+            }
+
             .login-card {
                 margin: 1rem;
+                max-width: 100%;
             }
 
             .login-header {
-                padding: 1.5rem 1.5rem 0;
+                padding: 1.5rem;
+            }
+
+            .login-title {
+                font-size: 1.5rem;
+                line-height: 1.3;
+            }
+
+            .login-subtitle {
+                font-size: 0.9rem;
             }
 
             .login-form {
@@ -257,20 +295,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 padding: 1rem 1.5rem 1.5rem;
             }
         }
+
+        @media (max-width: 480px) {
+            .login-card {
+                margin: 0.5rem;
+            }
+
+            .login-header {
+                padding: 1rem;
+            }
+
+            .login-title {
+                font-size: 1.3rem;
+            }
+
+            .login-form {
+                padding: 0 1rem 1rem;
+            }
+
+            .login-footer {
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container login-container">
-        <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-5 col-xl-4">
-                <div class="login-card animate-bounceIn">
+        <div class="login-card animate-bounceIn">
                     <div class="login-header">
                         <div class="login-icon">
                             <i class="fas fa-user-shield"></i>
                         </div>
                         <h1 class="login-title"><?= APP_NAME ?></h1>
                         <p class="login-subtitle">
-                            <i class="fas fa-handshake me-2"></i>Admin Portal Access
+                            <i class="fas fa-handshake me-2"></i>Admin & Client Portal Access
                         </p>
                     </div>
 
@@ -304,17 +362,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="login-footer">
-                        <p class="mb-0">
-                            <i class="fas fa-users me-2 text-muted"></i>
-                            <span class="text-muted">Are you a member?</span>
-                            <a href="member_login.php" class="member-login-link ms-1">
-                                Login Here
-                            </a>
-                        </p>
+                        <div class="mb-2">
+                            <small class="text-muted">Other Access Portals:</small>
+                        </div>
+                        <a href="super_admin_login.php" class="me-3">
+                            <i class="fas fa-crown me-1"></i>Super Admin
+                        </a>
+                        <a href="member_login.php">
+                            <i class="fas fa-users me-1"></i>Member Login
+                        </a>
                     </div>
                 </div>
-            </div>
-        </div>
     </div>
 
     <script>

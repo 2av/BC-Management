@@ -1,7 +1,11 @@
 <?php
-// Default redirect to landing page to show all login options
-header('Location: landing.php');
-exit();
+require_once 'config.php';
+require_once 'languages/config.php';
+requireAdminLogin();
+
+if (isset($_GET['logout'])) {
+    logout();
+}
 
 $groups = getAllGroups();
 
@@ -582,7 +586,7 @@ $recentActivities = $stmt->fetchAll();
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="index.php">
+            <a class="navbar-brand" href="admin_dashboard.php">
                 <i class="fas fa-handshake text-warning me-2"></i><?= APP_NAME ?>
             </a>
 
@@ -593,7 +597,7 @@ $recentActivities = $stmt->fetchAll();
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php">
+                        <a class="nav-link" href="admin_dashboard.php">
                             <i class="fas fa-tachometer-alt"></i> <?= t('dashboard') ?>
                         </a>
                     </li>
@@ -619,7 +623,7 @@ $recentActivities = $stmt->fetchAll();
                             <i class="fas fa-layer-group"></i> <?= t('groups') ?>
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="index.php">
+                            <li><a class="dropdown-item" href="admin_dashboard.php">
                                 <i class="fas fa-list"></i> <?= t('all_groups') ?>
                             </a></li>
                             <li><a class="dropdown-item" href="admin_create_group_simple.php">
@@ -1026,6 +1030,7 @@ $recentActivities = $stmt->fetchAll();
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Chart.js configuration
         Chart.defaults.font.family = 'Arial, sans-serif';
@@ -1134,17 +1139,6 @@ $recentActivities = $stmt->fetchAll();
             }
         });
 
-        // Add hover effects to dashboard cards
-        document.querySelectorAll('.dashboard-card').forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
-            });
-
-            card.addEventListener('mouseleave', function() {
-                this.style.boxShadow = '';
-            });
-        });
-
         // Enhanced dashboard functions
         function scrollToGroups() {
             document.getElementById('groupsList').scrollIntoView({
@@ -1220,12 +1214,6 @@ $recentActivities = $stmt->fetchAll();
             }, 1000);
         }
 
-        // Auto-refresh dashboard every 5 minutes
-        setInterval(() => {
-            console.log('Auto-refreshing dashboard data...');
-            // In a real application, you'd fetch updated data via AJAX here
-        }, 300000); // 5 minutes
-
         function loadPendingPayments() {
             const contentDiv = document.getElementById('pendingPaymentsContent');
 
@@ -1270,124 +1258,19 @@ $recentActivities = $stmt->fetchAll();
                     contentDiv.innerHTML = `
                         <div class="alert alert-danger">
                             <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Error loading pending payments data</strong>
-                            <p class="mb-0 mt-2">Error details: ${error.message}</p>
-                            <p class="mb-0">Please check the browser console for more details and try again.</p>
+                            <strong>Error loading data</strong>
+                            <p class="mb-0 mt-2">Failed to load pending payments: ${error.message}</p>
+                            <button class="btn btn-sm btn-outline-danger mt-2" onclick="loadPendingPayments()">
+                                <i class="fas fa-retry"></i> Try Again
+                            </button>
                         </div>
                     `;
                 });
         }
 
-        function loadMonthDetails(groupId, monthNumber) {
-            const contentDiv = document.getElementById('pendingPaymentsContent');
-
-            // Show loading
-            contentDiv.innerHTML = `
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2">Loading member details for Month ${monthNumber}...</p>
-                </div>
-            `;
-
-            // Fetch month details
-            fetch(`admin_get_pending_payments.php?action=month_details&group_id=${groupId}&month=${monthNumber}`)
-                .then(response => response.text())
-                .then(data => {
-                    contentDiv.innerHTML = data;
-                })
-                .catch(error => {
-                    contentDiv.innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            Error loading month details. Please try again.
-                        </div>
-                    `;
-                });
-        }
-
-        // Auto-load pending payments summary on page load
+        // Load pending payments on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadPendingPayments();
-        });
-
-        // Add fade-in animation CSS
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(10px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            .dashboard-card {
-                transition: all 0.3s ease;
-            }
-            .dashboard-card:hover {
-                transform: translateY(-2px);
-            }
-        `;
-        document.head.appendChild(style);
-    </script>
-
-    <!-- Bootstrap JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Language Switcher Script -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize language dropdown
-            const languageDropdown = document.getElementById('languageDropdown');
-            if (languageDropdown) {
-                // Remove any existing event listeners
-                languageDropdown.removeAttribute('data-bs-toggle');
-
-                // Add manual click handler
-                languageDropdown.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    const dropdownMenu = this.nextElementSibling;
-                    if (dropdownMenu) {
-                        // Close all other dropdowns
-                        document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
-                            if (menu !== dropdownMenu) {
-                                menu.classList.remove('show');
-                            }
-                        });
-
-                        // Toggle current dropdown
-                        const isOpen = dropdownMenu.classList.contains('show');
-                        if (isOpen) {
-                            dropdownMenu.classList.remove('show');
-                            this.setAttribute('aria-expanded', 'false');
-                        } else {
-                            dropdownMenu.classList.add('show');
-                            this.setAttribute('aria-expanded', 'true');
-                        }
-                    }
-                });
-
-                // Close dropdown when clicking outside
-                document.addEventListener('click', function(e) {
-                    if (!languageDropdown.contains(e.target)) {
-                        const dropdownMenu = languageDropdown.nextElementSibling;
-                        if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-                            dropdownMenu.classList.remove('show');
-                            languageDropdown.setAttribute('aria-expanded', 'false');
-                        }
-                    }
-                });
-            }
-
-            // Initialize other Bootstrap dropdowns normally
-            const otherDropdowns = document.querySelectorAll('[data-bs-toggle="dropdown"]:not(#languageDropdown)');
-            otherDropdowns.forEach(dropdown => {
-                try {
-                    new bootstrap.Dropdown(dropdown);
-                } catch (error) {
-                    console.log('Dropdown initialization skipped for:', dropdown.id);
-                }
-            });
         });
     </script>
 </body>

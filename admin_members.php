@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_member'])) {
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php">
+                        <a class="nav-link" href="admin_dashboard.php">
                             <i class="fas fa-tachometer-alt"></i> <?= t('dashboard') ?>
                         </a>
                     </li>
