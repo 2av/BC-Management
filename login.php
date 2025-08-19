@@ -15,16 +15,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = 'Please enter both username and password.';
     } else {
+        // Debug: Log the attempt
+        error_log("Login attempt - Username: $username");
+
         // Try client admin login first (multi-tenant)
         if (function_exists('clientAdminLogin') && clientAdminLogin($username, $password)) {
+            error_log("Client admin login successful for: $username");
             setMessage('Welcome back!');
             redirect('admin_dashboard.php');
         }
         // Then try regular admin login (legacy)
         elseif (adminLogin($username, $password)) {
+            error_log("Regular admin login successful for: $username");
             setMessage('Welcome back!');
             redirect('admin_dashboard.php');
         } else {
+            error_log("Login failed for: $username");
             $error = 'Invalid username or password.';
         }
     }

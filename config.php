@@ -178,8 +178,15 @@ function getMemberById($memberId) {
 }
 
 // Utility Functions
-function formatCurrency($amount) {
-    return '₹' . number_format($amount, 0);
+function formatCurrency($amount, $currency = 'INR', $decimals = 0) {
+    switch ($currency) {
+        case 'INR':
+            return '₹' . number_format($amount, $decimals);
+        case 'USD':
+            return '$' . number_format($amount, $decimals);
+        default:
+            return $currency . ' ' . number_format($amount, $decimals);
+    }
 }
 
 function formatDate($date) {
