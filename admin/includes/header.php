@@ -22,10 +22,7 @@ if (isset($_GET['logout'])) {
 }
 
 // Get available languages for language switcher
-$available_languages = [
-    'en' => ['name' => 'English', 'flag' => '🇺🇸'],
-    'hi' => ['name' => 'हिंदी', 'flag' => '🇮🇳']
-];
+$available_languages = getAvailableLanguages();
 
 // Function to determine active nav item
 function isActiveNav($page) {

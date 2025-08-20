@@ -41,6 +41,7 @@ $totalPendingPayments = 0;
 // Calculate member's financial summary across all groups
 foreach ($memberGroups as $group) {
     $groupId = $group['id'];
+    $memberIdInGroup = $group['member_id']; // This is the member's ID in this specific group
 
     // Get member's payments for this group
     $stmt = $pdo->prepare("
@@ -49,22 +50,28 @@ foreach ($memberGroups as $group) {
         FROM member_payments
         WHERE member_id = ? AND group_id = ?
     ");
-    $stmt->execute([$group['member_id'], $groupId]);
+    $stmt->execute([$memberIdInGroup, $groupId]);
     $paymentSummary = $stmt->fetch();
 
     $totalPaidAmount += $paymentSummary['paid_amount'] ?? 0;
     $totalPendingPayments += $paymentSummary['pending_count'] ?? 0;
 
     // Get member's received amount (if they won any month)
+    // Use net_payable which is the actual amount the member receives
     $stmt = $pdo->prepare("
-        SELECT SUM(bid_amount) as received_amount
+        SELECT SUM(net_payable) as received_amount
         FROM monthly_bids
         WHERE group_id = ? AND taken_by_member_id = ?
     ");
-    $stmt->execute([$groupId, $group['member_id']]);
+    $stmt->execute([$groupId, $memberIdInGroup]);
     $receivedSummary = $stmt->fetch();
 
     $totalReceivedAmount += $receivedSummary['received_amount'] ?? 0;
+
+    // Debug: Log the calculation for this group (remove this in production)
+    if ($receivedSummary['received_amount'] > 0) {
+        error_log("Member {$member['member_name']} received {$receivedSummary['received_amount']} from group {$groupId}");
+    }
 }
 
 // Get recent payments across all groups

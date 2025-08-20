@@ -584,6 +584,27 @@ $message = getMessage();
                 padding: var(--space-1);
             }
 
+            .navbar-toggler {
+                border: none !important;
+                padding: 0.25rem 0.5rem;
+                font-size: 1.25rem;
+                color: white !important;
+            }
+
+            .navbar-toggler:focus {
+                box-shadow: none;
+            }
+
+            .navbar-collapse {
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+            }
+
+            .navbar-collapse.show {
+                display: block !important;
+            }
+
             .group-selector {
                 margin: var(--space-3) 0;
                 text-align: center;
@@ -594,6 +615,13 @@ $message = getMessage();
                 text-align: center;
                 margin: var(--space-1) 0;
                 padding: var(--space-3) var(--space-4) !important;
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.1);
+                margin-bottom: 0.5rem;
+            }
+
+            .navbar-nav .nav-link:hover {
+                background: rgba(255, 255, 255, 0.2);
             }
 
             .user-profile {

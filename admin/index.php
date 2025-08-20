@@ -568,7 +568,492 @@ require_once 'includes/header.php';
             margin-right: 0.5rem;
         }
 
+        /* New Groups Section Styles */
+        .groups-section-new {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
 
+        .section-header-new {
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-title-new {
+            color: #1e293b;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .section-subtitle-new {
+            color: #64748b;
+            margin: 0.5rem 0 0 0;
+            font-size: 0.95rem;
+        }
+
+        .filter-controls-new {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn-new {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            color: #64748b;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn-new:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+
+        .filter-btn-new.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        .groups-container-new {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .group-item-new {
+            background: #fafbfc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .group-item-new:hover {
+            background: white;
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .group-main-info {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .group-header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .group-name-new {
+            color: #1e293b;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .status-badge-new {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-completed {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .group-stats-new {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .stat-item-new {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stat-item-new i {
+            color: #3b82f6;
+            font-size: 1rem;
+        }
+
+        .stat-value {
+            color: #1e293b;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 0.8rem;
+        }
+
+        .group-actions-new {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn-new {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .action-btn-new.primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .action-btn-new.primary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        .action-btn-new.warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .action-btn-new.warning:hover {
+            background: #d97706;
+            color: white;
+        }
+
+        .action-btn-new.success {
+            background: #10b981;
+            color: white;
+        }
+
+        .action-btn-new.success:hover {
+            background: #059669;
+            color: white;
+        }
+
+        .empty-state-new {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #64748b;
+        }
+
+        .empty-state-new i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #cbd5e1;
+        }
+
+        .empty-state-new h4 {
+            color: #475569;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state-new p {
+            margin-bottom: 2rem;
+        }
+
+        .btn-create-new {
+            background: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-create-new:hover {
+            background: #2563eb;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .groups-section-new {
+                padding: 1rem;
+                margin: 1rem;
+                border-radius: 12px;
+            }
+
+            .section-header-new {
+                padding-bottom: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .section-title-new {
+                font-size: 1.5rem;
+            }
+
+            .filter-controls-new {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .filter-btn-new {
+                flex: 1;
+                text-align: center;
+                min-width: 80px;
+            }
+
+            .group-item-new {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 1rem;
+            }
+
+            .group-main-info {
+                min-width: auto;
+                width: 100%;
+            }
+
+            .group-header-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+            }
+
+            .group-stats-new {
+                gap: 1rem;
+                justify-content: space-between;
+            }
+
+            .stat-item-new {
+                flex-direction: column;
+                text-align: center;
+                gap: 0.25rem;
+                flex: 1;
+            }
+
+            .group-actions-new {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .action-btn-new {
+                flex: 1;
+                justify-content: center;
+                padding: 0.75rem;
+            }
+
+            .action-btn-new span {
+                display: none;
+            }
+
+            .empty-state-new {
+                padding: 2rem 1rem;
+            }
+
+            .empty-state-new i {
+                font-size: 3rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .group-stats-new {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+            }
+
+            .action-btn-new {
+                padding: 0.5rem;
+                font-size: 0.8rem;
+            }
+
+            .filter-btn-new {
+                padding: 0.375rem 0.75rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        .table-container-modern {
+            overflow-x: auto;
+            max-height: 70vh;
+        }
+
+        .table-modern {
+            margin-bottom: 0;
+            font-size: 0.9rem;
+        }
+
+        .table-modern thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .table-modern thead th {
+            border: none;
+            padding: 1rem 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .table-modern tbody tr {
+            transition: all 0.3s ease;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .table-modern tbody tr:hover {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            transform: scale(1.01);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-modern td {
+            padding: 1rem 0.75rem;
+            vertical-align: middle;
+            border: none;
+        }
+
+        .group-name-cell strong {
+            color: #2d3748;
+            font-size: 1rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.25rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .action-buttons .btn {
+            padding: 0.375rem 0.5rem;
+            font-size: 0.8rem;
+            border-radius: 8px;
+        }
+
+        /* Mobile Responsive Table */
+        @media (max-width: 768px) {
+            .table-container-modern {
+                max-height: 60vh;
+            }
+
+            .table-modern {
+                font-size: 0.8rem;
+            }
+
+            .table-modern thead th {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.7rem;
+            }
+
+            .table-modern td {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            .action-buttons .btn {
+                width: 100%;
+                padding: 0.5rem;
+                font-size: 0.75rem;
+            }
+
+            .group-name-cell strong {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .table-modern thead th {
+                padding: 0.5rem 0.25rem;
+                font-size: 0.65rem;
+            }
+
+            .table-modern td {
+                padding: 0.5rem 0.25rem;
+            }
+
+            .action-buttons .btn {
+                padding: 0.375rem;
+                font-size: 0.7rem;
+            }
+
+            /* Stack table cells vertically on very small screens */
+            .table-modern thead {
+                display: none;
+            }
+
+            .table-modern tbody tr {
+                display: block;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                margin-bottom: 1rem;
+                padding: 1rem;
+                background: white;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+
+            .table-modern td {
+                display: block;
+                text-align: left;
+                padding: 0.5rem 0;
+                border: none;
+                position: relative;
+                padding-left: 40%;
+            }
+
+            .table-modern td:before {
+                content: attr(data-label);
+                position: absolute;
+                left: 0;
+                width: 35%;
+                font-weight: bold;
+                color: #4a5568;
+                font-size: 0.8rem;
+            }
+        }
 
         .chart-container {
             position: relative;
@@ -1058,6 +1543,95 @@ require_once 'includes/header.php';
             </div>
         </div>
 
+<!-- BC Groups List -->
+        <div class="groups-section-new" id="groupsList">
+            <div class="section-header-new">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h3 class="section-title-new">
+                            <i class="fas fa-layer-group me-2"></i>All BC Groups
+                        </h3>
+                        <p class="section-subtitle-new">Manage and monitor all your BC groups</p>
+                    </div>
+                    <div class="filter-controls-new">
+                        <button class="filter-btn-new active" onclick="filterGroupsNew('all')" data-filter="all">
+                            All Groups
+                        </button>
+                        <button class="filter-btn-new" onclick="filterGroupsNew('active')" data-filter="active">
+                            Active
+                        </button>
+                        <button class="filter-btn-new" onclick="filterGroupsNew('completed')" data-filter="completed">
+                            Completed
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Groups List -->
+            <div class="groups-container-new">
+                <?php if (!empty($groups)): ?>
+                    <?php foreach ($groups as $group): ?>
+                    <div class="group-item-new" data-group-status="<?= $group['status'] ?>">
+                        <div class="group-main-info">
+                            <div class="group-header-info">
+                                <h5 class="group-name-new"><?= htmlspecialchars($group['group_name']) ?></h5>
+                                <span class="status-badge-new status-<?= $group['status'] ?>">
+                                    <?= ucfirst($group['status']) ?>
+                                </span>
+                            </div>
+                            <div class="group-stats-new">
+                                <div class="stat-item-new">
+                                    <i class="fas fa-users"></i>
+                                    <span class="stat-value"><?= $group['total_members'] ?></span>
+                                    <span class="stat-label">Members</span>
+                                </div>
+                                <div class="stat-item-new">
+                                    <i class="fas fa-rupee-sign"></i>
+                                    <span class="stat-value"><?= formatCurrency($group['monthly_contribution']) ?></span>
+                                    <span class="stat-label">Monthly</span>
+                                </div>
+                                <div class="stat-item-new">
+                                    <i class="fas fa-chart-line"></i>
+                                    <span class="stat-value"><?= formatCurrency($group['total_monthly_collection']) ?></span>
+                                    <span class="stat-label">Total</span>
+                                </div>
+                                <div class="stat-item-new">
+                                    <i class="fas fa-calendar"></i>
+                                    <span class="stat-value"><?= formatDate($group['start_date']) ?></span>
+                                    <span class="stat-label">Started</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group-actions-new">
+                            <a href="view_group.php?id=<?= $group['id'] ?>" class="action-btn-new primary">
+                                <i class="fas fa-eye"></i>
+                                <span>View Details</span>
+                            </a>
+                            <a href="admin_bidding.php?group_id=<?= $group['id'] ?>" class="action-btn-new warning">
+                                <i class="fas fa-gavel"></i>
+                                <span>Bidding</span>
+                            </a>
+                            <a href="admin_payment_status.php?group_id=<?= $group['id'] ?>" class="action-btn-new success">
+                                <i class="fas fa-credit-card"></i>
+                                <span>Payments</span>
+                            </a>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="empty-state-new">
+                        <i class="fas fa-users"></i>
+                        <h4>No BC Groups Yet</h4>
+                        <p>Create your first BC group to get started.</p>
+                        <a href="create_group_simple.php" class="btn-create-new">
+                            <i class="fas fa-plus"></i> Create BC Group
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+        </div>
+
         <!-- Quick Actions Bar -->
         <div class="quick-actions animate-slideInRight">
             <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -1213,94 +1787,7 @@ require_once 'includes/header.php';
             </div>
         </div>
 
-        <!-- BC Groups List -->
-        <div class="groups-section animate-fadeInUp" id="groupsList">
-            <div class="groups-header">
-                <div class="d-flex justify-content-between align-items-center flex-wrap">
-                    <div>
-                        <h4><i class="fas fa-layer-group me-2"></i>All BC Groups</h4>
-                        <p class="text-muted mb-0">Manage and monitor all your BC groups</p>
-                    </div>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-outline-modern btn-sm" onclick="filterGroups('all')" id="filterAll">
-                            <i class="fas fa-list me-1"></i>All
-                        </button>
-                        <button class="btn btn-outline-modern btn-sm" onclick="filterGroups('active')" id="filterActive">
-                            <i class="fas fa-play me-1"></i>Active
-                        </button>
-                        <button class="btn btn-outline-modern btn-sm" onclick="filterGroups('completed')" id="filterCompleted">
-                            <i class="fas fa-check me-1"></i>Completed
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="p-3">
-                <div class="row">
-                    <?php if (!empty($groups)): ?>
-                <?php foreach ($groups as $group): ?>
-                    <div class="col-md-6 col-lg-4 mb-4" data-group-status="<?= $group['status'] ?>">
-                        <div class="group-card-modern">
-                            <div class="group-status-badge">
-                                <span class="badge badge-<?= $group['status'] === 'active' ? 'success' : 'secondary' ?>-modern">
-                                    <i class="fas fa-<?= $group['status'] === 'active' ? 'play' : 'check' ?> me-1"></i>
-                                    <?= ucfirst($group['status']) ?>
-                                </span>
-                            </div>
-
-                            <div class="group-name"><?= htmlspecialchars($group['group_name']) ?></div>
-
-                            <div class="group-meta">
-                                <div class="row text-center mb-3">
-                                    <div class="col-4">
-                                        <div class="fw-bold text-primary"><?= $group['total_members'] ?></div>
-                                        <small class="text-muted">Members</small>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="fw-bold text-success"><?= formatCurrency($group['monthly_contribution']) ?></div>
-                                        <small class="text-muted">Monthly</small>
-                                    </div>
-                                    <div class="col-4">
-                                        <div class="fw-bold text-info"><?= formatCurrency($group['total_monthly_collection']) ?></div>
-                                        <small class="text-muted">Total</small>
-                                    </div>
-                                </div>
-                                <div class="text-center mb-3">
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar-alt me-1"></i>
-                                        Started: <?= formatDate($group['start_date']) ?>
-                                    </small>
-                                </div>
-                            </div>
-
-                            <div class="group-actions">
-                                <a href="view_group.php?id=<?= $group['id'] ?>" class="btn btn-primary-modern group-action-btn">
-                                    <i class="fas fa-eye me-1"></i>View Details
-                                </a>
-                                <a href="admin_bidding.php?group_id=<?= $group['id'] ?>" class="btn btn-outline-modern group-action-btn">
-                                    <i class="fas fa-gavel me-1"></i>Bidding
-                                </a>
-                                <a href="admin_payment_status.php?group_id=<?= $group['id'] ?>" class="btn btn-outline-modern group-action-btn">
-                                    <i class="fas fa-credit-card me-1"></i>Payments
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="col-12">
-                    <div class="text-center py-5">
-                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                        <h4 class="text-muted">No BC Groups Yet</h4>
-                        <p class="text-muted">Create your first BC group to get started.</p>
-                        <a href="create_group_simple.php" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Create BC Group
-                        </a>
-                    </div>
-                </div>
-            <?php endif; ?>
-                </div>
-            </div>
-        </div>
+        
     </div>
 
     <script>
@@ -1443,34 +1930,64 @@ require_once 'includes/header.php';
                   `This shows amounts given to bid winners.`);
         }
 
-        function filterGroups(status) {
-            const groupCards = document.querySelectorAll('[data-group-status]');
-            const filterButtons = document.querySelectorAll('[id^="filter"]');
+        function filterGroupsNew(status) {
+            const groupItems = document.querySelectorAll('.group-item-new[data-group-status]');
+            const filterButtons = document.querySelectorAll('.filter-btn-new');
 
             // Reset button styles
             filterButtons.forEach(btn => {
-                btn.classList.remove('btn-primary', 'btn-success', 'btn-secondary');
-                btn.classList.add('btn-outline-primary', 'btn-outline-success', 'btn-outline-secondary');
+                btn.classList.remove('active');
             });
 
             // Highlight active filter
-            const activeButton = document.getElementById('filter' + status.charAt(0).toUpperCase() + status.slice(1));
+            const activeButton = document.querySelector(`[data-filter="${status}"]`);
             if (activeButton) {
-                activeButton.classList.remove('btn-outline-primary', 'btn-outline-success', 'btn-outline-secondary');
-                activeButton.classList.add(status === 'active' ? 'btn-success' :
-                                          status === 'completed' ? 'btn-secondary' : 'btn-primary');
+                activeButton.classList.add('active');
             }
 
-            // Filter groups
-            groupCards.forEach(card => {
-                if (status === 'all' || card.getAttribute('data-group-status') === status) {
-                    card.style.display = 'block';
-                    card.style.animation = 'fadeIn 0.3s ease-in';
+            // Filter groups with smooth animation
+            groupItems.forEach(item => {
+                if (status === 'all' || item.getAttribute('data-group-status') === status) {
+                    item.style.display = 'flex';
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateY(10px)';
+
+                    setTimeout(() => {
+                        item.style.transition = 'all 0.3s ease';
+                        item.style.opacity = '1';
+                        item.style.transform = 'translateY(0)';
+                    }, 50);
                 } else {
-                    card.style.display = 'none';
+                    item.style.transition = 'all 0.2s ease';
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateY(-10px)';
+
+                    setTimeout(() => {
+                        item.style.display = 'none';
+                    }, 200);
                 }
             });
         }
+
+        // Initialize the new groups section
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default filter to 'all'
+            filterGroupsNew('all');
+
+            // Add smooth scroll behavior
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
 
         function refreshDashboard() {
             const refreshBtn = document.querySelector('[onclick="refreshDashboard()"]');

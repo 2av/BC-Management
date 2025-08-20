@@ -246,53 +246,84 @@ function getCurrentActiveMonthNumber($groupId) {
 
 // Language Functions
 function getCurrentLanguage() {
-    return $_SESSION['language'] ?? $_COOKIE['language'] ?? 'en';
+    return $_SESSION['language'] ?? $_COOKIE['bc_language'] ?? 'en';
 }
 
 function setLanguage($language) {
-    $_SESSION['language'] = $language;
-    setcookie('language', $language, time() + (86400 * 30), '/'); // 30 days
+    $available_languages = [
+        'en' => ['name' => 'English', 'flag' => '🇺🇸'],
+        'hi' => ['name' => 'हिंदी', 'flag' => '🇮🇳']
+    ];
+
+    if (array_key_exists($language, $available_languages)) {
+        $_SESSION['language'] = $language;
+        setcookie('bc_language', $language, time() + (86400 * 30), '/'); // 30 days
+        return true;
+    }
+    return false;
 }
 
 // Load language file
-function loadLanguage($lang = null) {
-    if ($lang === null) {
-        $lang = getCurrentLanguage();
+function loadLanguage($langCode = null) {
+    if ($langCode === null) {
+        $langCode = getCurrentLanguage();
     }
-    
-    $langFile = __DIR__ . "/languages/{$lang}.php";
+
+    $langFile = __DIR__ . "/languages/{$langCode}.php";
     if (file_exists($langFile)) {
-        return include $langFile;
+        include $langFile;
+        return isset($lang) ? $lang : [];
     }
 
     // Fallback to English
-    return include __DIR__ . "/languages/en.php";
+    $fallbackFile = __DIR__ . "/languages/en.php";
+    if (file_exists($fallbackFile)) {
+        include $fallbackFile;
+        return isset($lang) ? $lang : [];
+    }
+
+    return [];
 }
 
 // Translation function
-function t($key) {
+function t($key, $default = null) {
     static $translations = null;
-    
+
     if ($translations === null) {
         $translations = loadLanguage();
     }
-    
-    return $translations[$key] ?? $key;
+
+    return $translations[$key] ?? $default ?? $key;
 }
 
 // Available languages
-$available_languages = [
-    'en' => ['name' => 'English', 'flag' => '🇺🇸'],
-    'hi' => ['name' => 'हिंदी', 'flag' => '🇮🇳']
-];
+function getAvailableLanguages() {
+    return [
+        'en' => ['name' => 'English', 'flag' => '🇺🇸'],
+        'hi' => ['name' => 'हिंदी', 'flag' => '🇮🇳']
+    ];
+}
 
 // Handle language change
-if (isset($_GET['change_language']) && array_key_exists($_GET['change_language'], $available_languages)) {
-    setLanguage($_GET['change_language']);
+if (isset($_GET['change_language'])) {
+    $newLanguage = $_GET['change_language'];
+    if (setLanguage($newLanguage)) {
+        // Build redirect URL without the change_language parameter
+        $currentUrl = $_SERVER['REQUEST_URI'];
+        $urlParts = parse_url($currentUrl);
+        $path = $urlParts['path'] ?? '';
 
-    // Redirect to remove the language parameter from URL
-    $redirect_url = strtok($_SERVER["REQUEST_URI"], '?');
-    redirect($redirect_url);
+        if (isset($urlParts['query'])) {
+            parse_str($urlParts['query'], $queryParams);
+            unset($queryParams['change_language']);
+            $queryString = http_build_query($queryParams);
+            $redirectUrl = $path . ($queryString ? '?' . $queryString : '');
+        } else {
+            $redirectUrl = $path;
+        }
+
+        redirect($redirectUrl);
+    }
 }
 
 // Member Summary Functions

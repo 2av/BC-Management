@@ -22,6 +22,31 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Mobile Menu Fallback Script -->
+    <script>
+        // Ensure mobile menu works even if Bootstrap fails
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if Bootstrap is loaded
+            if (typeof bootstrap === 'undefined') {
+                console.warn('Bootstrap not loaded, using fallback mobile menu');
+
+                const navbarToggler = document.querySelector('.navbar-toggler');
+                const navbarCollapse = document.querySelector('.navbar-collapse');
+
+                if (navbarToggler && navbarCollapse) {
+                    navbarToggler.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const isVisible = navbarCollapse.style.display === 'block';
+                        navbarCollapse.style.display = isVisible ? 'none' : 'block';
+                        this.setAttribute('aria-expanded', !isVisible);
+                    });
+                }
+            } else {
+                console.log('Bootstrap loaded successfully');
+            }
+        });
+    </script>
     
     <!-- Common Member Scripts -->
     <script>
@@ -149,25 +174,50 @@
         document.addEventListener('DOMContentLoaded', function() {
             const navbarToggler = document.querySelector('.navbar-toggler');
             const navbarCollapse = document.querySelector('.navbar-collapse');
-            
+
             if (navbarToggler && navbarCollapse) {
+                // Initialize Bootstrap collapse manually if needed
+                try {
+                    new bootstrap.Collapse(navbarCollapse, {
+                        toggle: false
+                    });
+                } catch (error) {
+                    console.log('Bootstrap collapse initialization fallback');
+                }
+
+                // Add manual click handler for mobile toggle
+                navbarToggler.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const isExpanded = navbarCollapse.classList.contains('show');
+
+                    if (isExpanded) {
+                        navbarCollapse.classList.remove('show');
+                        this.setAttribute('aria-expanded', 'false');
+                    } else {
+                        navbarCollapse.classList.add('show');
+                        this.setAttribute('aria-expanded', 'true');
+                    }
+                });
+
                 // Close mobile menu when clicking outside
                 document.addEventListener('click', function(e) {
                     if (!navbarCollapse.contains(e.target) && !navbarToggler.contains(e.target)) {
-                        const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
-                        if (bsCollapse && navbarCollapse.classList.contains('show')) {
-                            bsCollapse.hide();
+                        if (navbarCollapse.classList.contains('show')) {
+                            navbarCollapse.classList.remove('show');
+                            navbarToggler.setAttribute('aria-expanded', 'false');
                         }
                     }
                 });
-                
+
                 // Close mobile menu when clicking on nav links
                 const navLinks = navbarCollapse.querySelectorAll('.nav-link');
                 navLinks.forEach(function(link) {
                     link.addEventListener('click', function() {
-                        const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
-                        if (bsCollapse && navbarCollapse.classList.contains('show')) {
-                            bsCollapse.hide();
+                        if (navbarCollapse.classList.contains('show')) {
+                            navbarCollapse.classList.remove('show');
+                            navbarToggler.setAttribute('aria-expanded', 'false');
                         }
                     });
                 });
