@@ -277,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="admin_dashboard.php">
+            <a class="navbar-brand" href="index.php">
                 <i class="fas fa-coins"></i> <?= APP_NAME ?>
             </a>
         </div>
