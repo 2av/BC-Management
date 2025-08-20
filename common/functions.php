@@ -289,9 +289,39 @@ $available_languages = [
 // Handle language change
 if (isset($_GET['change_language']) && array_key_exists($_GET['change_language'], $available_languages)) {
     setLanguage($_GET['change_language']);
-    
+
     // Redirect to remove the language parameter from URL
     $redirect_url = strtok($_SERVER["REQUEST_URI"], '?');
     redirect($redirect_url);
+}
+
+// Member Summary Functions
+function updateMemberSummary($groupId, $memberId) {
+    $pdo = getDB();
+
+    // Calculate total paid
+    $stmt = $pdo->prepare("SELECT SUM(payment_amount) as total FROM member_payments WHERE group_id = ? AND member_id = ? AND payment_status = 'paid'");
+    $stmt->execute([$groupId, $memberId]);
+    $totalPaid = $stmt->fetchColumn() ?: 0;
+
+    // Calculate given amount (if member won any month)
+    $stmt = $pdo->prepare("SELECT SUM(net_payable) as total FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+    $stmt->execute([$groupId, $memberId]);
+    $givenAmount = $stmt->fetchColumn() ?: 0;
+
+    // Calculate profit
+    $profit = $givenAmount - $totalPaid;
+
+    // Update or insert summary
+    $stmt = $pdo->prepare("
+        INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+        total_paid = VALUES(total_paid),
+        given_amount = VALUES(given_amount),
+        profit = VALUES(profit)
+    ");
+
+    $stmt->execute([$groupId, $memberId, $totalPaid, $givenAmount, $profit]);
 }
 ?>
