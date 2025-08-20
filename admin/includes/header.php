@@ -287,38 +287,316 @@ function isActiveNav($page) {
             color: white;
         }
 
-        /* Notification Badge */
+        /* Enhanced Notification Badge */
         .notification-badge {
             position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #ef4444;
+            top: -6px;
+            right: -6px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             color: white;
             border-radius: 50%;
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             font-size: 0.7rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
-            animation: pulse 2s infinite;
+            font-weight: 800;
+            border: 2px solid white;
+            box-shadow: 0 3px 12px rgba(239, 68, 68, 0.5);
+            animation: notificationPulse 2s infinite;
+            z-index: 15;
+            font-family: 'Arial', sans-serif;
+            line-height: 1;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
+        @keyframes notificationPulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+            }
+            50% {
+                transform: scale(1.15);
+                box-shadow: 0 4px 16px rgba(239, 68, 68, 0.6);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+            }
         }
 
-        /* Notification Dropdown Styling */
+        /* Enhanced Notification Bell */
+        .nav-link .fas.fa-bell {
+            font-size: 1.4rem;
+            color: #ffffff;
+            transition: all 0.3s ease;
+            font-weight: 900;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .nav-link:hover .fas.fa-bell {
+            color: #fbbf24;
+            transform: rotate(15deg) scale(1.1);
+            text-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+        }
+
+        .nav-link {
+            padding: 0.75rem 1rem !important;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Notification Container Enhancement */
+        #notificationDropdown {
+            position: relative;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            min-height: 48px;
+        }
+
+        #notificationDropdown .fas.fa-bell {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Crystal Clear SVG Bell Icon */
+        .notification-bell-svg {
+            width: 22px;
+            height: 22px;
+            color: #ffffff;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+            position: relative;
+            z-index: 1;
+        }
+
+        .nav-link:hover .notification-bell-svg {
+            color: #fbbf24;
+            transform: rotate(15deg) scale(1.1);
+            filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.4));
+        }
+
+        /* Fallback for Font Awesome if needed */
+        .notification-bell-icon {
+            font-size: 1.5rem;
+            color: #ffffff;
+            font-weight: bold;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            position: relative;
+            z-index: 1;
+        }
+
+        .notification-bell-icon::before {
+            content: "🔔";
+            font-style: normal;
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+        }
+
+        /* Enhanced Notification Dropdown */
+        .dropdown-menu[aria-labelledby="notificationDropdown"] {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            padding: 0;
+            margin-top: 12px;
+            background: white;
+            backdrop-filter: blur(10px);
+            animation: notificationDropdownSlide 0.3s ease-out;
+        }
+
+        @keyframes notificationDropdownSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-10px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Enhanced Dropdown Header */
         .dropdown-header {
+            padding: 1.5rem 1.5rem 1rem;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px 16px 0 0;
+            margin: 0;
+            font-weight: 700;
+            color: #1e293b;
+            border-bottom: 1px solid #e2e8f0;
+            position: relative;
+        }
+
+        .dropdown-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ef4444 100%);
+            border-radius: 16px 16px 0 0;
+        }
+
+        /* Enhanced Notification Items */
+        .dropdown-item {
             padding: 1rem 1.5rem;
-            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-            border-radius: 10px;
-            margin: 0.5rem;
+            border: none;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dropdown-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 0;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            transition: width 0.3s ease;
+        }
+
+        .dropdown-item:hover::before {
+            width: 4px;
+        }
+
+        .dropdown-item:hover {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            transform: translateX(4px);
+        }
+
+        .notification-icon-wrapper {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notification-icon-wrapper::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+            transform: rotate(45deg);
+            animation: iconShine 3s infinite;
+        }
+
+        @keyframes iconShine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        }
+
+        .notification-icon-wrapper.warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
+            color: #f59e0b;
+        }
+
+        .notification-icon-wrapper.success {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
+            color: #10b981;
+        }
+
+        .notification-icon-wrapper.info {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(8, 145, 178, 0.15) 100%);
+            color: #06b6d4;
+        }
+
+        .notification-icon-wrapper.danger {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%);
+            color: #ef4444;
+        }
+
+        .notification-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .notification-title {
             font-weight: 600;
             color: #1e293b;
+            margin-bottom: 0.25rem;
+            font-size: 0.9rem;
+            line-height: 1.3;
+        }
+
+        .notification-subtitle {
+            color: #64748b;
+            font-size: 0.8rem;
+            line-height: 1.3;
+            margin: 0;
+        }
+
+        .notification-time {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 0.25rem;
+        }
+
+        /* Enhanced Divider */
+        .dropdown-divider {
+            margin: 0;
+            border-color: #e2e8f0;
+            opacity: 0.6;
+        }
+
+        /* Enhanced View All Button */
+        .dropdown-item.text-center {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #3b82f6;
+            font-weight: 600;
+            border-radius: 0 0 16px 16px;
+            margin: 0;
+            justify-content: center;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-item.text-center:hover {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            transform: none;
+        }
+
+        .dropdown-item.text-center:hover::before {
+            width: 0;
+        }
+
+        /* Badge in header */
+        .dropdown-header .badge {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.75rem;
         }
 
         /* Mobile navbar improvements */
@@ -484,44 +762,62 @@ function isActiveNav($page) {
                 </ul>
 
                 <ul class="navbar-nav ms-auto align-items-center">
-                    <!-- Notifications -->
+                    <!-- Enhanced Notifications -->
                     <li class="nav-item dropdown me-3">
-                        <a class="nav-link position-relative" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-bell"></i>
+                        <a class="nav-link position-relative d-flex align-items-center justify-content-center" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="width: 48px; height: 48px;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="notification-bell-svg">
+                                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+                            </svg>
                             <span class="notification-badge">3</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationDropdown" style="min-width: 300px;">
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationDropdown" style="min-width: 350px;">
                             <li>
                                 <div class="dropdown-header d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold">Notifications</span>
-                                    <span class="badge bg-primary">3</span>
+                                    <span class="fw-bold">
+                                        <i class="fas fa-bell me-2"></i>Notifications
+                                    </span>
+                                    <span class="badge">3</span>
                                 </div>
                             </li>
                             <li><hr class="dropdown-divider"></li>
+
+                            <!-- Enhanced Notification Items -->
                             <li><a class="dropdown-item" href="#">
-                                <i class="fas fa-exclamation-triangle text-warning"></i>
-                                <div class="ms-2">
-                                    <div class="fw-bold">Pending Payments</div>
-                                    <small class="text-muted">5 members have pending payments</small>
+                                <div class="notification-icon-wrapper warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="notification-content">
+                                    <div class="notification-title">Pending Payments Alert</div>
+                                    <div class="notification-subtitle">5 members have pending payments for this month</div>
+                                    <div class="notification-time">2 hours ago</div>
                                 </div>
                             </a></li>
+
                             <li><a class="dropdown-item" href="#">
-                                <i class="fas fa-user-plus text-success"></i>
-                                <div class="ms-2">
-                                    <div class="fw-bold">New Member Added</div>
-                                    <small class="text-muted">John Doe joined Group A</small>
+                                <div class="notification-icon-wrapper success">
+                                    <i class="fas fa-user-plus"></i>
+                                </div>
+                                <div class="notification-content">
+                                    <div class="notification-title">New Member Added</div>
+                                    <div class="notification-subtitle">John Doe has been successfully added to Group Alpha</div>
+                                    <div class="notification-time">4 hours ago</div>
                                 </div>
                             </a></li>
+
                             <li><a class="dropdown-item" href="#">
-                                <i class="fas fa-trophy text-info"></i>
-                                <div class="ms-2">
-                                    <div class="fw-bold">Bid Winner</div>
-                                    <small class="text-muted">Month 3 winner announced</small>
+                                <div class="notification-icon-wrapper info">
+                                    <i class="fas fa-trophy"></i>
+                                </div>
+                                <div class="notification-content">
+                                    <div class="notification-title">Bid Winner Announced</div>
+                                    <div class="notification-subtitle">Month 3 bidding completed for Group Beta</div>
+                                    <div class="notification-time">1 day ago</div>
                                 </div>
                             </a></li>
+
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-center" href="notifications.php">
-                                <small>View All Notifications</small>
+                                <i class="fas fa-eye me-2"></i>View All Notifications
                             </a></li>
                         </ul>
                     </li>

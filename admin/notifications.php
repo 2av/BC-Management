@@ -112,159 +112,411 @@ $page_title = 'Notifications';
 require_once 'includes/header.php';
 ?>
 
-<!-- Page-specific CSS -->
+<!-- Enhanced Page-specific CSS -->
 <style>
+    :root {
+        --primary-color: #3b82f6;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --info-color: #06b6d4;
+        --gray-50: #f9fafb;
+        --gray-100: #f3f4f6;
+        --gray-200: #e5e7eb;
+        --gray-600: #4b5563;
+        --gray-900: #111827;
+        --radius-lg: 12px;
+        --radius-xl: 16px;
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    body {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        min-height: 100vh;
+    }
+
     .notification-card {
-        background: white;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        border-left: 4px solid #dee2e6;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: var(--radius-xl);
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--gray-200);
+        border-left: 5px solid #dee2e6;
         transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
-    
+
+    .notification-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.3) 50%, transparent 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
     .notification-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-xl);
     }
-    
+
+    .notification-card:hover::before {
+        opacity: 1;
+    }
+
     .notification-card.unread {
-        background: #f8f9fa;
-        border-left-color: #007bff;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-left-color: var(--primary-color);
+        box-shadow: var(--shadow-lg);
     }
-    
+
     .notification-card.type-success {
-        border-left-color: #28a745;
+        border-left-color: var(--success-color);
     }
-    
+
     .notification-card.type-warning {
-        border-left-color: #ffc107;
+        border-left-color: var(--warning-color);
     }
-    
+
     .notification-card.type-danger {
-        border-left-color: #dc3545;
+        border-left-color: var(--danger-color);
     }
-    
+
     .notification-card.type-info {
-        border-left-color: #17a2b8;
+        border-left-color: var(--info-color);
     }
     
     .notification-header {
         display: flex;
-        justify-content: between;
-        align-items: center;
-        margin-bottom: 0.5rem;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+        gap: 1rem;
     }
-    
+
     .notification-title {
-        font-weight: 600;
+        font-weight: 700;
         margin: 0;
         flex-grow: 1;
+        color: var(--gray-900);
+        font-size: 1.1rem;
+        line-height: 1.4;
     }
-    
+
     .notification-time {
         font-size: 0.875rem;
-        color: #6c757d;
-        margin-left: 1rem;
+        color: var(--gray-600);
+        font-weight: 500;
+        white-space: nowrap;
     }
-    
+
     .notification-actions {
-        margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 1px solid #dee2e6;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 2px solid var(--gray-100);
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
     }
-    
+
     .filter-tabs {
-        background: white;
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: var(--radius-xl);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--gray-200);
     }
-    
+
     .filter-tab {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        margin-right: 0.5rem;
-        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0.75rem 1.5rem;
+        margin-right: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: 25px;
         text-decoration: none;
-        color: #6c757d;
-        background: #f8f9fa;
+        color: var(--gray-600);
+        background: var(--gray-50);
         transition: all 0.3s ease;
+        font-weight: 500;
+        border: 2px solid transparent;
     }
-    
+
     .filter-tab.active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, #2563eb 100%);
         color: white;
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
     }
-    
+
     .filter-tab:hover {
         color: white;
-        background: #6c757d;
+        background: linear-gradient(135deg, var(--gray-600) 0%, #374151 100%);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
     }
-    
+
     .filter-tab.active:hover {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, #2563eb 100%);
     }
-    
+
     .notification-icon {
-        font-size: 1.2rem;
-        margin-right: 0.5rem;
+        font-size: 1.3rem;
+        margin-right: 0.75rem;
+        width: 24px;
+        text-align: center;
     }
-    
+
     .empty-state {
         text-align: center;
-        padding: 3rem;
-        color: #6c757d;
+        padding: 4rem 2rem;
+        color: var(--gray-600);
+        background: white;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
+        margin: 2rem 0;
     }
-    
+
     .empty-state i {
-        font-size: 4rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
+        font-size: 5rem;
+        margin-bottom: 1.5rem;
+        opacity: 0.3;
+        color: var(--gray-400);
+    }
+
+    .empty-state h4 {
+        color: var(--gray-900);
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+    }
+
+    .empty-state p {
+        color: var(--gray-600);
+        font-size: 1.1rem;
+    }
+
+    /* Enhanced Buttons */
+    .btn {
+        border-radius: var(--radius-lg);
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .btn-outline-primary {
+        border: 2px solid var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .btn-outline-primary:hover {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: white;
+    }
+
+    .btn-outline-danger {
+        border: 2px solid var(--danger-color);
+        color: var(--danger-color);
+    }
+
+    .btn-outline-danger:hover {
+        background: var(--danger-color);
+        border-color: var(--danger-color);
+        color: white;
+    }
+
+    .btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    /* Badge Enhancements */
+    .badge {
+        border-radius: var(--radius-lg);
+        font-weight: 600;
+        padding: 0.4rem 0.8rem;
+    }
+
+    .badge.bg-primary {
+        background: linear-gradient(135deg, var(--primary-color) 0%, #2563eb 100%) !important;
+    }
+
+    .badge.bg-warning {
+        background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%) !important;
+    }
+
+    .badge.bg-danger {
+        background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%) !important;
+    }
+
+    /* Page Header Enhancement */
+    .page-header {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: var(--radius-xl);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--gray-200);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .page-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--info-color) 50%, var(--success-color) 100%);
+    }
+
+    .page-header h1 {
+        color: var(--gray-900);
+        font-weight: 800;
+        margin-bottom: 0;
+        font-size: 2.5rem;
+    }
+
+    .page-header h1 i {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--info-color) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* Animations */
+    .animate-fadeIn {
+        animation: fadeIn 0.6s ease-out;
+    }
+
+    .animate-slideUp {
+        animation: slideUp 0.6s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .page-header {
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+        }
+
+        .notification-card {
+            padding: 1.5rem;
+        }
+
+        .filter-tabs {
+            padding: 1rem;
+        }
+
+        .filter-tab {
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .notification-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .notification-time {
+            align-self: flex-end;
+        }
     }
 </style>
 
-<!-- Page content starts here -->
+<!-- Enhanced Page content starts here -->
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-bell text-primary me-2"></i>Notifications</h1>
-        <div>
-            <?php if ($counts['unread'] > 0): ?>
-                <form method="POST" class="d-inline">
-                    <button type="submit" name="mark_all_read" class="btn btn-outline-primary">
-                        <i class="fas fa-check-double me-1"></i> Mark All Read
-                    </button>
-                </form>
-            <?php endif; ?>
-            <a href="index.php" class="btn btn-outline-secondary ms-2">
-                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
-            </a>
+    <div class="page-header animate-fadeIn">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+                <h1><i class="fas fa-bell me-3"></i>Notifications</h1>
+                <p class="text-muted mb-0 mt-2">Stay updated with all your BC Management activities</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <?php if ($counts['unread'] > 0): ?>
+                    <form method="POST" class="d-inline">
+                        <button type="submit" name="mark_all_read" class="btn btn-outline-primary">
+                            <i class="fas fa-check-double me-2"></i> Mark All Read
+                        </button>
+                    </form>
+                <?php endif; ?>
+                <a href="index.php" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+                </a>
+            </div>
         </div>
     </div>
 
-    <!-- Filter Tabs -->
-    <div class="filter-tabs">
-        <a href="?filter=all" class="filter-tab <?= $filter === 'all' ? 'active' : '' ?>">
-            <i class="fas fa-list notification-icon"></i>All 
-            <span class="badge bg-secondary"><?= $counts['total'] ?></span>
-        </a>
-        <a href="?filter=unread" class="filter-tab <?= $filter === 'unread' ? 'active' : '' ?>">
-            <i class="fas fa-envelope notification-icon"></i>Unread 
-            <span class="badge bg-primary"><?= $counts['unread'] ?></span>
-        </a>
-        <a href="?filter=read" class="filter-tab <?= $filter === 'read' ? 'active' : '' ?>">
-            <i class="fas fa-envelope-open notification-icon"></i>Read
-        </a>
-        <a href="?filter=warning" class="filter-tab <?= $filter === 'warning' ? 'active' : '' ?>">
-            <i class="fas fa-exclamation-triangle notification-icon"></i>Warnings 
-            <span class="badge bg-warning"><?= $counts['warnings'] ?></span>
-        </a>
-        <a href="?filter=danger" class="filter-tab <?= $filter === 'danger' ? 'active' : '' ?>">
-            <i class="fas fa-exclamation-circle notification-icon"></i>Alerts 
-            <span class="badge bg-danger"><?= $counts['alerts'] ?></span>
-        </a>
+    <!-- Enhanced Filter Tabs -->
+    <div class="filter-tabs animate-slideUp">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 text-muted">
+                <i class="fas fa-filter me-2"></i>Filter Notifications
+            </h5>
+            <small class="text-muted">Total: <?= $counts['total'] ?> notifications</small>
+        </div>
+        <div class="d-flex flex-wrap">
+            <a href="?filter=all" class="filter-tab <?= $filter === 'all' ? 'active' : '' ?>">
+                <i class="fas fa-list notification-icon"></i>All Notifications
+                <span class="badge bg-secondary ms-2"><?= $counts['total'] ?></span>
+            </a>
+            <a href="?filter=unread" class="filter-tab <?= $filter === 'unread' ? 'active' : '' ?>">
+                <i class="fas fa-envelope notification-icon"></i>Unread
+                <span class="badge bg-primary ms-2"><?= $counts['unread'] ?></span>
+            </a>
+            <a href="?filter=read" class="filter-tab <?= $filter === 'read' ? 'active' : '' ?>">
+                <i class="fas fa-envelope-open notification-icon"></i>Read
+                <span class="badge bg-success ms-2"><?= $counts['total'] - $counts['unread'] ?></span>
+            </a>
+            <a href="?filter=warning" class="filter-tab <?= $filter === 'warning' ? 'active' : '' ?>">
+                <i class="fas fa-exclamation-triangle notification-icon"></i>Warnings
+                <span class="badge bg-warning ms-2"><?= $counts['warnings'] ?></span>
+            </a>
+            <a href="?filter=danger" class="filter-tab <?= $filter === 'danger' ? 'active' : '' ?>">
+                <i class="fas fa-exclamation-circle notification-icon"></i>Critical Alerts
+                <span class="badge bg-danger ms-2"><?= $counts['alerts'] ?></span>
+            </a>
+        </div>
     </div>
 
     <!-- Notifications List -->
@@ -275,8 +527,8 @@ require_once 'includes/header.php';
             <p>You don't have any notifications matching the selected filter.</p>
         </div>
     <?php else: ?>
-        <?php foreach ($notifications as $notification): ?>
-            <div class="notification-card <?= !$notification['is_read'] ? 'unread' : '' ?> type-<?= $notification['type'] ?>">
+        <?php foreach ($notifications as $index => $notification): ?>
+            <div class="notification-card <?= !$notification['is_read'] ? 'unread' : '' ?> type-<?= $notification['type'] ?> animate-slideUp" style="animation-delay: <?= $index * 0.1 ?>s;">
                 <div class="notification-header">
                     <h5 class="notification-title">
                         <?php
