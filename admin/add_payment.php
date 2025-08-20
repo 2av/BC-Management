@@ -232,6 +232,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     <i class="fas fa-info-circle"></i>
                                                     Months with bids show actual expected amounts. Upcoming months show base contribution.
                                                 </small>
+                                                <br>
+                                                <small class="text-warning">
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                    <strong>Note:</strong> If you add payments for months without bidding,
+                                                    the payment amount may need adjustment after bidding is completed.
+                                                </small>
                                             </div>
                                         </div>
                                     </div>
@@ -287,21 +293,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="card-body">
                         <?php if (!empty($availableMonths)): ?>
-                            <?php foreach ($monthlyBids as $bid): ?>
+                            <?php
+                            // Get all months that have payments (including those without bidding)
+                            $monthsWithPayments = array_unique(array_column($memberPayments, 'month_number'));
+                            $allRelevantMonths = array_unique(array_merge($monthsWithBids, $monthsWithPayments));
+                            sort($allRelevantMonths);
+                            ?>
+
+                            <?php foreach ($allRelevantMonths as $monthNum): ?>
+                                <?php
+                                $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $monthNum);
+                                $bid = reset($bid);
+
+                                $monthPayments = array_filter($memberPayments, fn($p) => $p['month_number'] == $monthNum);
+                                $paidCount = count(array_filter($monthPayments, fn($p) => $p['payment_status'] === 'paid'));
+                                $totalMembers = count($members);
+                                ?>
+
                                 <div class="mb-3">
-                                    <h6>Month <?= $bid['month_number'] ?></h6>
-                                    <small class="text-muted">Expected: <?= formatCurrency($bid['gain_per_member']) ?></small>
-                                    
-                                    <?php
-                                    $monthPayments = array_filter($memberPayments, fn($p) => $p['month_number'] == $bid['month_number']);
-                                    $paidCount = count(array_filter($monthPayments, fn($p) => $p['payment_status'] === 'paid'));
-                                    $totalMembers = count($members);
-                                    ?>
-                                    
+                                    <h6>Month <?= $monthNum ?></h6>
+                                    <?php if ($bid): ?>
+                                        <small class="text-muted">Expected: <?= formatCurrency($bid['gain_per_member']) ?></small>
+                                    <?php else: ?>
+                                        <small class="text-warning">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            Expected: <?= formatCurrency($group['monthly_contribution']) ?> (No bid yet)
+                                        </small>
+                                    <?php endif; ?>
+
                                     <div class="progress mt-1">
-                                        <div class="progress-bar bg-success" style="width: <?= ($paidCount / $totalMembers) * 100 ?>%"></div>
+                                        <div class="progress-bar <?= $bid ? 'bg-success' : 'bg-warning' ?>"
+                                             style="width: <?= ($paidCount / $totalMembers) * 100 ?>%"></div>
                                     </div>
                                     <small><?= $paidCount ?> / <?= $totalMembers ?> paid</small>
+
+                                    <?php if (!$bid && $paidCount > 0): ?>
+                                        <br><small class="text-info">
+                                            <i class="fas fa-info-circle"></i>
+                                            Payments made before bidding - amounts may need adjustment
+                                        </small>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
