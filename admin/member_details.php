@@ -1,6 +1,7 @@
 <?php
-require_once 'config.php';
-requireAdminLogin();
+require_once '../config/config.php';
+require_once '../common/middleware.php';
+checkRole('admin');
 
 $memberId = (int)($_GET['id'] ?? 0);
 

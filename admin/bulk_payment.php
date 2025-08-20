@@ -1,6 +1,7 @@
 <?php
-require_once 'config.php';
-requireAdminLogin();
+require_once '../config/config.php';
+require_once '../common/middleware.php';
+checkRole('admin');
 
 $groupId = (int)($_GET['group_id'] ?? 0);
 $monthNumber = (int)($_GET['month'] ?? 0);
