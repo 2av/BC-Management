@@ -1,46 +1,55 @@
 <?php
-// BC Management System Configuration
+/**
+ * Main Configuration File for BC Management System
+ * This file serves as the entry point for all configurations
+ */
 
-// Database Configuration
- 
-require_once '../db_config.php';
-// Application Configuration
-define('APP_NAME', 'BC Management System');
-define('APP_VERSION', '1.0.0');
-define('APP_URL', 'http://localhost/BC-Management');
-define('ADMIN_EMAIL', 'admin@bcmanagement.com');
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Security Configuration
-define('HASH_ALGO', PASSWORD_DEFAULT);
-define('SESSION_LIFETIME', 3600); // 1 hour
-define('CSRF_TOKEN_NAME', 'csrf_token');
+// Include database configuration
+require_once __DIR__ . '/db_config.php';
 
-// File Upload Configuration
-define('UPLOAD_DIR', 'uploads/');
-define('MAX_FILE_SIZE', 5242880); // 5MB
+// Include application constants from config folder
+require_once __DIR__ . '/constants.php';
 
-// Email Configuration (for notifications)
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USERNAME', '');
-define('SMTP_PASSWORD', '');
-define('SMTP_ENCRYPTION', 'tls');
+// Include common functions
+require_once __DIR__ . '/../common/functions.php';
 
-// Pagination
-define('RECORDS_PER_PAGE', 10);
+// Include authentication functions
+require_once __DIR__ . '/../common/auth.php';
 
-// Date/Time Configuration
-date_default_timezone_set('Asia/Kolkata');
-define('DATE_FORMAT', 'Y-m-d');
-define('DATETIME_FORMAT', 'Y-m-d H:i:s');
-define('DISPLAY_DATE_FORMAT', 'd/m/Y');
-define('DISPLAY_DATETIME_FORMAT', 'd/m/Y H:i');
+// Include middleware
+require_once __DIR__ . '/../common/middleware.php';
 
-// Error Reporting (set to 0 in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// Application Configuration (override if needed)
+if (!defined('APP_NAME')) {
+    define('APP_NAME', 'BC Management System');
+}
 
-// Currency Configuration
-define('CURRENCY_SYMBOL', '₹');
-define('CURRENCY_CODE', 'INR');
+// Multi-tenant support - include if available
+$mtConfigFiles = [
+    __DIR__ . '/simple_mt_config.php',
+    __DIR__ . '/mt_config.php',
+    __DIR__ . '/multi_tenant_config.php'
+];
+
+foreach ($mtConfigFiles as $mtConfig) {
+    if (file_exists($mtConfig)) {
+        require_once $mtConfig;
+        break; // Only include one multi-tenant config
+    }
+}
+
+// Handle logout request
+if (isset($_GET['logout']) && $_GET['logout'] == '1') {
+    logout();
+}
+
+// Language handling
+if (isset($_GET['change_language'])) {
+    // This is handled in functions.php
+}
 ?>

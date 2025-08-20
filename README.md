@@ -44,19 +44,71 @@ A clean, minimal PHP-based system for managing Niidhi (Community Fund) groups th
 ## File Structure
 
 ```
-├── index.php              # Admin dashboard
-├── login.php              # Admin login page
-├── member_login.php       # Member login page
-├── member_dashboard.php   # Member personal dashboard
-├── member_group_view.php  # Member group view (read-only)
-├── config.php             # Configuration and database functions
-├── create_group.php       # Create new BC group
-├── view_group.php         # Admin group details (Excel-like format)
-├── add_bid.php            # Add monthly bid
-├── manage_members.php     # Manage member login credentials
-├── setup.php              # Database setup
-├── database.sql           # Database structure with sample data
-└── README.md              # This file
+BC-Management/
+├── index.php                 # Main entry point (redirects to auth/landing.php)
+├── config.php                # Main configuration loader
+├── README.md                 # This file
+├── test_reorganization.php   # Test script for new structure
+├── db_config.sample.php      # Sample database configuration
+│
+├── /admin/                   # Admin-related files (32 files)
+│   ├── index.php            # Admin dashboard
+│   ├── members.php           # Member management
+│   ├── create_group.php      # Create BC group
+│   └── ...                   # Other admin files
+│
+├── /member/                  # Member-related files (7 files)
+│   ├── dashboard.php         # Member dashboard
+│   ├── bidding.php           # Member bidding
+│   └── ...                   # Other member files
+│
+├── /superadmin/              # SuperAdmin files (7 files)
+│   ├── dashboard.php         # SuperAdmin dashboard
+│   ├── clients.php           # Client management
+│   └── ...                   # Other superadmin files
+│
+├── /auth/                    # Authentication files (5 files)
+│   ├── landing.php           # Main landing page
+│   ├── login.php             # Admin login
+│   ├── member_login.php      # Member login
+│   └── ...                   # Other auth files
+│
+├── /config/                  # Configuration files (6 files)
+│   ├── db_config.php         # Database configuration
+│   ├── config.php            # Application constants
+│   └── ...                   # Other config files
+│
+├── /common/                  # Shared/common files (7 files)
+│   ├── functions.php         # Utility functions
+│   ├── auth.php              # Authentication functions
+│   ├── middleware.php        # Role-based access control
+│   └── /languages/           # Language files
+│
+├── /assets/                  # Static assets
+│   ├── /css/                 # Stylesheets
+│   ├── /js/                  # JavaScript files
+│   └── /images/              # Images
+│
+├── /uploads/                 # User uploads
+│   ├── /qr_codes/            # QR code uploads
+│   ├── /member_photos/       # Member photos
+│   └── /documents/           # Document uploads
+│
+├── /sql/                     # SQL files (15 files)
+│   ├── database.sql          # Main database structure
+│   ├── complete_database.sql # Complete database with data
+│   └── ...                   # Migration and fix scripts
+│
+├── /tests/                   # Test and utility files (50+ files)
+│   ├── setup.php             # Database setup
+│   ├── test_*.php            # Test files
+│   ├── fix_*.php             # Fix scripts
+│   └── ...                   # Debug and utility files
+│
+└── /docs/                    # Documentation (4 files)
+    ├── REORGANIZATION_GUIDE.md # Detailed reorganization guide
+    ├── BIDDING_SYSTEM_SETUP.md # Bidding system setup
+    └── ...                   # Other documentation
 ```
 
 ## How Niidhi Groups Work
