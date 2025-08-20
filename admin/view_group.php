@@ -431,6 +431,12 @@ foreach ($memberSummary as $summary) {
                 <div class="scroll-indicator">
                     <i class="fas fa-arrows-alt-h"></i> Swipe to see all member payments
                 </div>
+                <div class="alert alert-info py-2 px-3 mb-2" style="font-size: 0.9rem;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Legend:</strong>
+                    <span class="text-success fw-bold">-</span> = Payment completed |
+                    <span class="text-muted">Amount</span> = Payment pending
+                </div>
                 <div class="table-responsive-custom">
                     <table class="table table-bordered spreadsheet-table mb-0">
                     <thead>
@@ -457,13 +463,11 @@ foreach ($memberSummary as $summary) {
                                         <?php
                                         $payment = $paymentsMatrix[$member['id']][$i] ?? null;
                                         if ($payment) {
-                                            echo formatCurrency($payment['payment_amount']);
+                                            // Show actual payment amount when payment is completed
+                                            echo '<span class="text-success fw-bold">' . formatCurrency($payment['payment_amount']) . '</span>';
                                         } else {
-                                            // Show expected amount based on gain per member for that month
-                                            $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $i);
-                                            $bid = reset($bid);
-                                            $expectedAmount = $bid ? $bid['gain_per_member'] : $group['monthly_contribution'];
-                                            echo '<span class="text-muted">' . formatCurrency($expectedAmount) . '</span>';
+                                            // Show dash (-) when payment is NOT done
+                                            echo '<span class="text-muted fw-bold">-</span>';
                                         }
                                         ?>
                                     </td>
