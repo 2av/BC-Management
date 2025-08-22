@@ -496,10 +496,10 @@ function getBiddingStatistics($groupId) {
 function getMemberGroups($memberId) {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT DISTINCT g.*, m.id as member_id, m.member_number, m.status as member_status, m.created_at as member_joined_date
+        SELECT DISTINCT g.*, gm.member_id, gm.id as assignment_id, gm.member_number, gm.status as member_status, gm.joined_date as member_joined_date
         FROM bc_groups g
-        JOIN members m ON g.id = m.group_id
-        WHERE m.member_name = (SELECT member_name FROM members WHERE id = ?) AND m.status = 'active'
+        JOIN group_members gm ON g.id = gm.group_id
+        WHERE gm.member_id = ? AND gm.status = 'active'
         ORDER BY g.start_date DESC
     ");
     $stmt->execute([$memberId]);
@@ -575,7 +575,7 @@ function getCurrentMonthPaymentInfo($groupId, $memberInGroupId) {
 }
 
 // Include QR code utilities
-require_once 'qr_utils.php';
+require_once __DIR__ . '/../common/qr_utils.php';
 
 // Initialize payment config table if it doesn't exist
 createPaymentConfigTable();

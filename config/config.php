@@ -24,6 +24,9 @@ require_once __DIR__ . '/../common/auth.php';
 // Include middleware
 require_once __DIR__ . '/../common/middleware.php';
 
+// Include QR code utilities
+require_once __DIR__ . '/../common/qr_utils.php';
+
 // Application Configuration (override if needed)
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'BC Management System');
