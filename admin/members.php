@@ -14,7 +14,7 @@ $stmt = $pdo->query("
         MAX(m.phone) as phone,        -- Take any phone (should be same for same person)
         MAX(m.email) as email,        -- Take any email (should be same for same person)
         MAX(m.status) as status,      -- Take the latest status
-        COUNT(DISTINCT m.group_id) as total_groups,
+        COUNT(DISTINCT gm.group_id) as total_groups,
         GROUP_CONCAT(DISTINCT g.group_name ORDER BY g.group_name SEPARATOR ', ') as group_names,
         GROUP_CONCAT(DISTINCT g.id ORDER BY g.group_name SEPARATOR ',') as group_ids,
         SUM(COALESCE(ms.total_paid, 0)) as total_paid_all_groups,
@@ -22,8 +22,9 @@ $stmt = $pdo->query("
         SUM(COALESCE(ms.profit, 0)) as total_profit_all_groups,
         MIN(m.created_at) as first_joined
     FROM members m
-    JOIN bc_groups g ON m.group_id = g.id
-    LEFT JOIN member_summary ms ON m.id = ms.member_id
+    JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+    JOIN bc_groups g ON gm.group_id = g.id
+    LEFT JOIN member_summary ms ON m.id = ms.member_id AND gm.group_id = ms.group_id
     WHERE m.member_name IS NOT NULL AND m.member_name != ''
     GROUP BY m.member_name
     ORDER BY m.member_name

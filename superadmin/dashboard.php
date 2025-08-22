@@ -19,8 +19,8 @@ $activeClients = $stmt->fetch()['active'];
 $stmt = $pdo->query("SELECT COUNT(*) as total FROM bc_groups");
 $totalGroups = $stmt->fetch()['total'];
 
-// Total members across all clients
-$stmt = $pdo->query("SELECT COUNT(*) as total FROM members");
+// Total members across all clients (count unique members from group_members)
+$stmt = $pdo->query("SELECT COUNT(DISTINCT member_id) as total FROM group_members WHERE status = 'active'");
 $totalMembers = $stmt->fetch()['total'];
 
 // Monthly collection across all clients
@@ -29,12 +29,12 @@ $monthlyCollection = $stmt->fetch()['total'] ?? 0;
 
 // Recent clients
 $stmt = $pdo->query("
-    SELECT c.*, 
-           COUNT(bg.id) as group_count,
-           COUNT(m.id) as member_count
+    SELECT c.*,
+           COUNT(DISTINCT bg.id) as group_count,
+           COUNT(DISTINCT gm.member_id) as member_count
     FROM clients c
     LEFT JOIN bc_groups bg ON c.id = bg.client_id
-    LEFT JOIN members m ON bg.id = m.group_id
+    LEFT JOIN group_members gm ON bg.id = gm.group_id AND gm.status = 'active'
     GROUP BY c.id
     ORDER BY c.created_at DESC
     LIMIT 5

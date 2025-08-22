@@ -18,19 +18,23 @@ try {
     $placeholders = str_repeat('?,', count($groupIdArray) - 1) . '?';
     
     $stmt = $pdo->prepare("
-        SELECT 
+        SELECT
             m.*,
             g.group_name,
             g.monthly_contribution,
             g.total_members,
             g.status as group_status,
+            gm.member_number,
+            gm.joined_date,
+            gm.status as assignment_status,
             COALESCE(ms.total_paid, 0) as total_paid,
             COALESCE(ms.given_amount, 0) as given_amount,
             COALESCE(ms.profit, 0) as profit
         FROM members m
-        JOIN bc_groups g ON m.group_id = g.id
-        LEFT JOIN member_summary ms ON m.id = ms.member_id
-        WHERE m.member_name = ? AND m.group_id IN ($placeholders)
+        JOIN group_members gm ON m.id = gm.member_id
+        JOIN bc_groups g ON gm.group_id = g.id
+        LEFT JOIN member_summary ms ON m.id = ms.member_id AND g.id = ms.group_id
+        WHERE m.member_name = ? AND gm.group_id IN ($placeholders) AND gm.status = 'active'
         ORDER BY g.group_name
     ");
     

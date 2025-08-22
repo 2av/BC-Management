@@ -17,8 +17,8 @@ $memberGroups = getMemberGroups($member['id']);
 
 // Enhance group data with additional information
 foreach ($memberGroups as &$group) {
-    // Get member count for this group
-    $stmt = $pdo->prepare("SELECT COUNT(*) as member_count FROM members WHERE group_id = ? AND status = 'active'");
+    // Get member count for this group using group_members table
+    $stmt = $pdo->prepare("SELECT COUNT(*) as member_count FROM group_members WHERE group_id = ? AND status = 'active'");
     $stmt->execute([$group['id']]);
     $memberCount = $stmt->fetchColumn();
     $group['actual_member_count'] = $memberCount;
@@ -88,51 +88,53 @@ $totalPendingPayments = 0;
 
 // Calculate member's financial summary across all groups
 foreach ($memberGroups as $group) {
-    $groupId = $group['id'];
-    $memberIdInGroup = $group['member_id']; // This is the member's ID in this specific group
-
-    // Get member's payments for this group
+    // Get member summary for this group using the correct member ID
     $stmt = $pdo->prepare("
-        SELECT SUM(CASE WHEN payment_status = 'paid' THEN payment_amount ELSE 0 END) as paid_amount,
-               COUNT(CASE WHEN payment_status = 'pending' THEN 1 END) as pending_count
+        SELECT COALESCE(SUM(payment_amount), 0) as total_paid
         FROM member_payments
-        WHERE member_id = ? AND group_id = ?
+        WHERE member_id = ? AND group_id = ? AND payment_status = 'paid'
     ");
-    $stmt->execute([$memberIdInGroup, $groupId]);
-    $paymentSummary = $stmt->fetch();
+    $stmt->execute([$member['id'], $group['id']]);
+    $groupPaid = $stmt->fetchColumn();
+    $totalPaidAmount += $groupPaid;
 
-    $totalPaidAmount += $paymentSummary['paid_amount'] ?? 0;
-    $totalPendingPayments += $paymentSummary['pending_count'] ?? 0;
-
-    // Get member's received amount (if they won any month)
-    // Use net_payable which is the actual amount the member receives
+    // Get received amount (if member won any month)
     $stmt = $pdo->prepare("
-        SELECT SUM(net_payable) as received_amount
+        SELECT COALESCE(SUM(net_payable), 0) as total_received
         FROM monthly_bids
-        WHERE group_id = ? AND taken_by_member_id = ?
+        WHERE taken_by_member_id = ? AND group_id = ?
     ");
-    $stmt->execute([$groupId, $memberIdInGroup]);
-    $receivedSummary = $stmt->fetch();
+    $stmt->execute([$member['id'], $group['id']]);
+    $groupReceived = $stmt->fetchColumn();
+    $totalReceivedAmount += $groupReceived;
 
-    $totalReceivedAmount += $receivedSummary['received_amount'] ?? 0;
-
-    // Debug: Log the calculation for this group (remove this in production)
-    if ($receivedSummary['received_amount'] > 0) {
-        error_log("Member {$member['member_name']} received {$receivedSummary['received_amount']} from group {$groupId}");
+    // Calculate pending payments for current month
+    $currentMonth = getCurrentActiveMonthNumber($group['id']);
+    if ($currentMonth) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM member_payments
+            WHERE member_id = ? AND group_id = ? AND month_number = ? AND payment_status = 'pending'
+        ");
+        $stmt->execute([$member['id'], $group['id'], $currentMonth]);
+        if ($stmt->fetchColumn() > 0) {
+            $totalPendingPayments += $group['monthly_contribution'];
+        }
     }
 }
+
+$totalProfit = $totalReceivedAmount - $totalPaidAmount;
 
 // Get recent payments across all groups
 $stmt = $pdo->prepare("
     SELECT mp.*, g.group_name, g.monthly_contribution
     FROM member_payments mp
     JOIN bc_groups g ON mp.group_id = g.id
-    JOIN members m ON mp.member_id = m.id
-    WHERE m.member_name = ? AND mp.payment_status = 'paid'
+    WHERE mp.member_id = ? AND mp.payment_status = 'paid'
     ORDER BY mp.payment_date DESC
     LIMIT 5
 ");
-$stmt->execute([$member['member_name']]);
+$stmt->execute([$member['id']]);
 $recentPayments = $stmt->fetchAll();
 
 // Get upcoming payments (pending)
@@ -140,12 +142,11 @@ $stmt = $pdo->prepare("
     SELECT mp.*, g.group_name, g.monthly_contribution
     FROM member_payments mp
     JOIN bc_groups g ON mp.group_id = g.id
-    JOIN members m ON mp.member_id = m.id
-    WHERE m.member_name = ? AND mp.payment_status = 'pending'
+    WHERE mp.member_id = ? AND mp.payment_status = 'pending'
     ORDER BY mp.month_number ASC
     LIMIT 5
 ");
-$stmt->execute([$member['member_name']]);
+$stmt->execute([$member['id']]);
 $upcomingPayments = $stmt->fetchAll();
 
 // Set page title for the header

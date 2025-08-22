@@ -3,8 +3,8 @@ require_once '../config/config.php';
 require_once '../common/middleware.php';
 checkRole('member');
 
-$member = getMemberById($_SESSION['member_id']);
-$groupId = $member['group_id'];
+$member = getCurrentMember();
+$groupId = $_SESSION['group_id'];
 $group = getGroupById($groupId);
 $monthNumber = (int)($_GET['month'] ?? 0);
 

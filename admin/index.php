@@ -17,8 +17,8 @@ $totalGroups = count($groups);
 $activeGroups = count(array_filter($groups, fn($g) => $g['status'] === 'active'));
 $completedGroups = count(array_filter($groups, fn($g) => $g['status'] === 'completed'));
 
-// Total members across all groups
-$stmt = $pdo->query("SELECT COUNT(*) FROM members");
+// Total members across all groups (count unique members from group_members)
+$stmt = $pdo->query("SELECT COUNT(DISTINCT member_id) FROM group_members WHERE status = 'active'");
 $totalMembers = $stmt->fetchColumn();
 
 // Total money collected

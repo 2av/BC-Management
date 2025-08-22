@@ -13,6 +13,59 @@ $success = '';
 
 // Handle group actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Handle group deletion
+    if (isset($_POST['delete_group'])) {
+        $groupId = (int)($_POST['group_id'] ?? 0);
+
+        if ($groupId && isset($_POST['confirm_delete']) && $_POST['confirm_delete'] === 'yes') {
+            try {
+                $pdo->beginTransaction();
+
+                // Delete all related data in correct order (child tables first)
+
+                // 1. Delete random picks
+                $stmt = $pdo->prepare("DELETE FROM random_picks WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 2. Delete member bids
+                $stmt = $pdo->prepare("DELETE FROM member_bids WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 3. Delete month bidding status
+                $stmt = $pdo->prepare("DELETE FROM month_bidding_status WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 4. Delete member payments
+                $stmt = $pdo->prepare("DELETE FROM member_payments WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 5. Delete member summary
+                $stmt = $pdo->prepare("DELETE FROM member_summary WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 6. Delete monthly bids
+                $stmt = $pdo->prepare("DELETE FROM monthly_bids WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 7. Delete group member assignments
+                $stmt = $pdo->prepare("DELETE FROM group_members WHERE group_id = ?");
+                $stmt->execute([$groupId]);
+
+                // 8. Finally delete the group itself
+                $stmt = $pdo->prepare("DELETE FROM bc_groups WHERE id = ?");
+                $stmt->execute([$groupId]);
+
+                $pdo->commit();
+                $success = 'Group and all related data have been deleted successfully!';
+
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $error = 'Failed to delete group: ' . $e->getMessage();
+            }
+        } else {
+            $error = 'Group deletion cancelled - confirmation not provided.';
+        }
+    }
     if (isset($_POST['clone_group'])) {
         $originalGroupId = (int)($_POST['original_group_id'] ?? 0);
         $newGroupName = trim($_POST['new_group_name'] ?? '');
@@ -274,11 +327,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get all groups
 $pdo = getDB();
 $stmt = $pdo->query("
-    SELECT bg.*, 
-           COUNT(m.id) as actual_members,
-           COUNT(mb.id) as completed_months
+    SELECT bg.*,
+           COUNT(DISTINCT gm.member_id) as actual_members,
+           COUNT(DISTINCT mb.id) as completed_months
     FROM bc_groups bg
-    LEFT JOIN members m ON bg.id = m.group_id AND m.status = 'active'
+    LEFT JOIN group_members gm ON bg.id = gm.group_id AND gm.status = 'active'
     LEFT JOIN monthly_bids mb ON bg.id = mb.group_id
     GROUP BY bg.id
     ORDER BY bg.created_at DESC
@@ -384,6 +437,12 @@ require_once 'includes/header.php';
                                     <i class="fas fa-user-plus"></i> Members
                                 </a>
                             </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm w-100"
+                                        data-bs-toggle="modal" data-bs-target="#deleteModal<?= $group['id'] ?>">
+                                    <i class="fas fa-trash"></i> Delete Group
+                                </button>
+                            </div>
 
                             <?php if ($group['status'] === 'completed'): ?>
                                 <div class="mt-2">
@@ -436,6 +495,50 @@ require_once 'includes/header.php';
                     </div>
                 </div>
 
+                <!-- Delete Modal -->
+                <div class="modal fade" id="deleteModal<?= $group['id'] ?>" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-exclamation-triangle"></i> Delete Group
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-danger">
+                                    <h6><i class="fas fa-warning"></i> <strong>WARNING: This action cannot be undone!</strong></h6>
+                                    <p class="mb-0">Deleting this group will permanently remove all related data.</p>
+                                </div>
+
+                                <div class="bg-light p-3 rounded mb-3">
+                                    <h6>Group to be deleted:</h6>
+                                    <p class="mb-1"><strong><?= htmlspecialchars($group['group_name']) ?></strong></p>
+                                    <p class="mb-1">Members: <?= $group['actual_members'] ?></p>
+                                    <p class="mb-0">Status: <?= ucfirst($group['status']) ?></p>
+                                </div>
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="confirmDelete<?= $group['id'] ?>" required>
+                                    <label class="form-check-label text-danger fw-bold" for="confirmDelete<?= $group['id'] ?>">
+                                        I understand this action cannot be undone
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <form method="POST" style="display: inline;">
+                                    <input type="hidden" name="group_id" value="<?= $group['id'] ?>">
+                                    <input type="hidden" name="confirm_delete" value="yes">
+                                    <button type="submit" name="delete_group" class="btn btn-secondary" id="deleteButton<?= $group['id'] ?>" disabled title="Check the confirmation box to enable">
+                                        <i class="fas fa-trash"></i> Delete Permanently
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             <?php endforeach; ?>
         </div>
         
@@ -471,7 +574,7 @@ require_once 'includes/header.php';
         }
 
 
-        // Reset form when modal is closed
+        // Reset form when modal is closed and handle delete confirmations
         document.addEventListener('DOMContentLoaded', function() {
             const modals = document.querySelectorAll('.modal');
             modals.forEach(modal => {
@@ -491,6 +594,57 @@ require_once 'includes/header.php';
                         input.required = false;
                     });
                 });
+            });
+
+            // Handle delete confirmation checkboxes with improved event handling
+            const deleteCheckboxes = document.querySelectorAll('[id^="confirmDelete"]');
+
+            deleteCheckboxes.forEach(checkbox => {
+                const groupId = checkbox.id.replace('confirmDelete', '');
+                const deleteButton = document.getElementById('deleteButton' + groupId);
+
+                if (deleteButton) {
+                    // Add event listener for checkbox change
+                    checkbox.addEventListener('change', function() {
+                        console.log('Checkbox changed:', this.checked); // Debug log
+                        deleteButton.disabled = !this.checked;
+
+                        // Visual feedback
+                        if (this.checked) {
+                            deleteButton.classList.remove('btn-secondary');
+                            deleteButton.classList.add('btn-danger');
+                        } else {
+                            deleteButton.classList.remove('btn-danger');
+                            deleteButton.classList.add('btn-secondary');
+                        }
+                    });
+
+                    // Also handle click events for better mobile support
+                    checkbox.addEventListener('click', function() {
+                        setTimeout(() => {
+                            deleteButton.disabled = !this.checked;
+                        }, 10);
+                    });
+
+                    // Reset checkbox when modal is hidden
+                    const deleteModal = document.getElementById('deleteModal' + groupId);
+                    if (deleteModal) {
+                        deleteModal.addEventListener('hidden.bs.modal', function() {
+                            checkbox.checked = false;
+                            deleteButton.disabled = true;
+                            deleteButton.classList.remove('btn-danger');
+                            deleteButton.classList.add('btn-secondary');
+                        });
+
+                        // Also reset when modal is shown
+                        deleteModal.addEventListener('shown.bs.modal', function() {
+                            checkbox.checked = false;
+                            deleteButton.disabled = true;
+                            deleteButton.classList.remove('btn-danger');
+                            deleteButton.classList.add('btn-secondary');
+                        });
+                    }
+                }
             });
         });
     </script>

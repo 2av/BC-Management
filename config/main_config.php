@@ -116,11 +116,13 @@ function adminLogin($username, $password) {
 function memberLogin($username, $password) {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT m.*, g.group_name, g.client_id, c.client_name
+        SELECT m.*, g.group_name, g.client_id, c.client_name, gm.group_id, gm.member_number
         FROM members m
-        JOIN bc_groups g ON m.group_id = g.id
+        JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+        JOIN bc_groups g ON gm.group_id = g.id
         JOIN clients c ON g.client_id = c.id
         WHERE m.username = ? AND m.status = 'active' AND c.status = 'active'
+        LIMIT 1
     ");
     $stmt->execute([$username]);
     $member = $stmt->fetch();
@@ -225,15 +227,8 @@ if (!function_exists('getCurrentClientId')) {
             return $_SESSION['client_id'];
         }
         if (isMemberLoggedIn()) {
-            // Get client_id through member's group
-            $member = getCurrentMember();
-            if ($member) {
-                $pdo = getDB();
-                $stmt = $pdo->prepare("SELECT client_id FROM bc_groups WHERE id = ?");
-                $stmt->execute([$member['group_id']]);
-                $group = $stmt->fetch();
-                return $group ? $group['client_id'] : null;
-            }
+            // Get client_id through member's group (from session)
+            return $_SESSION['client_id'] ?? null;
         }
         return null;
     }
@@ -278,10 +273,12 @@ function getGroupMembers($groupId) {
 
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT m.* FROM members m
-        JOIN bc_groups g ON m.group_id = g.id
-        WHERE m.group_id = ? AND g.client_id = ?
-        ORDER BY m.member_number
+        SELECT m.*, gm.member_number, gm.joined_date, gm.status as assignment_status
+        FROM group_members gm
+        JOIN members m ON gm.member_id = m.id
+        JOIN bc_groups g ON gm.group_id = g.id
+        WHERE gm.group_id = ? AND g.client_id = ? AND gm.status = 'active'
+        ORDER BY gm.member_number
     ");
     $stmt->execute([$groupId, $clientId]);
     return $stmt->fetchAll();

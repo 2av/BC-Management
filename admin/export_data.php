@@ -17,14 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export_type'])) {
     switch ($exportType) {
         case 'members':
             $filename = 'members_export_' . date('Y-m-d') . '.csv';
-            $whereClause = $groupId ? "WHERE m.group_id = $groupId" : "";
-            
+            $whereClause = $groupId ? "WHERE gm.group_id = $groupId" : "";
+
             $stmt = $pdo->query("
-                SELECT 
+                SELECT
                     m.member_name,
-                    m.member_number,
-                    m.phone_number,
-                    m.address,
+                    gm.member_number,
+                    m.phone,
+                    m.email,
                     g.group_name,
                     g.monthly_contribution,
                     m.status,
@@ -33,10 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['export_type'])) {
                     COALESCE(ms.given_amount, 0) as given_amount,
                     COALESCE(ms.profit, 0) as profit
                 FROM members m
-                JOIN bc_groups g ON m.group_id = g.id
-                LEFT JOIN member_summary ms ON m.id = ms.member_id
+                JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+                JOIN bc_groups g ON gm.group_id = g.id
+                LEFT JOIN member_summary ms ON m.id = ms.member_id AND g.id = ms.group_id
                 $whereClause
-                ORDER BY g.group_name, m.member_number
+                ORDER BY g.group_name, gm.member_number
             ");
             $data = $stmt->fetchAll();
             break;

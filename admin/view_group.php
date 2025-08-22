@@ -14,6 +14,61 @@ if (!$group) {
     redirect('index.php');
 }
 
+// Handle group deletion
+if ($_POST['action'] ?? '' === 'delete_group') {
+    if (isset($_POST['confirm_delete']) && $_POST['confirm_delete'] === 'yes') {
+        try {
+            $pdo = getDB();
+            $pdo->beginTransaction();
+
+            // Delete all related data in correct order (child tables first)
+
+            // 1. Delete random picks
+            $stmt = $pdo->prepare("DELETE FROM random_picks WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 2. Delete member bids
+            $stmt = $pdo->prepare("DELETE FROM member_bids WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 3. Delete month bidding status
+            $stmt = $pdo->prepare("DELETE FROM month_bidding_status WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 4. Delete member payments
+            $stmt = $pdo->prepare("DELETE FROM member_payments WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 5. Delete member summary
+            $stmt = $pdo->prepare("DELETE FROM member_summary WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 6. Delete monthly bids
+            $stmt = $pdo->prepare("DELETE FROM monthly_bids WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 7. Delete group member assignments
+            $stmt = $pdo->prepare("DELETE FROM group_members WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+
+            // 8. Finally delete the group itself
+            $stmt = $pdo->prepare("DELETE FROM bc_groups WHERE id = ?");
+            $stmt->execute([$groupId]);
+
+            $pdo->commit();
+
+            setMessage('Group and all related data have been deleted successfully!', 'success');
+            redirect('manage_groups.php');
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            setMessage('Failed to delete group: ' . $e->getMessage(), 'error');
+        }
+    } else {
+        setMessage('Group deletion cancelled - confirmation not provided.', 'info');
+    }
+}
+
 $members = getGroupMembers($groupId);
 $monthlyBids = getMonthlyBids($groupId);
 $memberPayments = getMemberPayments($groupId);
@@ -286,6 +341,9 @@ foreach ($memberSummary as $summary) {
                             <i class="fas fa-copy"></i> Restart Group
                         </a>
                     <?php endif; ?>
+                    <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteGroupModal">
+                        <i class="fas fa-trash"></i> Delete Group
+                    </button>
                 </div>
             </div>
         </div>
@@ -535,6 +593,61 @@ foreach ($memberSummary as $summary) {
         </div>
     </div>
 
+    <!-- Delete Group Confirmation Modal -->
+    <div class="modal fade" id="deleteGroupModal" tabindex="-1" aria-labelledby="deleteGroupModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteGroupModalLabel">
+                        <i class="fas fa-exclamation-triangle"></i> Delete Group
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-warning"></i> <strong>WARNING: This action cannot be undone!</strong></h6>
+                        <p class="mb-0">Deleting this group will permanently remove:</p>
+                    </div>
+
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item"><i class="fas fa-users text-primary"></i> All member assignments</li>
+                        <li class="list-group-item"><i class="fas fa-money-bill text-success"></i> All payment records</li>
+                        <li class="list-group-item"><i class="fas fa-gavel text-warning"></i> All bidding data</li>
+                        <li class="list-group-item"><i class="fas fa-chart-bar text-info"></i> All summary data</li>
+                        <li class="list-group-item"><i class="fas fa-dice text-secondary"></i> All random pick data</li>
+                        <li class="list-group-item"><i class="fas fa-layer-group text-danger"></i> The group itself</li>
+                    </ul>
+
+                    <div class="bg-light p-3 rounded">
+                        <h6>Group to be deleted:</h6>
+                        <p class="mb-1"><strong><?= htmlspecialchars($group['group_name']) ?></strong></p>
+                        <p class="mb-1">Members: <?= count($members) ?></p>
+                        <p class="mb-0">Status: <?= ucfirst($group['status']) ?></p>
+                    </div>
+
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                        <label class="form-check-label text-danger fw-bold" for="confirmDelete">
+                            I understand this action cannot be undone
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="delete_group">
+                        <input type="hidden" name="confirm_delete" value="yes">
+                        <button type="submit" class="btn btn-secondary" id="deleteButton" disabled title="Check the confirmation box to enable">
+                            <i class="fas fa-trash"></i> Delete Group Permanently
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
@@ -568,6 +681,54 @@ foreach ($memberSummary as $summary) {
                     }
                 });
             });
+
+            // Handle delete confirmation checkbox with improved event handling
+            const confirmCheckbox = document.getElementById('confirmDelete');
+            const deleteButton = document.getElementById('deleteButton');
+
+            if (confirmCheckbox && deleteButton) {
+                confirmCheckbox.addEventListener('change', function() {
+                    console.log('Checkbox changed:', this.checked); // Debug log
+                    deleteButton.disabled = !this.checked;
+
+                    // Visual feedback
+                    if (this.checked) {
+                        deleteButton.classList.remove('btn-secondary');
+                        deleteButton.classList.add('btn-danger');
+                        deleteButton.title = 'Click to delete group permanently';
+                    } else {
+                        deleteButton.classList.remove('btn-danger');
+                        deleteButton.classList.add('btn-secondary');
+                        deleteButton.title = 'Check the confirmation box to enable';
+                    }
+                });
+
+                // Also handle click events for better mobile support
+                confirmCheckbox.addEventListener('click', function() {
+                    setTimeout(() => {
+                        deleteButton.disabled = !this.checked;
+                    }, 10);
+                });
+
+                // Reset checkbox when modal is hidden
+                const deleteModal = document.getElementById('deleteGroupModal');
+                deleteModal.addEventListener('hidden.bs.modal', function() {
+                    confirmCheckbox.checked = false;
+                    deleteButton.disabled = true;
+                    deleteButton.classList.remove('btn-danger');
+                    deleteButton.classList.add('btn-secondary');
+                    deleteButton.title = 'Check the confirmation box to enable';
+                });
+
+                // Also reset when modal is shown
+                deleteModal.addEventListener('shown.bs.modal', function() {
+                    confirmCheckbox.checked = false;
+                    deleteButton.disabled = true;
+                    deleteButton.classList.remove('btn-danger');
+                    deleteButton.classList.add('btn-secondary');
+                    deleteButton.title = 'Check the confirmation box to enable';
+                });
+            }
         });
     </script>
 

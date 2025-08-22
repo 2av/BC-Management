@@ -99,26 +99,32 @@ function getGroupById($groupId) {
 // Member Functions
 function getAllMembers() {
     $pdo = getDB();
-    
+
     // Check if we're in multi-tenant mode
     if (isset($_SESSION['client_id'])) {
         $stmt = $pdo->prepare("
-            SELECT m.*, g.group_name 
-            FROM members m 
-            JOIN bc_groups g ON m.group_id = g.id 
-            WHERE g.client_id = ? 
+            SELECT DISTINCT m.*,
+                   GROUP_CONCAT(DISTINCT g.group_name ORDER BY g.group_name SEPARATOR ', ') as group_names
+            FROM members m
+            JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+            JOIN bc_groups g ON gm.group_id = g.id
+            WHERE g.client_id = ?
+            GROUP BY m.id
             ORDER BY m.member_name
         ");
         $stmt->execute([$_SESSION['client_id']]);
     } else {
         $stmt = $pdo->query("
-            SELECT m.*, g.group_name 
-            FROM members m 
-            JOIN bc_groups g ON m.group_id = g.id 
+            SELECT DISTINCT m.*,
+                   GROUP_CONCAT(DISTINCT g.group_name ORDER BY g.group_name SEPARATOR ', ') as group_names
+            FROM members m
+            JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+            JOIN bc_groups g ON gm.group_id = g.id
+            GROUP BY m.id
             ORDER BY m.member_name
         ");
     }
-    
+
     return $stmt->fetchAll();
 }
 
@@ -128,17 +134,21 @@ function getGroupMembers($groupId) {
     // Check if we're in multi-tenant mode
     if (isset($_SESSION['client_id'])) {
         $stmt = $pdo->prepare("
-            SELECT m.* FROM members m
-            JOIN bc_groups g ON m.group_id = g.id
-            WHERE m.group_id = ? AND g.client_id = ? AND m.status = 'active'
-            ORDER BY m.member_number
+            SELECT m.*, gm.member_number, gm.joined_date, gm.status as assignment_status
+            FROM group_members gm
+            JOIN members m ON gm.member_id = m.id
+            JOIN bc_groups g ON gm.group_id = g.id
+            WHERE gm.group_id = ? AND g.client_id = ? AND gm.status = 'active'
+            ORDER BY gm.member_number
         ");
         $stmt->execute([$groupId, $_SESSION['client_id']]);
     } else {
         $stmt = $pdo->prepare("
-            SELECT * FROM members
-            WHERE group_id = ? AND status = 'active'
-            ORDER BY member_number
+            SELECT m.*, gm.member_number, gm.joined_date, gm.status as assignment_status
+            FROM group_members gm
+            JOIN members m ON gm.member_id = m.id
+            WHERE gm.group_id = ? AND gm.status = 'active'
+            ORDER BY gm.member_number
         ");
         $stmt->execute([$groupId]);
     }
@@ -149,10 +159,11 @@ function getGroupMembers($groupId) {
 function getMemberGroups($memberId) {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT DISTINCT g.*, gm.member_id, gm.id as assignment_id, gm.member_number, gm.status as member_status, gm.joined_date as member_joined_date
+        SELECT g.*, gm.member_id, gm.id as assignment_id, gm.member_number, gm.status as member_status, gm.joined_date as member_joined_date
         FROM bc_groups g
         JOIN group_members gm ON g.id = gm.group_id
         WHERE gm.member_id = ? AND gm.status = 'active'
+        GROUP BY g.id
         ORDER BY g.start_date DESC
     ");
     $stmt->execute([$memberId]);

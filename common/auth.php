@@ -103,9 +103,10 @@ function adminLogin($username, $password) {
 function memberLogin($username, $password) {
     $pdo = getDB();
     $stmt = $pdo->prepare("
-        SELECT m.*, g.group_name, g.client_id, c.client_name
+        SELECT m.*, g.group_name, g.client_id, c.client_name, gm.group_id, gm.member_number
         FROM members m
-        JOIN bc_groups g ON m.group_id = g.id
+        JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+        JOIN bc_groups g ON gm.group_id = g.id
         JOIN clients c ON g.client_id = c.id
         WHERE m.username = ? AND m.status = 'active' AND c.status = 'active'
     ");

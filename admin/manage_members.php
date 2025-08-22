@@ -21,10 +21,10 @@ $pdo = getDB();
 $stmt = $pdo->prepare("
     SELECT DISTINCT m1.member_name
     FROM members m1
-    WHERE m1.member_name NOT IN (
-        SELECT m2.member_name
-        FROM members m2
-        WHERE m2.group_id = ?
+    WHERE m1.id NOT IN (
+        SELECT gm.member_id
+        FROM group_members gm
+        WHERE gm.group_id = ? AND gm.status = 'active'
     )
     ORDER BY m1.member_name
 ");
@@ -50,7 +50,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
             $pdo->beginTransaction();
 
             // Check if member is already in this group
-            $checkStmt = $pdo->prepare("SELECT id FROM members WHERE group_id = ? AND member_name = ?");
+            $checkStmt = $pdo->prepare("
+                SELECT gm.id
+                FROM group_members gm
+                JOIN members m ON gm.member_id = m.id
+                WHERE gm.group_id = ? AND m.member_name = ? AND gm.status = 'active'
+            ");
             $checkStmt->execute([$groupId, $memberName]);
             if ($checkStmt->fetch()) {
                 throw new Exception("Member '{$memberName}' is already in this group.");
@@ -90,14 +95,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
                 }
             }
 
-            // Insert member
-            $stmt = $pdo->prepare("
-                INSERT INTO members (group_id, member_name, member_number, username, password, status)
-                VALUES (?, ?, ?, ?, ?, 'active')
-            ");
-            $stmt->execute([$groupId, $memberName, $nextMemberNumber, $username, $password]);
+            // Check if member already exists in the system
+            $stmt = $pdo->prepare("SELECT id FROM members WHERE member_name = ?");
+            $stmt->execute([$memberName]);
+            $existingMember = $stmt->fetch();
 
-            $memberId = $pdo->lastInsertId();
+            if ($existingMember) {
+                // Member exists, just add them to this group
+                $memberId = $existingMember['id'];
+            } else {
+                // Create new member
+                $stmt = $pdo->prepare("
+                    INSERT INTO members (member_name, username, password, status)
+                    VALUES (?, ?, ?, 'active')
+                ");
+                $stmt->execute([$memberName, $username, $password]);
+                $memberId = $pdo->lastInsertId();
+            }
+
+            // Add member to group
+            $stmt = $pdo->prepare("
+                INSERT INTO group_members (group_id, member_id, member_number, status, joined_date)
+                VALUES (?, ?, ?, 'active', NOW())
+            ");
+            $stmt->execute([$groupId, $memberId, $nextMemberNumber]);
 
             // Create member summary with both group_id and member_id
             $stmt = $pdo->prepare("
@@ -150,7 +171,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $pdo = getDB();
 
             // Get member details first
-            $stmt = $pdo->prepare("SELECT * FROM members WHERE id = ? AND group_id = ?");
+            $stmt = $pdo->prepare("
+                SELECT m.*, gm.member_number, gm.status as assignment_status
+                FROM members m
+                JOIN group_members gm ON m.id = gm.member_id
+                WHERE m.id = ? AND gm.group_id = ? AND gm.status = 'active'
+            ");
             $stmt->execute([$memberId, $groupId]);
             $memberToRemove = $stmt->fetch();
 
@@ -186,20 +212,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $stmt = $pdo->prepare("DELETE FROM member_summary WHERE group_id = ? AND member_id = ?");
             $stmt->execute([$groupId, $memberId]);
 
-            // Remove member record
-            $stmt = $pdo->prepare("DELETE FROM members WHERE id = ? AND group_id = ?");
-            $stmt->execute([$memberId, $groupId]);
+            // Remove member from group (set status to inactive instead of deleting)
+            $stmt = $pdo->prepare("UPDATE group_members SET status = 'inactive' WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
 
             // Update member numbers for remaining members (renumber them)
-            $stmt = $pdo->prepare("SELECT id, member_number FROM members WHERE group_id = ? ORDER BY member_number");
+            $stmt = $pdo->prepare("
+                SELECT gm.member_id, gm.member_number
+                FROM group_members gm
+                WHERE gm.group_id = ? AND gm.status = 'active'
+                ORDER BY gm.member_number
+            ");
             $stmt->execute([$groupId]);
             $remainingMembers = $stmt->fetchAll();
 
             $newMemberNumber = 1;
             foreach ($remainingMembers as $member) {
                 if ($member['member_number'] != $newMemberNumber) {
-                    $updateStmt = $pdo->prepare("UPDATE members SET member_number = ? WHERE id = ?");
-                    $updateStmt->execute([$newMemberNumber, $member['id']]);
+                    $updateStmt = $pdo->prepare("UPDATE group_members SET member_number = ? WHERE group_id = ? AND member_id = ?");
+                    $updateStmt->execute([$newMemberNumber, $groupId, $member['member_id']]);
                 }
                 $newMemberNumber++;
             }
@@ -247,13 +278,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
         try {
             $pdo = getDB();
             
+            // First verify the member is in this group
+            $stmt = $pdo->prepare("SELECT 1 FROM group_members WHERE group_id = ? AND member_id = ? AND status = 'active'");
+            $stmt->execute([$groupId, $memberId]);
+            if (!$stmt->fetch()) {
+                throw new Exception("Member not found in this group.");
+            }
+
             if (!empty($newPassword)) {
                 $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE members SET username = ?, password = ?, phone = ?, email = ? WHERE id = ? AND group_id = ?");
-                $stmt->execute([$username, $hashedPassword, $phone, $email, $memberId, $groupId]);
+                $stmt = $pdo->prepare("UPDATE members SET username = ?, password = ?, phone = ?, email = ? WHERE id = ?");
+                $stmt->execute([$username, $hashedPassword, $phone, $email, $memberId]);
             } else {
-                $stmt = $pdo->prepare("UPDATE members SET username = ?, phone = ?, email = ? WHERE id = ? AND group_id = ?");
-                $stmt->execute([$username, $phone, $email, $memberId, $groupId]);
+                $stmt = $pdo->prepare("UPDATE members SET username = ?, phone = ?, email = ? WHERE id = ?");
+                $stmt->execute([$username, $phone, $email, $memberId]);
             }
             
             $success = 'Member credentials updated successfully!';

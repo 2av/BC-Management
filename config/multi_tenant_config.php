@@ -105,15 +105,8 @@ if (!function_exists('getCurrentClientId')) {
             return $_SESSION['client_id'];
         }
         if (isMemberLoggedIn()) {
-            // Get client_id through member's group
-            $member = getCurrentMember();
-            if ($member) {
-                $pdo = getDB();
-                $stmt = $pdo->prepare("SELECT client_id FROM bc_groups WHERE id = ?");
-                $stmt->execute([$member['group_id']]);
-                $group = $stmt->fetch();
-                return $group ? $group['client_id'] : null;
-            }
+            // Get client_id through member's group (from session)
+            return $_SESSION['client_id'] ?? null;
         }
         return null;
     }

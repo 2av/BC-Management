@@ -83,7 +83,7 @@ $stmt = $pdo->query("
            sp.duration_months,
            DATEDIFF(cs.end_date, CURDATE()) as days_remaining,
            (SELECT COUNT(*) FROM bc_groups WHERE client_id = c.id) as total_groups,
-           (SELECT COUNT(*) FROM members m JOIN bc_groups g ON m.group_id = g.id WHERE g.client_id = c.id AND m.status = 'active') as total_members
+           (SELECT COUNT(DISTINCT gm.member_id) FROM group_members gm JOIN bc_groups g ON gm.group_id = g.id WHERE g.client_id = c.id AND gm.status = 'active') as total_members
     FROM clients c
     LEFT JOIN client_subscriptions cs ON c.current_subscription_id = cs.id
     LEFT JOIN subscription_plans sp ON cs.plan_id = sp.id
@@ -134,11 +134,12 @@ if (isset($_GET['view'])) {
         
         // Get client's members
         $stmt = $pdo->prepare("
-            SELECT m.*, g.group_name 
-            FROM members m 
-            JOIN bc_groups g ON m.group_id = g.id 
-            WHERE g.client_id = ? 
-            ORDER BY m.created_at DESC 
+            SELECT DISTINCT m.*, g.group_name
+            FROM members m
+            JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+            JOIN bc_groups g ON gm.group_id = g.id
+            WHERE g.client_id = ?
+            ORDER BY m.created_at DESC
             LIMIT 10
         ");
         $stmt->execute([$_GET['view']]);

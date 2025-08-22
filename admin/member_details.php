@@ -11,14 +11,17 @@ if ($memberId <= 0) {
 
 $pdo = getDB();
 
-// Get member details with group info
+// Get member details with group info (using first group assignment)
 $stmt = $pdo->prepare("
     SELECT m.*, g.group_name, g.monthly_contribution, g.total_members, g.status as group_status,
+           gm.member_number, gm.joined_date, gm.status as assignment_status,
            ms.total_paid, ms.given_amount, ms.profit
-    FROM members m 
-    JOIN bc_groups g ON m.group_id = g.id 
-    LEFT JOIN member_summary ms ON m.id = ms.member_id
+    FROM members m
+    JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+    JOIN bc_groups g ON gm.group_id = g.id
+    LEFT JOIN member_summary ms ON m.id = ms.member_id AND g.id = ms.group_id
     WHERE m.id = ?
+    LIMIT 1
 ");
 $stmt->execute([$memberId]);
 $member = $stmt->fetch();
