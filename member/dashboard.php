@@ -92,7 +92,9 @@ require_once 'includes/header.php';
         --accent-purple: #8b5cf6;
 
         /* Gradients */
-        --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        --primary-gradient
+linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)
+
         --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
         --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
@@ -121,14 +123,16 @@ require_once 'includes/header.php';
     }
 
     .welcome-banner {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-        border-radius: 20px;
-        padding: 2rem;
-        margin-bottom: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        border-radius: 24px;
+        padding: 2.5rem;
+        margin-bottom: 2.5rem;
         color: white;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
     }
 
     .welcome-content {
@@ -145,6 +149,29 @@ require_once 'includes/header.php';
         font-size: 1.1rem;
         opacity: 0.9;
         margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+    }
+
+    .greeting i {
+        color: #ffd700;
+        animation: rotate-slow 4s linear infinite;
+        filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+    }
+
+    /* Animated welcome elements */
+    .welcome-text .member-name {
+        animation: typewriter 2s steps(40, end);
+        overflow: hidden;
+        white-space: nowrap;
+        border-right: 3px solid #fff;
+        animation-fill-mode: forwards;
+    }
+
+    .welcome-subtitle {
+        animation: fade-in-up 1s ease-out 1s both;
     }
 
     .welcome-text .member-name {
@@ -174,7 +201,18 @@ require_once 'includes/header.php';
         border-radius: 20px;
         backdrop-filter: blur(10px);
         font-size: 0.9rem;
+        animation: slide-in-right 0.8s ease-out;
+        transition: all 0.3s ease;
     }
+
+    .info-item:hover {
+        transform: translateX(10px);
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .info-item:nth-child(1) { animation-delay: 0.5s; }
+    .info-item:nth-child(2) { animation-delay: 0.8s; }
+    .info-item:nth-child(3) { animation-delay: 1.1s; }
 
     .welcome-decoration {
         position: absolute;
@@ -189,6 +227,21 @@ require_once 'includes/header.php';
         position: absolute;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.1);
+        animation: float 6s ease-in-out infinite;
+    }
+
+    /* Add sparkle effect to decoration circles */
+    .decoration-circle::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 4px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        animation: sparkle 2s ease-in-out infinite;
     }
 
     .circle-1 {
@@ -220,19 +273,90 @@ require_once 'includes/header.php';
         50% { transform: translateY(-20px) rotate(180deg); }
     }
 
+    /* Icon movement animations */
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
+    }
+
+    @keyframes swing {
+        0%, 100% { transform: rotate(-3deg); }
+        50% { transform: rotate(3deg); }
+    }
+
+    @keyframes pulse-glow {
+        0%, 100% { 
+            transform: scale(1);
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+        50% { 
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
+        }
+    }
+
+    @keyframes slide-in-left {
+        from { transform: translateX(-100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slide-in-right {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes zoom-in {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes rotate-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    @keyframes wave {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-5px) rotate(5deg); }
+        75% { transform: translateY(-3px) rotate(-3deg); }
+    }
+
+    @keyframes sparkle {
+        0%, 100% { opacity: 0; transform: scale(0); }
+        50% { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes typewriter {
+        from { width: 0; }
+        to { width: 100%; }
+    }
+
+    @keyframes fade-in-up {
+        from { 
+            opacity: 0; 
+            transform: translateY(30px); 
+        }
+        to { 
+            opacity: 1; 
+            transform: translateY(0); 
+        }
+    }
+
     .stats-section {
         margin-bottom: 2rem;
     }
 
     .stats-card {
-        border-radius: 30px;
-        padding: 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        border: none;
-        transition: all 0.3s ease;
+        border-radius: 24px;
+        padding: 2.5rem;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
         color: white;
+        backdrop-filter: blur(10px);
     }
 
     /* Individual card gradient backgrounds */
@@ -269,24 +393,41 @@ require_once 'includes/header.php';
     }
 
     .stat-icon {
-        width: 60px;
-        height: 60px;
-        border-radius: 15px;
+        width: 70px;
+        height: 70px;
+        border-radius: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.5rem;
-        color: rgba(255, 255, 255, 0.9);
-        margin-bottom: 1rem;
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
+        font-size: 1.75rem;
+        color: rgba(255, 255, 255, 0.95);
+        margin-bottom: 1.5rem;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        animation: pulse-glow 3s ease-in-out infinite;
+        transition: all 0.3s ease;
     }
 
+    .stat-icon:hover {
+        animation: bounce 0.6s ease-in-out;
+        transform: scale(1.1);
+    }
+
+    /* Animated stat icons */
+    .stat-icon.users-icon { animation-delay: 0s; }
+    .stat-icon.money-icon { animation-delay: 0.5s; }
+    .stat-icon.hand-icon { animation-delay: 1s; }
+    .stat-icon.chart-icon { animation-delay: 1.5s; }
+
     .stat-value {
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: 2.5rem;
+        font-weight: 800;
         color: white;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.75rem;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        letter-spacing: -0.5px;
     }
 
     .stat-label {
@@ -298,14 +439,16 @@ require_once 'includes/header.php';
     }
 
     .groups-section {
-        background: var(--primary-gradient);
-        border-radius: 20px;
-        padding: 2rem;
-        box-shadow: var(--card-shadow);
-        margin-bottom: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 24px;
+        padding: 2.5rem;
+        box-shadow: 0 20px 40px rgba(102, 126, 234, 0.15);
+        margin-bottom: 2.5rem;
         color: white;
         position: relative;
         overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
     }
 
     .groups-section::before {
@@ -421,7 +564,7 @@ require_once 'includes/header.php';
 
     .group-card.active .detail-item:hover {
         background: rgba(255, 255, 255, 0.25);
-    }
+    }   
 
     .group-card.active .detail-value {
         color: white;
@@ -582,17 +725,18 @@ require_once 'includes/header.php';
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 1.5rem 1rem;
-        background: var(--bg-primary);
-        border-radius: 12px;
+        padding: 2rem 1rem;
+        background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 20px;
         text-decoration: none;
         color: var(--text-primary);
-        transition: all 0.3s ease;
-        box-shadow: var(--card-shadow);
-        border: 1px solid var(--primary-200);
-        height: 100px;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        height: 120px;
         position: relative;
         overflow: hidden;
+        backdrop-filter: blur(10px);
     }
 
     .quick-action-btn::before {
@@ -606,17 +750,33 @@ require_once 'includes/header.php';
     }
 
     .quick-action-btn:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--hover-shadow);
+        transform: translateY(-8px) scale(1.05);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
         color: var(--accent-blue);
         text-decoration: none;
+        border-color: var(--accent-blue);
+    }
+
+    .quick-action-btn:hover i {
+        transform: scale(1.2);
+        color: var(--accent-blue);
     }
 
     .quick-action-btn i {
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
+        font-size: 2rem;
+        margin-bottom: 0.75rem;
         color: var(--accent-blue);
+        transition: all 0.3s ease;
+        animation: swing 2s ease-in-out infinite;
     }
+
+    /* Different animation delays for quick action icons */
+    .quick-action-btn:nth-child(1) i { animation-delay: 0s; }
+    .quick-action-btn:nth-child(2) i { animation-delay: 0.3s; }
+    .quick-action-btn:nth-child(3) i { animation-delay: 0.6s; }
+    .quick-action-btn:nth-child(4) i { animation-delay: 0.9s; }
+    .quick-action-btn:nth-child(5) i { animation-delay: 1.2s; }
+    .quick-action-btn:nth-child(6) i { animation-delay: 1.5s; }
 
     .quick-action-btn span {
         font-size: 0.85rem;
@@ -780,37 +940,73 @@ require_once 'includes/header.php';
 
     /* Animation for loading */
     .fade-in {
-        animation: fadeIn 0.5s ease-in;
+        animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
+        from { 
+            opacity: 0; 
+            transform: translateY(30px) scale(0.95); 
+        }
+        to { 
+            opacity: 1; 
+            transform: translateY(0) scale(1); 
+        }
+    }
+
+    /* Professional loading animation */
+    .loading-shimmer {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    /* Professional hover effects */
+    .professional-hover {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .professional-hover:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
     }
 
     /* Design Toggle Buttons */
     .design-toggle {
         display: flex;
         gap: 0.5rem;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 0.25rem;
-        border-radius: 25px;
-        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.5rem;
+        border-radius: 30px;
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     }
 
     .toggle-btn {
         background: transparent;
         border: none;
-        color: rgba(255, 255, 255, 0.7);
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 500;
+        color: rgba(255, 255, 255, 0.8);
+        padding: 0.75rem 1.25rem;
+        border-radius: 25px;
+        font-size: 0.9rem;
+        font-weight: 600;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         align-items: center;
-        gap: 0.375rem;
+        gap: 0.5rem;
+        letter-spacing: 0.5px;
+        animation: slide-in-left 0.6s ease-out;
+    }
+
+    .toggle-btn i {
+        animation: swing 2s ease-in-out infinite;
     }
 
     .toggle-btn:hover {
@@ -819,33 +1015,46 @@ require_once 'includes/header.php';
     }
 
     .toggle-btn.active {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.25);
         color: white;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        transform: scale(1.05);
     }
 
     /* Design Views */
     .design-view {
         display: none;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: all 0.3s ease;
     }
 
     .design-view.active {
-        display: block;
+        display: block !important;
+        opacity: 1;
+        transform: translateY(0);
     }
 
     /* Enhanced Cards Design */
     .enhanced-group-card {
         background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-        border-radius: 20px;
+        border-radius: 24px;
         padding: 0;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        transition: all 0.4s ease;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         cursor: pointer;
         position: relative;
         overflow: hidden;
         margin-bottom: 1.5rem;
+        backdrop-filter: blur(10px);
+        animation: zoom-in 0.6s ease-out;
     }
+
+    .enhanced-group-card:nth-child(1) { animation-delay: 0.1s; }
+    .enhanced-group-card:nth-child(2) { animation-delay: 0.2s; }
+    .enhanced-group-card:nth-child(3) { animation-delay: 0.3s; }
+    .enhanced-group-card:nth-child(4) { animation-delay: 0.4s; }
 
     .enhanced-group-card::before {
         content: '';
@@ -1031,6 +1240,13 @@ require_once 'includes/header.php';
         justify-content: center;
         font-size: 1rem;
         color: white;
+        animation: wave 3s ease-in-out infinite;
+        transition: all 0.3s ease;
+    }
+
+    .detail-icon:hover {
+        transform: scale(1.2) rotate(10deg);
+        animation: bounce 0.6s ease-in-out;
     }
 
     .detail-icon.members { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
@@ -1410,8 +1626,8 @@ require_once 'includes/header.php';
     }
 
     .stat-label {
-        font-size: 0.85rem;
-        color: #64748b;
+        font-size: 1rem;
+        color:rgb(245, 245, 245);
         font-weight: 500;
     }
 
@@ -1420,9 +1636,9 @@ require_once 'includes/header.php';
     }
 
     .stat-value {
-        font-size: 0.9rem;
+        font-size: 1.2rem;
         font-weight: 700;
-        color: #1e293b;
+        color:rgb(255, 255, 255);
     }
 
     .timeline-item.active .stat-value {
@@ -1791,23 +2007,33 @@ require_once 'includes/header.php';
 </style>
 
 <div class="dashboard-container">
+    <!-- Animated Background Particles -->
+    <div class="animated-bg" id="animatedBg"></div>
+    
     <div class="container-fluid">
         <!-- Welcome Banner -->
         <div class="welcome-banner fade-in">
             <div class="welcome-content">
                 <div class="welcome-text">
-                    <div class="greeting">Good <?= date('H') < 12 ? 'Morning' : (date('H') < 17 ? 'Afternoon' : 'Evening') ?></div>
+                    <div class="greeting">
+                        <i class="fas fa-sun"></i>
+                        Good <?= date('H') < 12 ? 'Morning' : (date('H') < 17 ? 'Afternoon' : 'Evening') ?>
+                    </div>
                     <div class="member-name"><?= htmlspecialchars($member['member_name']) ?>!</div>
-                    <div class="welcome-subtitle">Ready to manage your BC groups and payments</div>
+                    <div class="welcome-subtitle">Welcome to your professional BC Management Dashboard</div>
                 </div>
                 <div class="welcome-info">
                     <div class="info-item">
                         <i class="fas fa-rupee-sign"></i>
-                        <span>Monthly Payment: <?= formatCurrency($totalPendingPayments) ?></span>
+                        <span>Pending: <?= formatCurrency($totalPendingPayments) ?></span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Profit: <?= formatCurrency($totalProfit) ?></span>
                     </div>
                     <div class="info-item">
                         <i class="fas fa-clock"></i>
-                        <span>Last Login: <?= date('M d, Y g:i A') ?></span>
+                        <span><?= date('M d, Y g:i A') ?></span>
                     </div>
                 </div>
             </div>
@@ -1823,43 +2049,42 @@ require_once 'includes/header.php';
         <!-- Financial Summary Stats -->
         <div class="stats-section">
             <div class="row">
-                            <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
+                <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
                     <div class="stats-card fade-in">
-                        <div class="stat-icon paid">
-                            <i class="fas fa-money-bill-wave"></i>
+                        <div class="stat-icon users-icon">
+                            <i class="fas fa-users"></i>
                         </div>
                         <div class="stat-value"><?= count($memberGroups) ?></div>
-                        <div class="stat-label">My Groups</div>
+                        <div class="stat-label">Active Groups</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
                     <div class="stats-card fade-in">
-                        <div class="stat-icon paid">
+                        <div class="stat-icon money-icon">
                             <i class="fas fa-money-bill-wave"></i>
                         </div>
                         <div class="stat-value"><?= formatCurrency($totalPaidAmount) ?></div>
-                        <div class="stat-label">Total Paid</div>
+                        <div class="stat-label">Total Invested</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
                     <div class="stats-card fade-in">
-                        <div class="stat-icon received">
+                        <div class="stat-icon hand-icon">
                             <i class="fas fa-hand-holding-usd"></i>
                         </div>
                         <div class="stat-value"><?= formatCurrency($totalReceivedAmount) ?></div>
-                        <div class="stat-label">Total Received</div>
+                        <div class="stat-label">Total Returns</div>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
                     <div class="stats-card fade-in">
-                        <div class="stat-icon pending">
-                            <i class="fas fa-clock"></i>
+                        <div class="stat-icon chart-icon">
+                            <i class="fas fa-chart-line"></i>
                         </div>
-                        <div class="stat-value"><?= formatCurrency($totalPendingPayments) ?></div>
-                        <div class="stat-label">Pending Payments</div>
+                        <div class="stat-value"><?= formatCurrency($totalProfit) ?></div>
+                        <div class="stat-label">Net Profit</div>
                     </div>
                 </div>
-                
             </div>
         </div>
 
@@ -1878,16 +2103,13 @@ require_once 'includes/header.php';
                 </div>
                 <!-- Design Toggle Buttons -->
                 <div class="design-toggle">
-                    <button class="toggle-btn active" onclick="switchDesign('cards')" data-design="cards">
+                    <button class="toggle-btn" data-design="cards">
                         <i class="fas fa-th-large"></i> Cards
                     </button>
-                    <button class="toggle-btn" onclick="switchDesign('list')" data-design="list">
+                    <button class="toggle-btn" data-design="list">
                         <i class="fas fa-list"></i> List
                     </button>
-                    <button class="toggle-btn" onclick="switchDesign('timeline')" data-design="timeline">
-                        <i class="fas fa-timeline"></i> Timeline
-                    </button>
-                    <button class="toggle-btn" onclick="switchDesign('table')" data-design="table">
+                    <button class="toggle-btn" data-design="table">
                         <i class="fas fa-table"></i> Table
                     </button>
                 </div>
@@ -1902,7 +2124,7 @@ require_once 'includes/header.php';
             <?php else: ?>
 
                 <!-- Design 1: Enhanced Cards View (Default) -->
-                <div id="cards-view" class="design-view active">
+                <div id="cards-view" class="design-view active ">
                     <div class="row">
                         <?php foreach ($memberGroups as $group):
                             // Get group status and calculations
@@ -1949,7 +2171,7 @@ require_once 'includes/header.php';
                             $progressPercentage = ($group['total_members'] > 0) ? ($completedMonths / $group['total_members']) * 100 : 0;
                         ?>
                             <div class="col-lg-6 col-md-12 mb-4">
-                                <div class="enhanced-group-card <?= $group['id'] == $currentGroupId ? 'active' : '' ?>"
+                                <div class="enhanced-group-card <?= $group['id'] == $currentGroupId ? '' : '' ?>"
                                      onclick="selectGroup(<?= $group['id'] ?>)">
 
                                     <!-- Card Header -->
@@ -2069,7 +2291,7 @@ require_once 'includes/header.php';
 
                         $progressPercentage = ($group['total_members'] > 0) ? ($completedMonths / $group['total_members']) * 100 : 0;
                     ?>
-                        <div class="list-group-item <?= $group['id'] == $currentGroupId ? 'active' : '' ?>" onclick="selectGroup(<?= $group['id'] ?>)">
+                        <div class="list-group-item <?= $group['id'] == $currentGroupId ? '' : '' ?>" onclick="selectGroup(<?= $group['id'] ?>)">
                             <div class="list-item-content">
                                 <div class="list-header">
                                     <div class="list-title-section">
@@ -2151,7 +2373,7 @@ require_once 'includes/header.php';
 
                             $progressPercentage = ($group['total_members'] > 0) ? ($completedMonths / $group['total_members']) * 100 : 0;
                         ?>
-                            <div class="timeline-item <?= $group['id'] == $currentGroupId ? 'active' : '' ?>" onclick="selectGroup(<?= $group['id'] ?>)">
+                            <div class="timeline-item <?= $group['id'] == $currentGroupId ? '' : '' ?>" onclick="selectGroup(<?= $group['id'] ?>)">
                                 <div class="timeline-marker status-<?= $groupStatus ?>">
                                     <i class="fas fa-users"></i>
                                 </div>
@@ -2325,7 +2547,7 @@ require_once 'includes/header.php';
         <div class="quick-actions-section fade-in">
             <div class="section-header">
                 <h5 class="section-title">
-                    <i class="fas fa-bolt"></i>
+                    <i class="fas fa-rocket"></i>
                     Quick Actions
                 </h5>
             </div>
@@ -2344,20 +2566,20 @@ require_once 'includes/header.php';
                 </div>
                 <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
                     <a href="group_view.php" class="quick-action-btn">
-                        <i class="fas fa-users"></i>
-                        <span>View Groups</span>
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Analytics</span>
                     </a>
                 </div>
                 <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
                     <a href="edit_profile.php" class="quick-action-btn">
                         <i class="fas fa-user-edit"></i>
-                        <span>Edit Profile</span>
+                        <span>Profile</span>
                     </a>
                 </div>
                 <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
                     <a href="change_password.php" class="quick-action-btn">
-                        <i class="fas fa-key"></i>
-                        <span>Change Password</span>
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Security</span>
                     </a>
                 </div>
                 <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
@@ -2374,31 +2596,50 @@ require_once 'includes/header.php';
 <script>
 // Design switching functionality
 function switchDesign(designType) {
+    console.log('Switching to design:', designType);
+    
+    // First, hide all design views
+    document.querySelectorAll('.design-view').forEach(view => {
+        view.classList.remove('active');
+        view.style.display = 'none';
+    });
+    
+    // Then, show the target view
+    const targetView = document.getElementById(`${designType}-view`);
+    if (targetView) {
+        targetView.classList.add('active');
+        targetView.style.display = 'block';
+        targetView.style.opacity = '1';
+        targetView.style.transform = 'translateY(0)';
+    }
+    
     // Update toggle buttons
     document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.classList.remove('active');
     });
+    
     document.querySelector(`[data-design="${designType}"]`).classList.add('active');
 
-    // Update design views
-    document.querySelectorAll('.design-view').forEach(view => {
-        view.classList.remove('active');
-    });
-    document.getElementById(`${designType}-view`).classList.add('active');
+// Update design views
+document.querySelectorAll('.design-view').forEach(view => {
+    view.classList.remove('active');
+});
+document.getElementById(`${designType}-view`).classList.add('active');
 
-    // Store preference in localStorage
-    localStorage.setItem('preferredGroupDesign', designType);
 
-    // Add animation effect
-    const activeView = document.getElementById(`${designType}-view`);
-    activeView.style.opacity = '0';
-    activeView.style.transform = 'translateY(20px)';
+     // Store preference in localStorage
+     localStorage.setItem('preferredGroupDesign', designType);
 
-    setTimeout(() => {
-        activeView.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-        activeView.style.opacity = '1';
-        activeView.style.transform = 'translateY(0)';
-    }, 50);
+// Add animation effect
+const activeView = document.getElementById(`${designType}-view`);
+activeView.style.opacity = '0';
+activeView.style.transform = 'translateY(20px)';
+
+setTimeout(() => {
+    activeView.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    activeView.style.opacity = '1';
+    activeView.style.transform = 'translateY(0)';
+}, 50);
 }
 
 function selectGroup(groupId) {
@@ -2519,8 +2760,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Add smooth transitions for design switching
-    document.querySelectorAll('.toggle-btn').forEach(btn => {
+      // Add smooth transitions for design switching
+      document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const design = this.getAttribute('data-design');
             switchDesign(design);
@@ -2547,24 +2788,95 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 }
 
-/* Additional responsive improvements */
-@media (max-width: 576px) {
-    .group-details {
-        grid-template-columns: 1fr 1fr;
+    /* Additional responsive improvements */
+    @media (max-width: 576px) {
+        .group-details {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .detail-item {
+            padding: 0.5rem 0.25rem;
+        }
+
+        .detail-value {
+            font-size: 0.9rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+        }
     }
 
-    .detail-item {
-        padding: 0.5rem 0.25rem;
+    /* Animated background particles */
+    .animated-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: -1;
+        overflow: hidden;
     }
 
-    .detail-value {
-        font-size: 0.9rem;
+    .particle {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        animation: float-particle 15s linear infinite;
     }
 
-    .section-title {
-        font-size: 1.25rem;
+    @keyframes float-particle {
+        0% {
+            transform: translateY(100vh) translateX(0);
+            opacity: 0;
+        }
+        10% {
+            opacity: 1;
+        }
+        90% {
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(-100px) translateX(100px);
+            opacity: 0;
+        }
     }
-}
+
+    /* Animated progress bars */
+    .progress-bar {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .progress-bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: progress-shine 2s ease-in-out infinite;
+    }
+
+    @keyframes progress-shine {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+
+    /* Animated section headers */
+    .section-title i {
+        animation: swing 3s ease-in-out infinite;
+        display: inline-block;
+    }
+
+    /* Animated count badges */
+    .count-badge {
+        animation: pulse-glow 2s ease-in-out infinite;
+    }
 </style>
 
 <?php require_once 'includes/footer.php'; ?>
