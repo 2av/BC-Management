@@ -266,6 +266,33 @@ require_once 'includes/header.php';
             opacity: 0.6;
         }
 
+        /* Invoice Button Styles */
+        .invoice-btn {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            border: 1px solid #007bff;
+            color: #007bff;
+            background: transparent;
+        }
+
+        .invoice-btn:hover {
+            background-color: #007bff;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+        }
+
+        .invoice-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .invoice-btn i {
+            font-size: 14px;
+        }
+
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
             70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
@@ -560,6 +587,7 @@ require_once 'includes/header.php';
                             <th>Total Paid</th>
                             <th>Given</th>
                             <th>Profit</th>
+                            <th>Invoice</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -578,7 +606,12 @@ require_once 'includes/header.php';
                                         <?php
                                         $payment = $paymentsMatrix[$memberRow['id']][$i] ?? null;
                                         if ($payment) {
-                                            echo formatCurrency($payment['payment_amount']);
+                                            // Show actual payment amount when payment is completed
+                                            echo '<div class="text-success fw-bold">' . formatCurrency($payment['payment_amount']) . '</div>';
+                                            // Show payment date below the amount in small font
+                                            if ($payment['payment_date']) {
+                                                echo '<div class="text-muted" style="font-size: 0.60rem; margin-top: 2px;">' . formatDate($payment['payment_date']) . '</div>';
+                                            }
                                         } else {
                                             // Show expected amount or pending indicator
                                             $bid = array_filter($monthlyBids, fn($b) => $b['month_number'] == $i);
@@ -610,6 +643,16 @@ require_once 'includes/header.php';
                                     $summary = $summaryByMember[$memberRow['id']] ?? null;
                                     echo $summary ? formatCurrency($summary['profit']) : '₹0';
                                     ?>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary invoice-btn" 
+                                            data-member-id="<?= $memberRow['id'] ?>"
+                                            data-member-name="<?= htmlspecialchars($memberRow['member_name']) ?>"
+                                            data-group-id="<?= $selectedGroupId ?>"
+                                            data-group-name="<?= htmlspecialchars($group['group_name']) ?>"
+                                            title="Download Invoice for <?= htmlspecialchars($memberRow['member_name']) ?>">
+                                        <i class="fas fa-file-invoice"></i>
+                                    </button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -749,6 +792,50 @@ require_once 'includes/header.php';
                     if (!tooltip.contains(e.target)) {
                         tooltip.classList.remove('active');
                     }
+                });
+            });
+
+            // Handle invoice download button clicks
+            document.querySelectorAll('.invoice-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const memberId = this.getAttribute('data-member-id');
+                    const memberName = this.getAttribute('data-member-name');
+                    const groupId = this.getAttribute('data-group-id');
+                    const groupName = this.getAttribute('data-group-name');
+
+                    // Show loading state
+                    const originalHTML = this.innerHTML;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    this.disabled = true;
+
+                    // Generate and open invoice in new tab/page
+                    const sessionId = '<?= session_id() ?>';
+                    const url = `generate_invoice.php?member_id=${memberId}&group_id=${groupId}&session_id=${sessionId}`;
+                    
+                    try {
+                        // Try to open in new tab first
+                        const invoiceWindow = window.open(url, '_blank');
+                        
+                        // Check if popup was blocked
+                        if (!invoiceWindow || invoiceWindow.closed || typeof invoiceWindow.closed == 'undefined') {
+                            // Fallback: redirect current page to invoice
+                            if (confirm('Popup blocked! Click OK to view invoice in current tab, or Cancel to allow popups and try again.')) {
+                                window.location.href = url;
+                            }
+                        } else {
+                            // Success - focus the new window
+                            invoiceWindow.focus();
+                        }
+                    } catch (error) {
+                        // Final fallback - redirect to invoice page
+                        window.location.href = url;
+                    }
+
+                    // Reset button state after a short delay
+                    setTimeout(() => {
+                        this.innerHTML = originalHTML;
+                        this.disabled = false;
+                    }, 1000);
                 });
             });
         });
