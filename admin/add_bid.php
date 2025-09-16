@@ -18,6 +18,17 @@ $members = getGroupMembers($groupId);
 $monthlyBids = getMonthlyBids($groupId);
 $usedMonths = array_column($monthlyBids, 'month_number');
 
+// Get database connection for member validation
+$pdo = getDB();
+
+// Pre-fetch which members have won in this group to optimize dropdown display
+$stmt = $pdo->prepare("SELECT taken_by_member_id, month_number FROM monthly_bids WHERE group_id = ?");
+$stmt->execute([$groupId]);
+$wonMembers = [];
+while ($row = $stmt->fetch()) {
+    $wonMembers[$row['taken_by_member_id']] = $row['month_number'];
+}
+
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -46,16 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$memberExists) {
             $error = 'Selected member does not belong to this group.';
         } else {
-            // Check if the selected member has already won a month
-            $selectedMember = null;
-            foreach ($members as $member) {
-                if ($member['id'] == $takenByMemberId) {
-                    $selectedMember = $member;
-                    break;
-                }
-            }
-            if ($selectedMember && isset($selectedMember['has_won_month']) && $selectedMember['has_won_month']) {
-                $error = "Selected member has already won in Month {$selectedMember['has_won_month']}. Each member can only win once.";
+            // Check if the selected member has already won a month in THIS GROUP
+            $pdo = getDB();
+            $stmt = $pdo->prepare("SELECT month_number FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
+            $stmt->execute([$groupId, $takenByMemberId]);
+            $wonMonth = $stmt->fetch();
+            
+            if ($wonMonth) {
+                $error = "Selected member has already won in Month {$wonMonth['month_number']} in this group. Each member can only win once per group.";
             }
         }
     }
@@ -223,10 +232,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <option value="">Select Member</option>
                                             <?php foreach ($members as $member): ?>
                                                 <?php
-                                                $hasWon = isset($member['has_won_month']) && $member['has_won_month'];
+                                                // Check if member has won in THIS GROUP specifically using pre-fetched data
+                                                $hasWon = isset($wonMembers[$member['id']]);
                                                 $optionText = "#" . $member['member_number'] . " - " . htmlspecialchars($member['member_name']);
                                                 if ($hasWon) {
-                                                    $optionText .= " (Already won Month " . $member['has_won_month'] . ")";
+                                                    $optionText .= " (Already won Month " . $wonMembers[$member['id']] . ")";
                                                 }
                                                 ?>
                                                 <option value="<?= $member['id'] ?>"

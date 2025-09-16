@@ -101,8 +101,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
             $existingMember = $stmt->fetch();
 
             if ($existingMember) {
-                // Member exists, just add them to this group
+                // Member exists, check if they're already in this group (active or inactive)
                 $memberId = $existingMember['id'];
+                
+                $checkStmt = $pdo->prepare("
+                    SELECT id, status FROM group_members 
+                    WHERE group_id = ? AND member_id = ?
+                ");
+                $checkStmt->execute([$groupId, $memberId]);
+                $groupMemberRecord = $checkStmt->fetch();
+                
+                if ($groupMemberRecord) {
+                    if ($groupMemberRecord['status'] === 'active') {
+                        throw new Exception("Member '{$memberName}' is already active in this group.");
+                    } else {
+                        // Member exists but is inactive, reactivate them
+                        $stmt = $pdo->prepare("
+                            UPDATE group_members 
+                            SET status = 'active', member_number = ?, joined_date = NOW()
+                            WHERE group_id = ? AND member_id = ?
+                        ");
+                        $stmt->execute([$nextMemberNumber, $groupId, $memberId]);
+                    }
+                } else {
+                    // Member exists but not in this group, add them
+                    $stmt = $pdo->prepare("
+                        INSERT INTO group_members (group_id, member_id, member_number, status, joined_date)
+                        VALUES (?, ?, ?, 'active', NOW())
+                    ");
+                    $stmt->execute([$groupId, $memberId, $nextMemberNumber]);
+                }
             } else {
                 // Create new member
                 $stmt = $pdo->prepare("
@@ -111,21 +139,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
                 ");
                 $stmt->execute([$memberName, $username, $password]);
                 $memberId = $pdo->lastInsertId();
+                
+                // Add member to group
+                $stmt = $pdo->prepare("
+                    INSERT INTO group_members (group_id, member_id, member_number, status, joined_date)
+                    VALUES (?, ?, ?, 'active', NOW())
+                ");
+                $stmt->execute([$groupId, $memberId, $nextMemberNumber]);
             }
 
-            // Add member to group
-            $stmt = $pdo->prepare("
-                INSERT INTO group_members (group_id, member_id, member_number, status, joined_date)
-                VALUES (?, ?, ?, 'active', NOW())
-            ");
-            $stmt->execute([$groupId, $memberId, $nextMemberNumber]);
-
-            // Create member summary with both group_id and member_id
-            $stmt = $pdo->prepare("
-                INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit)
-                VALUES (?, ?, 0, 0, 0)
-            ");
-            $stmt->execute([$groupId, $memberId]);
+            // Create member summary with both group_id and member_id (only if it doesn't exist)
+            $checkSummaryStmt = $pdo->prepare("SELECT id FROM member_summary WHERE group_id = ? AND member_id = ?");
+            $checkSummaryStmt->execute([$groupId, $memberId]);
+            if (!$checkSummaryStmt->fetch()) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO member_summary (group_id, member_id, total_paid, given_amount, profit)
+                    VALUES (?, ?, 0, 0, 0)
+                ");
+                $stmt->execute([$groupId, $memberId]);
+            }
 
             // Update group total members if needed
             if ($nextMemberNumber > $group['total_members']) {
@@ -153,7 +185,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
             $members = getGroupMembers($groupId);
 
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $error = 'Failed to add member: ' . $e->getMessage();
         }
     } else {
@@ -189,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
                 throw new Exception("Confirmation name does not match. Please type the exact member name to confirm removal.");
             }
 
-            // Check if member has any payments or bids
+            // Check if member has any payments, bids, or selections
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM monthly_bids WHERE group_id = ? AND taken_by_member_id = ?");
             $stmt->execute([$groupId, $memberId]);
             $bidCount = $stmt->fetchColumn();
@@ -202,23 +236,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $stmt->execute([$groupId, $memberId]);
             $randomPickCount = $stmt->fetchColumn();
 
-            if ($bidCount > 0 || $paymentCount > 0 || $randomPickCount > 0) {
-                throw new Exception("Cannot remove member '{$memberToRemove['member_name']}' - they have existing payments, bids, or random picks. Please contact system administrator for data cleanup.");
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM member_bids WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+            $memberBidCount = $stmt->fetchColumn();
+
+            // Check if member has any financial activity
+            $stmt = $pdo->prepare("SELECT total_paid, given_amount FROM member_summary WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+            $memberSummary = $stmt->fetch();
+
+            $hasFinancialActivity = false;
+            $activityDetails = [];
+
+            if ($bidCount > 0) {
+                $hasFinancialActivity = true;
+                $activityDetails[] = "taken {$bidCount} monthly bid(s)";
+            }
+            if ($paymentCount > 0) {
+                $hasFinancialActivity = true;
+                $activityDetails[] = "made {$paymentCount} payment(s)";
+            }
+            if ($randomPickCount > 0) {
+                $hasFinancialActivity = true;
+                $activityDetails[] = "selected in {$randomPickCount} random pick(s)";
+            }
+            if ($memberBidCount > 0) {
+                $hasFinancialActivity = true;
+                $activityDetails[] = "placed {$memberBidCount} bid(s)";
+            }
+            if ($memberSummary && ($memberSummary['total_paid'] > 0 || $memberSummary['given_amount'] > 0)) {
+                $hasFinancialActivity = true;
+                $activityDetails[] = "has financial activity (Paid: ₹{$memberSummary['total_paid']}, Given: ₹{$memberSummary['given_amount']})";
+            }
+
+            if ($hasFinancialActivity) {
+                $activityText = implode(', ', $activityDetails);
+                throw new Exception("Cannot remove member '{$memberToRemove['member_name']}' - they have existing activity: {$activityText}. Member removal is not allowed when there is financial history.");
             }
 
             $pdo->beginTransaction();
 
-            // Remove member from member_summary
+            // STEP 1: Remove from mapped tables first (in order of dependency)
+            
+            // 1.1 Remove from member_summary (group-specific financial summary)
             $stmt = $pdo->prepare("DELETE FROM member_summary WHERE group_id = ? AND member_id = ?");
             $stmt->execute([$groupId, $memberId]);
 
-            // Remove member from group (set status to inactive instead of deleting)
+            // 1.2 Remove any member_bids for this member in this group
+            $stmt = $pdo->prepare("DELETE FROM member_bids WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+
+            // 1.3 Update monthly_bids to set taken_by_member_id to NULL (if this member took any bids)
+            $stmt = $pdo->prepare("UPDATE monthly_bids SET taken_by_member_id = NULL WHERE group_id = ? AND taken_by_member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+
+            // 1.4 Update random_picks to set selected_member_id to NULL (if this member was selected)
+            $stmt = $pdo->prepare("UPDATE random_picks SET selected_member_id = NULL WHERE group_id = ? AND selected_member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+
+            // 1.5 Remove any member_payments for this member in this group (since no financial activity allowed)
+            $stmt = $pdo->prepare("DELETE FROM member_payments WHERE group_id = ? AND member_id = ?");
+            $stmt->execute([$groupId, $memberId]);
+
+            // STEP 2: Now remove from group_members (set status to inactive)
             $stmt = $pdo->prepare("UPDATE group_members SET status = 'inactive' WHERE group_id = ? AND member_id = ?");
             $stmt->execute([$groupId, $memberId]);
 
             // Update member numbers for remaining members (renumber them)
+            // Use a simple approach: delete and recreate records to avoid constraint conflicts
+            
+            // Step 1: Get all remaining active members with their data
             $stmt = $pdo->prepare("
-                SELECT gm.member_id, gm.member_number
+                SELECT gm.member_id, gm.member_number, gm.joined_date, gm.created_at
                 FROM group_members gm
                 WHERE gm.group_id = ? AND gm.status = 'active'
                 ORDER BY gm.member_number
@@ -226,13 +315,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $stmt->execute([$groupId]);
             $remainingMembers = $stmt->fetchAll();
 
-            $newMemberNumber = 1;
-            foreach ($remainingMembers as $member) {
-                if ($member['member_number'] != $newMemberNumber) {
-                    $updateStmt = $pdo->prepare("UPDATE group_members SET member_number = ? WHERE group_id = ? AND member_id = ?");
-                    $updateStmt->execute([$newMemberNumber, $groupId, $member['member_id']]);
+            if (!empty($remainingMembers)) {
+                // Step 2: Delete all active members from group_members for this group
+                $deleteStmt = $pdo->prepare("DELETE FROM group_members WHERE group_id = ? AND status = 'active'");
+                $deleteStmt->execute([$groupId]);
+                
+                // Step 3: Re-insert them with proper sequential numbering
+                $newMemberNumber = 1;
+                foreach ($remainingMembers as $member) {
+                    $insertStmt = $pdo->prepare("
+                        INSERT INTO group_members (group_id, member_id, member_number, joined_date, status, created_at)
+                        VALUES (?, ?, ?, ?, 'active', ?)
+                    ");
+                    $insertStmt->execute([
+                        $groupId, 
+                        $member['member_id'], 
+                        $newMemberNumber, 
+                        $member['joined_date'], 
+                        $member['created_at']
+                    ]);
+                    $newMemberNumber++;
                 }
-                $newMemberNumber++;
             }
 
             // Update group total members count
@@ -249,16 +352,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             // Remove any month_bidding_status entries beyond the new member count
             $stmt = $pdo->prepare("DELETE FROM month_bidding_status WHERE group_id = ? AND month_number > ?");
             $stmt->execute([$groupId, $newTotalMembers]);
+            
+            // Also remove any member_payments entries for months beyond the new member count
+            $stmt = $pdo->prepare("DELETE FROM member_payments WHERE group_id = ? AND month_number > ?");
+            $stmt->execute([$groupId, $newTotalMembers]);
+            
+            // Remove any monthly_bids entries for months beyond the new member count
+            $stmt = $pdo->prepare("DELETE FROM monthly_bids WHERE group_id = ? AND month_number > ?");
+            $stmt->execute([$groupId, $newTotalMembers]);
 
             $pdo->commit();
-            $success = "Member '{$memberToRemove['member_name']}' has been successfully removed from the group.";
+            $success = "Member '{$memberToRemove['member_name']}' has been successfully removed from the group. All related data has been cleaned up and remaining members have been renumbered.";
 
             // Refresh data
             $group = getGroupById($groupId);
             $members = getGroupMembers($groupId);
 
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             $error = 'Failed to remove member: ' . $e->getMessage();
         }
     } else {
@@ -518,9 +631,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
                                                         <strong>What will happen:</strong>
                                                         <ul class="mb-0 mt-2">
                                                             <li>Member will be completely removed from the group</li>
+                                                            <li>All related data will be cleaned up from mapped tables</li>
                                                             <li>All remaining members will be renumbered</li>
                                                             <li>Group total member count will be updated</li>
-                                                            <li>Member cannot be removed if they have existing payments or bids</li>
+                                                            <li><strong>Member cannot be removed if they have any financial activity (payments, bids, selections)</strong></li>
                                                         </ul>
                                                     </div>
 

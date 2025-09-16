@@ -348,9 +348,6 @@ foreach ($memberSummary as $summary) {
                     <a href="admin_bidding.php?group_id=<?= $groupId ?>" class="btn btn-warning btn-sm">
                         <i class="fas fa-gavel"></i> Manage Bidding
                     </a>
-                    <a href="add_bid.php?group_id=<?= $groupId ?>" class="btn btn-success btn-sm">
-                        <i class="fas fa-plus"></i> Add Monthly Bid
-                    </a>
                     <a href="add_payment.php?group_id=<?= $groupId ?>" class="btn btn-primary btn-sm">
                         <i class="fas fa-money-bill"></i> Add Payment
                     </a>

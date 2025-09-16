@@ -207,6 +207,9 @@ require_once 'includes/header.php';
             <div class="col-12">
                 <h2><i class="fas fa-gavel text-primary me-2"></i>Bidding Management</h2>
                 <p class="text-muted">Manage monthly bidding for <?= htmlspecialchars($group['group_name']) ?></p>
+                <a href="add_bid.php?group_id=<?= $groupId ?>" class="btn btn-success btn-sm">
+                        <i class="fas fa-plus"></i> Add Monthly Bid
+                    </a>
             </div>
         </div>
 
