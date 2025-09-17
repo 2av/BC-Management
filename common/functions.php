@@ -225,6 +225,43 @@ function getRandomPicks($groupId) {
     return $stmt->fetchAll();
 }
 
+function getAvailableMembersForRandomPick($groupId) {
+    $pdo = getDB();
+    
+    // Get all active members in the group
+    $stmt = $pdo->prepare("
+        SELECT m.id, m.member_name, gm.member_number
+        FROM group_members gm
+        JOIN members m ON gm.member_id = m.id
+        WHERE gm.group_id = ? AND gm.status = 'active'
+        ORDER BY gm.member_number
+    ");
+    $stmt->execute([$groupId]);
+    $allMembers = $stmt->fetchAll();
+    
+    // Get members who have already won (either through bidding or random picks)
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT taken_by_member_id as member_id
+        FROM monthly_bids 
+        WHERE group_id = ? AND taken_by_member_id IS NOT NULL
+        
+        UNION
+        
+        SELECT DISTINCT selected_member_id as member_id
+        FROM random_picks 
+        WHERE group_id = ?
+    ");
+    $stmt->execute([$groupId, $groupId]);
+    $wonMembers = array_column($stmt->fetchAll(), 'member_id');
+    
+    // Filter out members who have already won
+    $availableMembers = array_filter($allMembers, function($member) use ($wonMembers) {
+        return !in_array($member['id'], $wonMembers);
+    });
+    
+    return array_values($availableMembers);
+}
+
 function getCurrentActiveMonthNumber($groupId) {
     $pdo = getDB();
 

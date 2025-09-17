@@ -731,7 +731,7 @@ require_once 'includes/header.php';
                     this.innerHTML = '🎲 Picking...';
 
                     // Make AJAX request
-                    fetch('random_pick_member.php', {
+                    fetch('../admin/random_pick_member.php', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
