@@ -133,11 +133,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_member'])) {
                 }
             } else {
                 // Create new member
-                $stmt = $pdo->prepare("
-                    INSERT INTO members (member_name, username, password, status)
-                    VALUES (?, ?, ?, 'active')
-                ");
-                $stmt->execute([$memberName, $username, $password]);
+                // Handle member_number column if it exists (legacy column, now stored in group_members)
+                try {
+                    // Check if member_number column exists and is NOT NULL
+                    $checkColumnStmt = $pdo->query("SHOW COLUMNS FROM members WHERE Field = 'member_number'");
+                    $columnInfo = $checkColumnStmt->fetch();
+                    
+                    if ($columnInfo) {
+                        // Column exists - make it nullable if it's NOT NULL (since member_number is now in group_members)
+                        $isNullable = ($columnInfo['Null'] === 'YES');
+                        if (!$isNullable) {
+                            try {
+                                $pdo->exec("ALTER TABLE members MODIFY COLUMN member_number INT NULL");
+                                $isNullable = true;
+                            } catch (PDOException $e) {
+                                // If ALTER fails, we'll use 0 as placeholder
+                            }
+                        }
+                        
+                        // Insert with NULL if nullable, otherwise use 0 (real member_number is stored in group_members table)
+                        $memberNumberValue = $isNullable ? NULL : 0;
+                        $stmt = $pdo->prepare("
+                            INSERT INTO members (member_name, username, password, member_number, status)
+                            VALUES (?, ?, ?, ?, 'active')
+                        ");
+                        $stmt->execute([$memberName, $username, $password, $memberNumberValue]);
+                    } else {
+                        // Column doesn't exist, use original INSERT
+                        $stmt = $pdo->prepare("
+                            INSERT INTO members (member_name, username, password, status)
+                            VALUES (?, ?, ?, 'active')
+                        ");
+                        $stmt->execute([$memberName, $username, $password]);
+                    }
+                } catch (PDOException $e) {
+                    // Fallback: try inserting with 0 as placeholder
+                    try {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO members (member_name, username, password, member_number, status)
+                            VALUES (?, ?, ?, 0, 'active')
+                        ");
+                        $stmt->execute([$memberName, $username, $password]);
+                    } catch (PDOException $e2) {
+                        // Last resort: try without member_number
+                        $stmt = $pdo->prepare("
+                            INSERT INTO members (member_name, username, password, status)
+                            VALUES (?, ?, ?, 'active')
+                        ");
+                        $stmt->execute([$memberName, $username, $password]);
+                    }
+                }
                 $memberId = $pdo->lastInsertId();
                 
                 // Add member to group
