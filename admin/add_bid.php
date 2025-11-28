@@ -266,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <label for="bid_amount" class="form-label">Bid Amount</label>
                                         <input type="number" class="form-control" id="bid_amount" name="bid_amount" 
                                                value="<?= htmlspecialchars($_POST['bid_amount'] ?? '') ?>" 
-                                               min="0" step="50" placeholder="0">
+                                               min="0" placeholder="0">
                                         <div class="form-text">Enter 0 if no bid (organizer takes)</div>
                                     </div>
                                 </div>
