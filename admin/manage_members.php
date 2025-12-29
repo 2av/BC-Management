@@ -344,41 +344,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $stmt->execute([$groupId, $memberId]);
 
             // STEP 2: Now remove from group_members (set status to inactive)
-            $stmt = $pdo->prepare("UPDATE group_members SET status = 'inactive' WHERE group_id = ? AND member_id = ?");
+            // This only removes the member from the group, NOT from the members table (account is preserved)
+            
+            // First, get all existing member_numbers in this group (including inactive) to find a safe temporary range
+            $stmt = $pdo->prepare("SELECT COALESCE(MAX(member_number), 0) as max_number FROM group_members WHERE group_id = ?");
+            $stmt->execute([$groupId]);
+            $maxExistingNumber = $stmt->fetchColumn();
+            
+            // Set status to inactive and member_number to NULL to free it up
+            $stmt = $pdo->prepare("UPDATE group_members SET status = 'inactive', member_number = NULL WHERE group_id = ? AND member_id = ?");
             $stmt->execute([$groupId, $memberId]);
 
-            // Update member numbers for remaining members (renumber them)
-            // Use a simple approach: delete and recreate records to avoid constraint conflicts
+            // Update member numbers for remaining members (renumber them sequentially)
+            // Use a safer approach: update member_number using temporary values to avoid constraint conflicts
             
-            // Step 1: Get all remaining active members with their data
+            // Step 1: Get all remaining active members with their data, ordered by current member_number
             $stmt = $pdo->prepare("
                 SELECT gm.member_id, gm.member_number, gm.joined_date, gm.created_at
                 FROM group_members gm
                 WHERE gm.group_id = ? AND gm.status = 'active'
-                ORDER BY gm.member_number
+                ORDER BY gm.member_number ASC
             ");
             $stmt->execute([$groupId]);
             $remainingMembers = $stmt->fetchAll();
 
             if (!empty($remainingMembers)) {
-                // Step 2: Delete all active members from group_members for this group
-                $deleteStmt = $pdo->prepare("DELETE FROM group_members WHERE group_id = ? AND status = 'active'");
-                $deleteStmt->execute([$groupId]);
+                // Step 2: First, set all active member_numbers to temporary high values
+                // Start from max existing + 10000 to ensure no conflicts with any existing numbers (active or inactive)
+                $tempNumber = max(50000, ($maxExistingNumber + 10000));
+                foreach ($remainingMembers as $member) {
+                    $updateStmt = $pdo->prepare("
+                        UPDATE group_members 
+                        SET member_number = ? 
+                        WHERE group_id = ? AND member_id = ? AND status = 'active'
+                    ");
+                    $updateStmt->execute([$tempNumber, $groupId, $member['member_id']]);
+                    $tempNumber++;
+                }
                 
-                // Step 3: Re-insert them with proper sequential numbering
+                // Step 3: Now update them with proper sequential numbering (1, 2, 3, ...)
+                // Since all are now at high temporary values, there's no conflict with sequential numbers
                 $newMemberNumber = 1;
                 foreach ($remainingMembers as $member) {
-                    $insertStmt = $pdo->prepare("
-                        INSERT INTO group_members (group_id, member_id, member_number, joined_date, status, created_at)
-                        VALUES (?, ?, ?, ?, 'active', ?)
+                    $updateStmt = $pdo->prepare("
+                        UPDATE group_members 
+                        SET member_number = ? 
+                        WHERE group_id = ? AND member_id = ? AND status = 'active'
                     ");
-                    $insertStmt->execute([
-                        $groupId, 
-                        $member['member_id'], 
-                        $newMemberNumber, 
-                        $member['joined_date'], 
-                        $member['created_at']
-                    ]);
+                    $updateStmt->execute([$newMemberNumber, $groupId, $member['member_id']]);
                     $newMemberNumber++;
                 }
             }
@@ -407,7 +420,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $stmt->execute([$groupId, $newTotalMembers]);
 
             $pdo->commit();
-            $success = "Member '{$memberToRemove['member_name']}' has been successfully removed from the group. All related data has been cleaned up and remaining members have been renumbered.";
+            $success = "Member '{$memberToRemove['member_name']}' has been successfully removed from the group (account preserved). All related data has been cleaned up and remaining members have been renumbered.";
 
             // Refresh data
             $group = getGroupById($groupId);
@@ -675,8 +688,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_member'])) {
                                                         <i class="fas fa-info-circle"></i>
                                                         <strong>What will happen:</strong>
                                                         <ul class="mb-0 mt-2">
-                                                            <li>Member will be completely removed from the group</li>
-                                                            <li>All related data will be cleaned up from mapped tables</li>
+                                                            <li><strong>Member will be removed from this group only (account will NOT be deleted)</strong></li>
+                                                            <li>Member can be added back to this or other groups later</li>
+                                                            <li>All related group data will be cleaned up from mapped tables</li>
                                                             <li>All remaining members will be renumbered</li>
                                                             <li>Group total member count will be updated</li>
                                                             <li><strong>Member cannot be removed if they have any financial activity (payments, bids, selections)</strong></li>
