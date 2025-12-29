@@ -1,5 +1,8 @@
-
 <?php
+// Enable error reporting for debugging (remove in production)
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once '../config/config.php';
 require_once '../common/middleware.php';
 checkRole('member');
@@ -92,9 +95,7 @@ require_once 'includes/header.php';
         --accent-purple: #8b5cf6;
 
         /* Gradients */
-        --primary-gradient
-linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)
-
+        --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
         --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
         --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);

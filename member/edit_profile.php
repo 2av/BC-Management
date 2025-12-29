@@ -11,6 +11,54 @@ $member = getCurrentMember();
 $error = '';
 $success = '';
 
+/**
+ * Ensure optional profile columns exist on members table.
+ * Older databases might miss address/updated_at, which would break updates.
+ */
+function ensureMemberProfileColumns(PDO $pdo): array {
+    static $status = null;
+    if ($status !== null) {
+        return $status;
+    }
+
+    $hasAddress = false;
+    $hasUpdatedAt = false;
+
+    try {
+        $columnsStmt = $pdo->query("SHOW COLUMNS FROM members");
+        $columns = $columnsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $hasAddress = in_array('address', $columns, true);
+        $hasUpdatedAt = in_array('updated_at', $columns, true);
+
+        if (!$hasAddress) {
+            try {
+                $pdo->exec("ALTER TABLE members ADD COLUMN address TEXT NULL AFTER email");
+                $hasAddress = true;
+            } catch (Exception $ignored) {
+                // Column might already exist or DB user may not have privileges.
+            }
+        }
+        if (!$hasUpdatedAt) {
+            try {
+                $pdo->exec("ALTER TABLE members ADD COLUMN updated_at TIMESTAMP NULL DEFAULT NULL AFTER created_at");
+                $hasUpdatedAt = true;
+            } catch (Exception $ignored) {
+                // Ignore failures; we'll avoid referencing the column later.
+            }
+        }
+    } catch (Exception $ignored) {
+        // Unable to inspect schema, we'll fall back to defaults below.
+    }
+
+    $status = [
+        'address' => $hasAddress,
+        'updated_at' => $hasUpdatedAt
+    ];
+
+    return $status;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $memberName = trim($_POST['member_name'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
@@ -27,6 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $pdo = getDB();
+            $columnStatus = ensureMemberProfileColumns($pdo);
+            $hasAddressColumn = $columnStatus['address'];
+            $hasUpdatedAtColumn = $columnStatus['updated_at'];
             
             // Check if member name already exists for other members (excluding current member's records across all groups)
             $stmt = $pdo->prepare("
@@ -45,21 +96,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 try {
                     // Update member profile for current record
-                    $stmt = $pdo->prepare("
-                        UPDATE members
-                        SET member_name = ?, phone = ?, email = ?, address = ?, updated_at = NOW()
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$memberName, $phone ?: null, $email ?: null, $address ?: null, $member['id']]);
+                    $setParts = [
+                        'member_name = ?',
+                        'phone = ?',
+                        'email = ?'
+                    ];
+                    $params = [$memberName, $phone ?: null, $email ?: null];
+
+                    if ($hasAddressColumn) {
+                        $setParts[] = 'address = ?';
+                        $params[] = $address ?: null;
+                    }
+                    if ($hasUpdatedAtColumn) {
+                        $setParts[] = 'updated_at = NOW()';
+                    }
+
+                    $params[] = $member['id'];
+                    $sql = "UPDATE members SET " . implode(', ', $setParts) . " WHERE id = ?";
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute($params);
 
                     // If name changed, update all records with the old name to the new name
                     if ($memberName !== $member['member_name']) {
-                        $stmt = $pdo->prepare("
-                            UPDATE members
-                            SET member_name = ?, phone = ?, email = ?, address = ?, updated_at = NOW()
-                            WHERE member_name = ?
-                        ");
-                        $stmt->execute([$memberName, $phone ?: null, $email ?: null, $address ?: null, $member['member_name']]);
+                        $nameUpdateParts = [
+                            'member_name = ?',
+                            'phone = ?',
+                            'email = ?'
+                        ];
+                        $nameParams = [$memberName, $phone ?: null, $email ?: null];
+
+                        if ($hasAddressColumn) {
+                            $nameUpdateParts[] = 'address = ?';
+                            $nameParams[] = $address ?: null;
+                        }
+                        if ($hasUpdatedAtColumn) {
+                            $nameUpdateParts[] = 'updated_at = NOW()';
+                        }
+
+                        $nameParams[] = $member['member_name'];
+                        $nameSql = "UPDATE members SET " . implode(', ', $nameUpdateParts) . " WHERE member_name = ?";
+                        $stmt = $pdo->prepare($nameSql);
+                        $stmt->execute($nameParams);
 
                         // Update session
                         $_SESSION['member_name'] = $memberName;
@@ -256,7 +333,7 @@ require_once 'includes/header.php';
                         <hr>
                         
                         <div class="d-flex gap-2 flex-wrap">
-                            <a href="member_change_password.php" class="btn btn-outline-warning btn-sm">
+                            <a href="change_password.php" class="btn btn-outline-warning btn-sm">
                                 <i class="fas fa-key"></i> Change Password
                             </a>
                             <a href="dashboard.php" class="btn btn-outline-primary btn-sm">

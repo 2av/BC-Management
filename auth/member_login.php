@@ -6,6 +6,7 @@ if (isMemberLoggedIn()) {
 }
 
 $error = '';
+$debug_info = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
@@ -14,11 +15,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = 'Please enter both username and password.';
     } else {
-        if (memberLogin($username, $password)) {
-            setMessage('Welcome back!');
-            redirect('../member/dashboard.php');
-        } else {
-            $error = 'Invalid username or password.';
+        // Test database connection first
+        try {
+            $pdo = getDB();
+            $db_connected = true;
+            $db_info = [
+                'host' => DB_HOST,
+                'database' => DB_NAME,
+                'username' => DB_USER,
+                'connected' => true
+            ];
+        } catch (Exception $e) {
+            $db_connected = false;
+            $db_info = [
+                'error' => $e->getMessage(),
+                'connected' => false
+            ];
+            $error = 'Database connection failed. Please contact administrator.';
+        }
+        
+        if ($db_connected) {
+            if (memberLogin($username, $password)) {
+                setMessage('Welcome back!');
+                redirect('../member/dashboard.php');
+            } else {
+                $error = 'Invalid username or password.';
+                // Add debug info (always available, but only shown in local)
+                $debug_info = json_encode($db_info, JSON_PRETTY_PRINT);
+            }
         }
     }
 }
@@ -63,6 +87,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <?= htmlspecialchars($error) ?>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (defined('ENVIRONMENT') && ENVIRONMENT === 'local' && !empty($debug_info)): ?>
+                    <div class="alert alert-info" style="font-size: 0.85em; margin-top: 10px;">
+                        <strong>Debug Info:</strong><br>
+                        <pre style="margin: 5px 0; white-space: pre-wrap;"><?= htmlspecialchars($debug_info) ?></pre>
                     </div>
                 <?php endif; ?>
 
@@ -115,5 +146,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    
+    <script>
+        // Console logging for debugging (works in both environments)
+        console.log('Member Login Page Loaded');
+        console.log('Environment:', '<?= defined('ENVIRONMENT') ? ENVIRONMENT : 'unknown' ?>');
+        
+        <?php if (defined('ENVIRONMENT') && ENVIRONMENT === 'local'): ?>
+        // Detailed logging in local environment
+        console.log('Database Config:', {
+            host: '<?= DB_HOST ?>',
+            database: '<?= DB_NAME ?>',
+            username: '<?= DB_USER ?>'
+        });
+        <?php endif; ?>
+        
+        <?php if (!empty($error)): ?>
+        console.error('Login Error:', '<?= addslashes($error) ?>');
+        <?php endif; ?>
+        
+        <?php if (!empty($debug_info)): ?>
+        console.log('Debug Info:', <?= $debug_info ?>);
+        <?php endif; ?>
+        
+        // Log form submission
+        document.querySelector('form')?.addEventListener('submit', function(e) {
+            const username = document.getElementById('username')?.value;
+            console.log('Login attempt for username:', username);
+        });
+    </script>
 </body>
 </html>

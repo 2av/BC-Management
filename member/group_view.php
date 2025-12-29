@@ -58,6 +58,49 @@ foreach ($members as $memberInGroup) {
     }
 }
 
+// Check if current member is akhilesh (case-insensitive)
+$isAkhilesh = (strtolower($member['member_name']) === 'akhilesh' || strtolower($member['username'] ?? '') === 'akhilesh');
+
+// Get members who haven't received any amount (haven't won in monthly_bids)
+$membersWhoHaventReceived = [];
+if ($isAkhilesh) {
+    $pdo = getDB();
+    // Get all members who have won (received amount)
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT taken_by_member_id as member_id
+        FROM monthly_bids 
+        WHERE group_id = ? AND taken_by_member_id IS NOT NULL
+    ");
+    $stmt->execute([$selectedGroupId]);
+    $wonMemberIds = array_column($stmt->fetchAll(), 'member_id');
+    
+    // Filter members to only those who haven't received
+    foreach ($members as $memberOption) {
+        if (!in_array($memberOption['id'], $wonMemberIds)) {
+            $membersWhoHaventReceived[] = $memberOption;
+        }
+    }
+}
+
+// Handle saving selected member for random pick
+$savedSelectedMemberId = null;
+if ($isAkhilesh && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_selected_member'])) {
+    $selectedMemberId = (int)($_POST['selected_member'] ?? 0);
+    if ($selectedMemberId > 0) {
+        $_SESSION['akhilesh_selected_member_' . $selectedGroupId] = $selectedMemberId;
+        setMessage('Selected member saved successfully!', 'success');
+        redirect('group_view.php?group_id=' . $selectedGroupId);
+    } else {
+        setMessage('Please select a member.', 'error');
+        redirect('group_view.php?group_id=' . $selectedGroupId);
+    }
+}
+
+// Get saved selected member from session
+if ($isAkhilesh && isset($_SESSION['akhilesh_selected_member_' . $selectedGroupId])) {
+    $savedSelectedMemberId = $_SESSION['akhilesh_selected_member_' . $selectedGroupId];
+}
+
 // Set page title for the header
 $page_title = htmlspecialchars($group['group_name']) . ' - Group View';
 
@@ -247,6 +290,67 @@ require_once 'includes/header.php';
             z-index: 1000;
         }
 
+        /* Custom Random Pick Feature Styles */
+        #memberSelect {
+            border: 2px solid #dee2e6;
+        }
+
+        #memberSelect option:checked {
+            background-color: #0d6efd;
+            color: white;
+        }
+
+        .random-pick-btn-saved {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+
+        .random-pick-btn-saved:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+            color: white;
+        }
+
+        /* Custom Pick Tool Toggle Styles */
+        #toggleCustomPickTool {
+            transition: all 0.3s ease;
+        }
+
+        #toggleCustomPickTool:hover {
+            transform: scale(1.05);
+        }
+
+        #customPickToolContainer {
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #customPickToolContainer.hide {
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
         /* Random Pick Button Styles */
         .random-pick-btn {
             font-size: 11px;
@@ -316,6 +420,114 @@ require_once 'includes/header.php';
                 </div>
             </div>
         </div>
+
+        <!-- Custom Random Pick Toggle Icon for Akhilesh -->
+        <?php if ($isAkhilesh && !empty($membersWhoHaventReceived)): ?>
+        <div class="row mb-3">
+            <div class="col-12">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="toggleCustomPickTool" title="Show/Hide Custom Random Pick Tool">
+                    <i class="fas fa-random me-1"></i>
+                    <span id="toggleText">Show Custom Pick Tool</span>
+                </button>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Custom Random Pick Feature for Akhilesh -->
+        <?php if ($isAkhilesh && !empty($membersWhoHaventReceived)): ?>
+        <div class="row mb-4" id="customPickToolContainer" style="display: none;">
+            <div class="col-12">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-random me-2"></i>Custom Random Pick Tool
+                        </h5>
+                        <button type="button" class="btn btn-sm btn-light" id="closeCustomPickTool" title="Hide Tool">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            Select members who haven't received any amount yet. Click "Save" to store your selection, then use the "Pick" button in Deposit/Bid Details section.
+                        </div>
+                        
+                        <?php if ($savedSelectedMemberId): ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>Saved Member:</strong> 
+                            <?php 
+                            $savedMember = null;
+                            foreach ($membersWhoHaventReceived as $m) {
+                                if ($m['id'] == $savedSelectedMemberId) {
+                                    $savedMember = $m;
+                                    break;
+                                }
+                            }
+                            if ($savedMember) {
+                                echo htmlspecialchars($savedMember['member_name']);
+                                if ($savedMember['member_number']) {
+                                    echo ' (#' . $savedMember['member_number'] . ')';
+                                }
+                            }
+                            ?>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <form method="POST" action="">
+                            <input type="hidden" name="save_selected_member" value="1">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <label class="form-label fw-bold">Select Member (who hasn't received amount):</label>
+                                    <select name="selected_member" id="memberSelect" class="form-select" required>
+                                        <option value="">-- Select a Member --</option>
+                                        <?php foreach ($membersWhoHaventReceived as $memberOption): ?>
+                                            <option value="<?= $memberOption['id'] ?>" 
+                                                    <?= $savedSelectedMemberId == $memberOption['id'] ? 'selected' : '' ?>
+                                                    data-member-name="<?= htmlspecialchars($memberOption['member_name']) ?>">
+                                                <?= htmlspecialchars($memberOption['member_name']) ?>
+                                                <?php if ($memberOption['member_number']): ?>
+                                                    (#<?= $memberOption['member_number'] ?>)
+                                                <?php endif; ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Select one member who hasn't received any amount yet
+                                    </small>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-success btn-lg">
+                                            <i class="fas fa-save me-2"></i>Save Member
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="clearSelection()">
+                                            <i class="fas fa-times me-2"></i>Clear Selection
+                                        </button>
+                                    </div>
+                                    <div class="mt-3">
+                                        <small class="text-muted">
+                                            <strong>Total Available:</strong> <?= count($membersWhoHaventReceived) ?> member(s)
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php elseif ($isAkhilesh && empty($membersWhoHaventReceived)): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    All members have already received their amount. No members available for random pick.
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Group Selector -->
         <?php if (count($memberGroups) > 1): ?>
@@ -471,10 +683,28 @@ require_once 'includes/header.php';
                                         echo '<span class="text-muted" title="Month 1 is reserved for organizer">👑 Organizer</span>';
                                     } elseif ($currentActiveMonth && $i == $currentActiveMonth) {
                                         // Only show random pick button for current active month (excluding month 1)
-                                        echo '<button class="btn btn-sm btn-warning random-pick-btn"
+                                        // For akhilesh, use saved selection if available
+                                        $useSavedSelection = $isAkhilesh && $savedSelectedMemberId;
+                                        $buttonClass = $useSavedSelection ? 'random-pick-btn-saved' : 'random-pick-btn';
+                                        $savedMemberName = '';
+                                        if ($useSavedSelection && $savedSelectedMemberId) {
+                                            foreach ($membersWhoHaventReceived as $m) {
+                                                if ($m['id'] == $savedSelectedMemberId) {
+                                                    $savedMemberName = $m['member_name'];
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        $buttonTitle = $useSavedSelection 
+                                            ? 'Use saved member (' . htmlspecialchars($savedMemberName) . ') for Month ' . $i . ' (Current Month)' 
+                                            : 'Randomly select a member for Month ' . $i . ' (Current Month)';
+                                        echo '<button class="btn btn-sm btn-warning ' . $buttonClass . '"
                                                 data-group-id="' . $selectedGroupId . '"
                                                 data-month="' . $i . '"
-                                                title="Randomly select a member for Month ' . $i . ' (Current Month)">
+                                                data-use-saved="' . ($useSavedSelection ? '1' : '0') . '"
+                                                data-saved-member-id="' . ($savedSelectedMemberId ?: '') . '"
+                                                data-saved-member-name="' . htmlspecialchars($savedMemberName) . '"
+                                                title="' . $buttonTitle . '">
                                                 🎲 Pick
                                               </button>';
                                     } elseif ($i < $currentActiveMonth) {
@@ -715,54 +945,148 @@ require_once 'includes/header.php';
     <script>
         // Random Pick functionality
         document.addEventListener('DOMContentLoaded', function() {
-            // Handle random pick button clicks
-            document.querySelectorAll('.random-pick-btn').forEach(button => {
+            // Handle random pick button clicks (both regular and saved selection)
+            document.querySelectorAll('.random-pick-btn, .random-pick-btn-saved').forEach(button => {
                 button.addEventListener('click', function() {
                     const groupId = this.getAttribute('data-group-id');
                     const monthNumber = this.getAttribute('data-month');
+                    const useSaved = this.getAttribute('data-use-saved') === '1';
+                    const savedMemberId = useSaved ? parseInt(this.getAttribute('data-saved-member-id') || '0') : 0;
+                    const savedMemberName = this.getAttribute('data-saved-member-name') || '';
 
-                    // Confirm action
-                    if (!confirm(`Are you sure you want to randomly pick a member for Month ${monthNumber}? This action cannot be undone.`)) {
-                        return;
-                    }
+                    // If using saved selection, use the saved member directly
+                    if (useSaved && savedMemberId) {
+                        // Use saved member name from data attribute
+                        const selectedMemberName = savedMemberName || 'Selected Member';
 
-                    // Disable button and show loading
-                    this.disabled = true;
-                    this.innerHTML = '🎲 Picking...';
+                        if (!savedMemberName) {
+                            alert('Saved member not found. Please save your selection again.');
+                            return;
+                        }
 
-                    // Make AJAX request
-                    fetch('../admin/random_pick_member.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `group_id=${groupId}&month_number=${monthNumber}`
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Show success message
-                            alert(`Random pick successful! ${data.selected_member.name} has been selected for Month ${monthNumber}.`);
-                            // Reload page to show updated data
-                            window.location.reload();
-                        } else {
-                            // Show error message
-                            alert(`Error: ${data.message}`);
-                            // Re-enable button
+                        // Confirm action with saved member name
+                        if (!confirm(`You have selected "${selectedMemberName}" in Custom Random Pick Tool.\n\nUse this member for Month ${monthNumber}? This action cannot be undone.`)) {
+                            return;
+                        }
+
+                        // Disable button and show loading
+                        this.disabled = true;
+                        this.innerHTML = '🎲 Picking...';
+
+                        // Make AJAX request with saved member ID
+                        fetch('../admin/random_pick_member_custom.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: `group_id=${groupId}&month_number=${monthNumber}&selected_member_id=${savedMemberId}`
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert(`Pick successful! ${selectedMemberName} has been selected for Month ${monthNumber}.`);
+                                window.location.reload();
+                            } else {
+                                alert(`Error: ${data.message}`);
+                                this.disabled = false;
+                                this.innerHTML = '🎲 Pick';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while making the pick. Please try again.');
                             this.disabled = false;
                             this.innerHTML = '🎲 Pick';
+                        });
+                    } else {
+                        // Regular random pick (from all available members)
+                        if (!confirm(`Are you sure you want to randomly pick a member for Month ${monthNumber}? This action cannot be undone.`)) {
+                            return;
                         }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('An error occurred while making the random pick. Please try again.');
-                        // Re-enable button
-                        this.disabled = false;
-                        this.innerHTML = '🎲 Pick';
-                    });
+
+                        // Disable button and show loading
+                        this.disabled = true;
+                        this.innerHTML = '🎲 Picking...';
+
+                        // Make AJAX request
+                        fetch('../admin/random_pick_member.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: `group_id=${groupId}&month_number=${monthNumber}`
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert(`Random pick successful! ${data.selected_member.name} has been selected for Month ${monthNumber}.`);
+                                window.location.reload();
+                            } else {
+                                alert(`Error: ${data.message}`);
+                                this.disabled = false;
+                                this.innerHTML = '🎲 Pick';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while making the random pick. Please try again.');
+                            this.disabled = false;
+                            this.innerHTML = '🎲 Pick';
+                        });
+                    }
                 });
             });
         });
+
+        // Custom Random Pick Feature for Akhilesh - Clear selection
+        function clearSelection() {
+            const select = document.getElementById('memberSelect');
+            select.value = '';
+        }
+
+        // Toggle Custom Pick Tool visibility
+        <?php if ($isAkhilesh && !empty($membersWhoHaventReceived)): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleBtn = document.getElementById('toggleCustomPickTool');
+            const toolContainer = document.getElementById('customPickToolContainer');
+            const closeBtn = document.getElementById('closeCustomPickTool');
+            const toggleText = document.getElementById('toggleText');
+
+            if (toggleBtn && toolContainer) {
+                // Toggle button click
+                toggleBtn.addEventListener('click', function() {
+                    if (toolContainer.style.display === 'none') {
+                        toolContainer.style.display = 'block';
+                        toolContainer.classList.remove('hide');
+                        toggleText.textContent = 'Hide Custom Pick Tool';
+                        toggleBtn.classList.add('btn-primary');
+                        toggleBtn.classList.remove('btn-outline-primary');
+                    } else {
+                        toolContainer.classList.add('hide');
+                        setTimeout(() => {
+                            toolContainer.style.display = 'none';
+                        }, 300);
+                        toggleText.textContent = 'Show Custom Pick Tool';
+                        toggleBtn.classList.remove('btn-primary');
+                        toggleBtn.classList.add('btn-outline-primary');
+                    }
+                });
+
+                // Close button click
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                        toolContainer.classList.add('hide');
+                        setTimeout(() => {
+                            toolContainer.style.display = 'none';
+                        }, 300);
+                        toggleText.textContent = 'Show Custom Pick Tool';
+                        toggleBtn.classList.remove('btn-primary');
+                        toggleBtn.classList.add('btn-outline-primary');
+                    });
+                }
+            }
+        });
+        <?php endif; ?>
 
         // Enhanced mobile tooltip handling
         document.addEventListener('DOMContentLoaded', function() {

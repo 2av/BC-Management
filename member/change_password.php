@@ -165,27 +165,6 @@ require_once 'includes/header.php';
                     </div>
                 </div>
                 
-                <!-- Member Info -->
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-info-circle"></i> Account Information
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <strong>Name:</strong><br>
-                                <?= htmlspecialchars($_SESSION['member_name']) ?>
-                            </div>
-                            <div class="col-md-6">
-                                <strong>Group:</strong><br>
-                                <?= htmlspecialchars($_SESSION['group_name']) ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
                 <!-- Security Tips -->
                 <div class="card mt-3">
                     <div class="card-header">

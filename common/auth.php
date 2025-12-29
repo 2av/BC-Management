@@ -101,27 +101,64 @@ function adminLogin($username, $password) {
 }
 
 function memberLogin($username, $password) {
-    $pdo = getDB();
-    $stmt = $pdo->prepare("
-        SELECT m.*, g.group_name, g.client_id, c.client_name, gm.group_id, gm.member_number
-        FROM members m
-        JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
-        JOIN bc_groups g ON gm.group_id = g.id
-        JOIN clients c ON g.client_id = c.id
-        WHERE m.username = ? AND m.status = 'active' AND c.status = 'active'
-    ");
-    $stmt->execute([$username]);
-    $member = $stmt->fetch();
+    try {
+        $pdo = getDB();
+        
+        // Log database connection info (for debugging)
+        if (defined('ENVIRONMENT') && ENVIRONMENT === 'local') {
+            error_log("Member Login Attempt - Username: " . $username);
+            error_log("DB Config - Host: " . DB_HOST . ", DB: " . DB_NAME . ", User: " . DB_USER);
+        }
+        
+        $stmt = $pdo->prepare("
+            SELECT m.*, g.group_name, g.client_id, c.client_name, gm.group_id, gm.member_number
+            FROM members m
+            JOIN group_members gm ON m.id = gm.member_id AND gm.status = 'active'
+            JOIN bc_groups g ON gm.group_id = g.id
+            JOIN clients c ON g.client_id = c.id
+            WHERE m.username = ? AND m.status = 'active' AND c.status = 'active'
+        ");
+        $stmt->execute([$username]);
+        $member = $stmt->fetch();
 
-    if ($member && password_verify($password, $member['password'])) {
-        $_SESSION['member_id'] = $member['id'];
-        $_SESSION['member_name'] = $member['member_name'];
-        $_SESSION['group_id'] = $member['group_id'];
-        $_SESSION['group_name'] = $member['group_name'];
-        $_SESSION['client_id'] = $member['client_id'];
-        $_SESSION['client_name'] = $member['client_name'];
-        $_SESSION['user_type'] = 'member';
-        return true;
+        if ($member) {
+            // Log member found (for debugging)
+            if (defined('ENVIRONMENT') && ENVIRONMENT === 'local') {
+                error_log("Member found - ID: " . $member['id'] . ", Name: " . $member['member_name']);
+            }
+            
+            if (password_verify($password, $member['password'])) {
+                $_SESSION['member_id'] = $member['id'];
+                $_SESSION['member_name'] = $member['member_name'];
+                $_SESSION['group_id'] = $member['group_id'];
+                $_SESSION['group_name'] = $member['group_name'];
+                $_SESSION['client_id'] = $member['client_id'];
+                $_SESSION['client_name'] = $member['client_name'];
+                $_SESSION['user_type'] = 'member';
+                
+                if (defined('ENVIRONMENT') && ENVIRONMENT === 'local') {
+                    error_log("Member login successful - ID: " . $member['id']);
+                }
+                
+                return true;
+            } else {
+                // Log password verification failure
+                if (defined('ENVIRONMENT') && ENVIRONMENT === 'local') {
+                    error_log("Member login failed - Password verification failed for username: " . $username);
+                }
+            }
+        } else {
+            // Log member not found
+            if (defined('ENVIRONMENT') && ENVIRONMENT === 'local') {
+                error_log("Member login failed - Member not found or inactive for username: " . $username);
+            }
+        }
+    } catch (Exception $e) {
+        // Log database errors
+        error_log("Member login error: " . $e->getMessage());
+        if (defined('ENVIRONMENT') && ENVIRONMENT === 'local') {
+            error_log("Stack trace: " . $e->getTraceAsString());
+        }
     }
 
     return false;
