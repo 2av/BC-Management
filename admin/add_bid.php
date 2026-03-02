@@ -18,6 +18,12 @@ $members = getGroupMembers($groupId);
 $monthlyBids = getMonthlyBids($groupId);
 $usedMonths = array_column($monthlyBids, 'month_number');
 
+// Use actual member count for collection/gain (handles groups where members were added/removed)
+$actualMemberCount = count($members);
+$totalMonthlyCollection = $actualMemberCount > 0
+    ? ($actualMemberCount * (float)$group['monthly_contribution'])
+    : (float)$group['total_monthly_collection'];
+
 // Get database connection for member validation
 $pdo = getDB();
 
@@ -71,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$error && $isBid === 'Yes' && $bidAmount <= 0) {
         $error = 'Bid amount must be greater than 0 when bidding.';
-    } elseif (!$error && $isBid === 'Yes' && $bidAmount >= $group['total_monthly_collection']) {
+    } elseif (!$error && $isBid === 'Yes' && $bidAmount >= $totalMonthlyCollection) {
         $error = 'Bid amount must be less than total monthly collection.';
     }
 
@@ -80,9 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo = getDB();
             $pdo->beginTransaction();
             
-            // Calculate net payable and gain per member
-            $netPayable = $group['total_monthly_collection'] - $bidAmount;
-            $gainPerMember = $netPayable / $group['total_members'];
+            // Calculate net payable and gain per member (using actual member count)
+            $netPayable = $totalMonthlyCollection - $bidAmount;
+            $gainPerMember = $actualMemberCount > 0 ? ($netPayable / $actualMemberCount) : 0;
             
             // Insert monthly bid
             $stmt = $pdo->prepare("
@@ -285,15 +291,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="row">
                                         <div class="col-md-4">
                                             <strong>Total Collection:</strong>
-                                            <div class="text-primary"><?= formatCurrency($group['total_monthly_collection']) ?></div>
+                                            <div class="text-primary"><?= formatCurrency($totalMonthlyCollection) ?></div>
+                                            <?php if ($actualMemberCount !== (int)$group['total_members']): ?>
+                                            <small class="text-muted">(<?= $actualMemberCount ?> members × <?= formatCurrency($group['monthly_contribution']) ?>)</small>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="col-md-4">
                                             <strong>Net Payable:</strong>
-                                            <div class="text-success" id="netPayable"><?= formatCurrency($group['total_monthly_collection']) ?></div>
+                                            <div class="text-success" id="netPayable"><?= formatCurrency($totalMonthlyCollection) ?></div>
                                         </div>
                                         <div class="col-md-4">
                                             <strong>Gain Per Member:</strong>
-                                            <div class="text-info" id="gainPerMember"><?= formatCurrency($group['monthly_contribution']) ?></div>
+                                            <div class="text-info" id="gainPerMember"><?= formatCurrency($actualMemberCount > 0 ? $totalMonthlyCollection / $actualMemberCount : $group['monthly_contribution']) ?></div>
                                         </div>
                                     </div>
                                 </div>
@@ -315,12 +324,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function updateCalculations() {
-            const totalCollection = <?= $group['total_monthly_collection'] ?>;
-            const totalMembers = <?= $group['total_members'] ?>;
+            const totalCollection = <?= (float)$totalMonthlyCollection ?>;
+            const totalMembers = <?= (int)$actualMemberCount ?>;
             const bidAmount = parseFloat(document.getElementById('bid_amount').value) || 0;
             
             const netPayable = totalCollection - bidAmount;
-            const gainPerMember = netPayable / totalMembers;
+            const gainPerMember = totalMembers > 0 ? netPayable / totalMembers : 0;
             
             document.getElementById('netPayable').textContent = '₹' + netPayable.toLocaleString();
             document.getElementById('gainPerMember').textContent = '₹' + gainPerMember.toLocaleString();

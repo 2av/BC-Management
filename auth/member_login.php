@@ -90,13 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
                 
-                <?php if (defined('ENVIRONMENT') && ENVIRONMENT === 'local' && !empty($debug_info)): ?>
-                    <div class="alert alert-info" style="font-size: 0.85em; margin-top: 10px;">
-                        <strong>Debug Info:</strong><br>
-                        <pre style="margin: 5px 0; white-space: pre-wrap;"><?= htmlspecialchars($debug_info) ?></pre>
-                    </div>
-                <?php endif; ?>
-
+                
                 <form method="POST" action="">
                     <div class="form-group">
                         <label for="username" class="form-label">
