@@ -4,6 +4,9 @@ require_once '../common/middleware.php';
 require_once '../common/subscription_functions.php';
 checkRole('superadmin');
 
+// Auto-sync BC group status (completed by bids or by date)
+syncGroupStatus();
+
 // Get platform statistics
 $pdo = getDB();
 

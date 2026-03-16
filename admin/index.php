@@ -7,6 +7,9 @@ if (isset($_GET['logout'])) {
     logout();
 }
 
+// Auto-sync group status (completed by bids or by date)
+syncGroupStatus();
+
 $groups = getAllGroups();
 
 // Get dashboard statistics
@@ -29,18 +32,167 @@ $totalCollected = $stmt->fetchColumn() ?: 0;
 $stmt = $pdo->query("SELECT SUM(net_payable) FROM monthly_bids");
 $totalDistributed = $stmt->fetchColumn() ?: 0;
 
-// Monthly collection data for chart
+// Monthly turnover (sum of total_monthly_collection from active groups)
+if (isset($_SESSION['client_id'])) {
+    $stmt = $pdo->prepare("SELECT SUM(total_monthly_collection) as total FROM bc_groups WHERE status = 'active' AND client_id = ?");
+    $stmt->execute([$_SESSION['client_id']]);
+} else {
+    $stmt = $pdo->query("SELECT SUM(total_monthly_collection) as total FROM bc_groups WHERE status = 'active'");
+}
+$monthlyTurnover = $stmt->fetch()['total'] ?? 0;
+
+// Balance / Cash in hand (Collected - Distributed)
+$balanceCashInHand = $totalCollected - $totalDistributed;
+
+// This month's actual collection
+$currentMonth = date('Y-m');
 $stmt = $pdo->query("
-    SELECT
-        DATE_FORMAT(payment_date, '%Y-%m') as month,
-        SUM(payment_amount) as total_amount
-    FROM member_payments
-    WHERE payment_status = 'paid' AND payment_date IS NOT NULL
-    GROUP BY DATE_FORMAT(payment_date, '%Y-%m')
-    ORDER BY month DESC
-    LIMIT 12
+    SELECT COALESCE(SUM(payment_amount), 0) as total
+    FROM member_payments mp
+    JOIN bc_groups g ON mp.group_id = g.id
+    WHERE payment_status = 'paid' AND DATE_FORMAT(payment_date, '%Y-%m') = '$currentMonth'
+    " . (isset($_SESSION['client_id']) ? " AND g.client_id = " . (int)$_SESSION['client_id'] : "") . "
+");
+$thisMonthCollected = $stmt->fetch()['total'] ?? 0;
+
+// Open bidding & upcoming bidding groups
+$openBiddingGroups = [];
+$upcomingBiddingGroups = [];
+$tableExists = $pdo->query("SHOW TABLES LIKE 'month_bidding_status'")->fetch();
+if ($tableExists) {
+    $clientFilter = isset($_SESSION['client_id']) ? " AND g.client_id = " . (int)$_SESSION['client_id'] : "";
+    $stmt = $pdo->query("
+        SELECT g.id, g.group_name, mbs.month_number, mbs.bidding_status, mbs.bidding_end_date
+        FROM month_bidding_status mbs
+        JOIN bc_groups g ON mbs.group_id = g.id
+        WHERE g.status = 'active' AND mbs.bidding_status = 'open' $clientFilter
+        ORDER BY mbs.bidding_end_date ASC
+    ");
+    $openBiddingGroups = $stmt->fetchAll();
+    $stmt = $pdo->query("
+        SELECT g.id, g.group_name, mbs.month_number, mbs.bidding_status
+        FROM month_bidding_status mbs
+        JOIN bc_groups g ON mbs.group_id = g.id
+        WHERE g.status = 'active' AND mbs.bidding_status = 'not_started' $clientFilter
+        ORDER BY mbs.month_number ASC
+        LIMIT 10
+    ");
+    $upcomingBiddingGroups = $stmt->fetchAll();
+}
+
+// Pending amount per group & group details for cards
+$groupDetails = [];
+foreach ($groups as $group) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM monthly_bids WHERE group_id = ?");
+    $stmt->execute([$group['id']]);
+    $completedMonths = (int) $stmt->fetchColumn();
+    $currentMonthNum = $completedMonths + 1;
+    $currentMonthStatus = '';
+    $biddingEndDate = null;
+    if ($tableExists && $group['status'] === 'active' && $currentMonthNum <= $group['total_members']) {
+        $stmt = $pdo->prepare("SELECT bidding_status, bidding_end_date FROM month_bidding_status WHERE group_id = ? AND month_number = ?");
+        $stmt->execute([$group['id'], $currentMonthNum]);
+        $mbs = $stmt->fetch();
+        if ($mbs) {
+            $currentMonthStatus = ucfirst(str_replace('_', ' ', $mbs['bidding_status']));
+            $biddingEndDate = $mbs['bidding_end_date'];
+        } else {
+            $currentMonthStatus = 'Not started';
+        }
+    }
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(mb.gain_per_member), 0) as pending
+        FROM monthly_bids mb
+        JOIN member_payments mp ON mb.group_id = mp.group_id AND mb.month_number = mp.month_number
+        WHERE mb.group_id = ? AND mp.payment_status = 'pending'
+    ");
+    $stmt->execute([$group['id']]);
+    $pendingAmt = (float) ($stmt->fetch()['pending'] ?? 0);
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as cnt FROM member_payments mp
+        WHERE mp.group_id = ? AND mp.payment_status = 'pending'
+    ");
+    $stmt->execute([$group['id']]);
+    $pendingMembersCount = (int) ($stmt->fetch()['cnt'] ?? 0);
+    $groupDetails[$group['id']] = [
+        'completed_months' => $completedMonths,
+        'current_month_num' => $currentMonthNum,
+        'current_month_status' => $currentMonthStatus,
+        'bidding_end_date' => $biddingEndDate,
+        'pending_amount' => $pendingAmt,
+        'pending_members_count' => $pendingMembersCount
+    ];
+}
+
+// Overdue payments (payments pending, month end passed - simplified: count old pending)
+$overdueCount = 0;
+$clientFilter = isset($_SESSION['client_id']) ? " AND g.client_id = " . (int)$_SESSION['client_id'] : "";
+$stmt = $pdo->query("
+    SELECT COUNT(*) as cnt FROM member_payments mp
+    JOIN bc_groups g ON mp.group_id = g.id
+    WHERE mp.payment_status = 'pending' $clientFilter
+");
+$overdueCount = (int) ($stmt->fetch()['cnt'] ?? 0);
+
+// Recent activities - expanded with links
+$recentActivities = [];
+$stmt = $pdo->query("
+    SELECT 'payment' as type, mp.id, mp.group_id, mp.member_id, mp.payment_date as date, m.member_name, g.group_name, mp.payment_amount as amount
+    FROM member_payments mp
+    JOIN members m ON mp.member_id = m.id
+    JOIN bc_groups g ON mp.group_id = g.id
+    WHERE mp.payment_date IS NOT NULL " . (isset($_SESSION['client_id']) ? " AND g.client_id = " . (int)$_SESSION['client_id'] : "") . "
+    ORDER BY mp.payment_date DESC LIMIT 5
+");
+$payments = $stmt->fetchAll();
+$stmt = $pdo->query("
+    SELECT 'bid' as type, mb.id, mb.group_id, mb.taken_by_member_id as member_id, mb.payment_date as date, m.member_name, g.group_name, mb.net_payable as amount
+    FROM monthly_bids mb
+    JOIN members m ON mb.taken_by_member_id = m.id
+    JOIN bc_groups g ON mb.group_id = g.id
+    WHERE mb.payment_date IS NOT NULL " . (isset($_SESSION['client_id']) ? " AND g.client_id = " . (int)$_SESSION['client_id'] : "") . "
+    ORDER BY mb.payment_date DESC LIMIT 5
+");
+$bids = $stmt->fetchAll();
+$merged = array_merge(array_map(fn($r) => array_merge($r, ['sort_date' => $r['date']]), $payments), array_map(fn($r) => array_merge($r, ['sort_date' => $r['date']]), $bids));
+usort($merged, fn($a, $b) => strtotime($b['sort_date']) - strtotime($a['sort_date']));
+$recentActivities = array_slice($merged, 0, 10);
+
+// Last login (if client_admins has last_login)
+$lastLogin = null;
+$adminId = $_SESSION['client_admin_id'] ?? $_SESSION['admin_id'] ?? null;
+if ($adminId) {
+    $adminTable = isset($_SESSION['client_admin_id']) ? 'client_admins' : 'admin_users';
+    $idCol = isset($_SESSION['client_admin_id']) ? 'id' : 'id';
+    $stmt = $pdo->query("SHOW COLUMNS FROM $adminTable LIKE 'last_login'");
+    if ($stmt->fetch()) {
+        $stmt = $pdo->prepare("SELECT last_login FROM $adminTable WHERE $idCol = ?");
+        $stmt->execute([$adminId]);
+        $lastLogin = $stmt->fetch()['last_login'] ?? null;
+    }
+}
+
+// Monthly collection data for chart (with client filter)
+$clientJoin = isset($_SESSION['client_id']) ? " JOIN bc_groups g ON mp.group_id = g.id AND g.client_id = " . (int)$_SESSION['client_id'] : "";
+$stmt = $pdo->query("
+    SELECT DATE_FORMAT(mp.payment_date, '%Y-%m') as month, SUM(mp.payment_amount) as total_amount
+    FROM member_payments mp $clientJoin
+    WHERE mp.payment_status = 'paid' AND mp.payment_date IS NOT NULL
+    GROUP BY DATE_FORMAT(mp.payment_date, '%Y-%m')
+    ORDER BY month DESC LIMIT 12
 ");
 $monthlyData = $stmt->fetchAll();
+
+// Monthly distribution data for Collection vs Distribution chart
+$stmt = $pdo->query("
+    SELECT DATE_FORMAT(mb.payment_date, '%Y-%m') as month, SUM(mb.net_payable) as total_amount
+    FROM monthly_bids mb
+    JOIN bc_groups g ON mb.group_id = g.id
+    WHERE mb.payment_date IS NOT NULL " . (isset($_SESSION['client_id']) ? " AND g.client_id = " . (int)$_SESSION['client_id'] : "") . "
+    GROUP BY DATE_FORMAT(mb.payment_date, '%Y-%m')
+    ORDER BY month DESC LIMIT 12
+");
+$monthlyDistData = $stmt->fetchAll();
 
 // Group progress data
 $groupProgressData = [];
@@ -56,37 +208,6 @@ foreach ($groups as $group) {
         'percentage' => ($completedMonths / $group['total_members']) * 100
     ];
 }
-
-// Recent activities
-$stmt = $pdo->query("
-    SELECT
-        'payment' as type,
-        mp.payment_date as date,
-        m.member_name,
-        g.group_name,
-        mp.payment_amount as amount
-    FROM member_payments mp
-    JOIN members m ON mp.member_id = m.id
-    JOIN bc_groups g ON mp.group_id = g.id
-    WHERE mp.payment_date IS NOT NULL
-
-    UNION ALL
-
-    SELECT
-        'bid' as type,
-        mb.payment_date as date,
-        m.member_name,
-        g.group_name,
-        mb.net_payable as amount
-    FROM monthly_bids mb
-    JOIN members m ON mb.taken_by_member_id = m.id
-    JOIN bc_groups g ON mb.group_id = g.id
-    WHERE mb.payment_date IS NOT NULL
-
-    ORDER BY date DESC
-    LIMIT 10
-");
-$recentActivities = $stmt->fetchAll();
 
 // Set page title for header
 $page_title = 'Admin Dashboard';
@@ -1468,6 +1589,14 @@ require_once 'includes/header.php';
                         <span class="mx-2">•</span>
                         <i class="fas fa-user-shield me-2"></i><?= t('welcome') ?> back, <?= htmlspecialchars($_SESSION['admin_name'] ?? 'Admin') ?>
                     </p>
+                    <div class="mt-3 p-3 rounded-3" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%); border: 1px solid rgba(102, 126, 234, 0.3);">
+                        <span class="text-muted small text-uppercase fw-semibold"><i class="fas fa-chart-line me-1"></i>Monthly Turnover</span>
+                        <span class="ms-2 fs-4 fw-bold text-primary"><?= formatCurrency($monthlyTurnover) ?></span>
+                        <small class="text-muted ms-2">(Active groups collection)</small>
+                    </div>
+                    <?php if ($lastLogin): ?>
+                    <div class="mt-2 small text-muted"><i class="fas fa-sign-in-alt me-1"></i>Last login: <?= date('d/m/Y g:i A', strtotime($lastLogin)) ?></div>
+                    <?php endif; ?>
                 </div>
                 <div class="dashboard-actions">
                     <a href="members.php" class="btn btn-outline-modern">
@@ -1543,35 +1672,163 @@ require_once 'includes/header.php';
             </div>
         </div>
 
+        <!-- Balance & This Month Row -->
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="rounded-circle bg-success bg-opacity-25 p-3">
+                                <i class="fas fa-wallet text-success fa-2x"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="text-muted mb-1">Balance / Cash in Hand</h6>
+                            <h4 class="mb-0 fw-bold text-success"><?= formatCurrency($balanceCashInHand) ?></h4>
+                            <small class="text-muted">Collected - Distributed</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="rounded-circle bg-info bg-opacity-25 p-3">
+                                <i class="fas fa-calendar-check text-info fa-2x"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="text-muted mb-1">This Month's Collection</h6>
+                            <h4 class="mb-0 fw-bold text-info"><?= formatCurrency($thisMonthCollected) ?></h4>
+                            <small class="text-muted">Expected: <?= formatCurrency($monthlyTurnover) ?></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts: Open Bidding, Overdue, Bidding Reminders -->
+        <?php if (!empty($openBiddingGroups) || $overdueCount > 0 || !empty($upcomingBiddingGroups)): ?>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning bg-opacity-25">
+                        <h5 class="mb-0"><i class="fas fa-bell me-2"></i>Alerts & Reminders</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <?php if (!empty($openBiddingGroups)): ?>
+                            <div class="col-md-4 mb-3">
+                                <div class="alert alert-success mb-0">
+                                    <strong><i class="fas fa-gavel me-1"></i>Open Bidding (<?= count($openBiddingGroups) ?>)</strong>
+                                    <ul class="mb-0 mt-2 ps-3">
+                                        <?php foreach (array_slice($openBiddingGroups, 0, 5) as $ob): ?>
+                                        <li><a href="admin_bidding.php?group_id=<?= $ob['id'] ?>"><?= htmlspecialchars($ob['group_name']) ?> - Month <?= $ob['month_number'] ?></a><?= $ob['bidding_end_date'] ? ' <small>(ends ' . date('d/m', strtotime($ob['bidding_end_date'])) . ')</small>' : '' ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ($overdueCount > 0): ?>
+                            <div class="col-md-4 mb-3">
+                                <div class="alert alert-danger mb-0">
+                                    <strong><i class="fas fa-exclamation-triangle me-1"></i>Overdue Payments</strong>
+                                    <p class="mb-0 mt-2"><?= $overdueCount ?> pending payment(s) need attention.</p>
+                                    <a href="#pendingPaymentsSection" class="btn btn-sm btn-outline-danger mt-2" onclick="document.getElementById('pendingPaymentsSection').scrollIntoView({behavior:'smooth'})">View Pending</a>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($upcomingBiddingGroups)): ?>
+                            <div class="col-md-4 mb-3">
+                                <div class="alert alert-info mb-0">
+                                    <strong><i class="fas fa-clock me-1"></i>Upcoming Bidding (<?= count($upcomingBiddingGroups) ?>)</strong>
+                                    <ul class="mb-0 mt-2 ps-3">
+                                        <?php foreach (array_slice($upcomingBiddingGroups, 0, 5) as $ub): ?>
+                                        <li><a href="admin_bidding.php?group_id=<?= $ub['id'] ?>"><?= htmlspecialchars($ub['group_name']) ?> - Month <?= $ub['month_number'] ?></a></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Group-wise Pending Payments Section (above groups for quick access) -->
+        <div class="row mb-5" id="pendingPaymentsSection">
+            <div class="col-12">
+                <div class="card dashboard-card animate-fadeInUp">
+                    <div class="card-header bg-warning text-dark">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <div>
+                                <h4 class="mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <?= t('pending_payments') ?>
+                                </h4>
+                                <p class="mb-0 mt-1 small"><?= t('view_month_details') ?></p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-dark btn-sm" onclick="loadPendingPayments()">
+                                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body" style="min-height: 200px; max-height: 600px; overflow-y: auto;">
+                        <div id="pendingPaymentsContent">
+                            <div class="text-center text-muted py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2"><?= t('loading_pending_payments') ?></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 <!-- BC Groups List -->
         <div class="groups-section-new" id="groupsList">
-            <div class="section-header-new">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div>
-                        <h3 class="section-title-new">
-                            <i class="fas fa-layer-group me-2"></i>All BC Groups
-                        </h3>
-                        <p class="section-subtitle-new">Manage and monitor all your BC groups</p>
-                    </div>
-                    <div class="filter-controls-new">
-                        <button class="filter-btn-new active" onclick="filterGroupsNew('all')" data-filter="all">
+                    <div class="section-header-new">
+                        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                            <div>
+                                <h3 class="section-title-new">
+                                    <i class="fas fa-layer-group me-2"></i>All BC Groups
+                                </h3>
+                                <p class="section-subtitle-new">Manage and monitor all your BC groups</p>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <input type="text" id="searchGroups" class="form-control" placeholder="Search groups..." style="max-width: 200px;" onkeyup="filterGroupsBySearch()">
+                                <div class="filter-controls-new">
+                        <button class="filter-btn-new" onclick="filterGroupsNew('all')" data-filter="all">
                             All Groups
                         </button>
-                        <button class="filter-btn-new" onclick="filterGroupsNew('active')" data-filter="active">
+                        <button class="filter-btn-new active" onclick="filterGroupsNew('active')" data-filter="active">
                             Active
                         </button>
                         <button class="filter-btn-new" onclick="filterGroupsNew('completed')" data-filter="completed">
                             Completed
                         </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
             <!-- Groups List -->
             <div class="groups-container-new">
                 <?php if (!empty($groups)): ?>
-                    <?php foreach ($groups as $group): ?>
-                    <div class="group-item-new" data-group-status="<?= $group['status'] ?>">
+                    <?php foreach ($groups as $group):
+                        $gd = $groupDetails[$group['id']] ?? [];
+                        $completedM = $gd['completed_months'] ?? 0;
+                        $totalM = $group['total_members'];
+                        $progressPct = $totalM > 0 ? round(($completedM / $totalM) * 100) : 0;
+                    ?>
+                    <div class="group-item-new" data-group-status="<?= $group['status'] ?>" data-group-name="<?= htmlspecialchars(strtolower($group['group_name'])) ?>">
                         <div class="group-main-info">
                             <div class="group-header-info">
                                 <h5 class="group-name-new"><?= htmlspecialchars($group['group_name']) ?></h5>
@@ -1579,6 +1836,23 @@ require_once 'includes/header.php';
                                     <?= ucfirst($group['status']) ?>
                                 </span>
                             </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">Progress: <?= $completedM ?>/<?= $totalM ?> months</span>
+                                    <span class="fw-bold"><?= $progressPct ?>%</span>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" style="width: <?= $progressPct ?>%"></div>
+                                </div>
+                            </div>
+                            <?php if ($group['status'] === 'active' && !empty($gd['current_month_status'])): ?>
+                            <div class="small mb-2">
+                                <span class="badge bg-light text-dark">Month <?= $gd['current_month_num'] ?? '-' ?>: <?= $gd['current_month_status'] ?></span>
+                                <?php if (!empty($gd['pending_amount']) && $gd['pending_amount'] > 0): ?>
+                                <span class="badge bg-warning text-dark ms-1">Pending: <?= formatCurrency($gd['pending_amount']) ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
                             <div class="group-stats-new">
                                 <div class="stat-item-new">
                                     <i class="fas fa-users"></i>
@@ -1656,44 +1930,18 @@ require_once 'includes/header.php';
                         <i class="fas fa-upload"></i>
                         <span>Import</span>
                     </a>
+                    <a href="financial_report.php" class="quick-action-btn" title="Financial Report">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Financial Report</span>
+                    </a>
+                    <a href="export_data.php" class="quick-action-btn" title="Export Data">
+                        <i class="fas fa-download"></i>
+                        <span>Export</span>
+                    </a>
                     <button class="quick-action-btn" onclick="refreshDashboard()" title="Refresh Data">
                         <i class="fas fa-sync-alt"></i>
                         <span>Refresh</span>
                     </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Group-wise Pending Payments Section -->
-        <div class="row mb-5">
-            <div class="col-12">
-                <div class="card dashboard-card animate-fadeInUp">
-                    <div class="card-header bg-warning text-dark">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap">
-                            <div>
-                                <h4 class="mb-0">
-                                    <i class="fas fa-exclamation-triangle me-2"></i>
-                                    <?= t('pending_payments') ?>
-                                </h4>
-                                <p class="mb-0 mt-1 small"><?= t('view_month_details') ?></p>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-outline-dark btn-sm" onclick="loadPendingPayments()">
-                                    <i class="fas fa-sync-alt me-1"></i>Refresh
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body" style="min-height: 200px; max-height: 600px; overflow-y: auto;">
-                        <div id="pendingPaymentsContent">
-                            <div class="text-center text-muted py-4">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                <p class="mt-2"><?= t('loading_pending_payments') ?></p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1729,6 +1977,23 @@ require_once 'includes/header.php';
                 </div>
             </div>
         </div>
+        <!-- Collection vs Distribution Chart -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-balance-scale"></i> Collection vs Distribution
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="collectionVsDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Group Progress and Recent Activities -->
         <div class="row mb-4">
@@ -1755,8 +2020,10 @@ require_once 'includes/header.php';
                     </div>
                     <div class="card-body" style="max-height: 300px; overflow-y: auto;">
                         <?php if (!empty($recentActivities)): ?>
-                            <?php foreach ($recentActivities as $activity): ?>
-                                <div class="d-flex align-items-center mb-2 p-2 bg-light rounded">
+                            <?php foreach ($recentActivities as $activity):
+                                $groupLink = 'view_group.php?id=' . ($activity['group_id'] ?? '');
+                            ?>
+                                <a href="<?= $groupLink ?>" class="d-flex align-items-center mb-2 p-2 bg-light rounded text-decoration-none text-dark" style="transition: background 0.2s;" onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'">
                                     <div class="me-3">
                                         <?php if ($activity['type'] === 'payment'): ?>
                                             <i class="fas fa-money-bill text-success"></i>
@@ -1774,12 +2041,13 @@ require_once 'includes/header.php';
                                         <div class="fw-bold text-primary"><?= formatCurrency($activity['amount']) ?></div>
                                         <small class="text-muted"><?= formatDate($activity['date']) ?></small>
                                     </div>
-                                </div>
+                                </a>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <div class="text-center text-muted py-4">
                                 <i class="fas fa-inbox fa-2x mb-2"></i>
                                 <p>No recent activities</p>
+                                <small class="d-block mt-2">Payments and bid wins will appear here</small>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -1835,6 +2103,36 @@ require_once 'includes/header.php';
                 }
             }
         });
+
+        // Collection vs Distribution Chart
+        const monthlyCollData = <?= json_encode(array_reverse($monthlyData)) ?>;
+        const monthlyDistData = <?= json_encode(array_reverse($monthlyDistData ?? [])) ?>;
+        const allMonths = [...new Set([...monthlyCollData.map(m => m.month), ...(monthlyDistData || []).map(m => m.month)])].sort();
+        const collMap = Object.fromEntries(monthlyCollData.map(m => [m.month, parseFloat(m.total_amount)]));
+        const distMap = Object.fromEntries((monthlyDistData || []).map(m => [m.month, parseFloat(m.total_amount)]));
+        const collVsDistCtx = document.getElementById('collectionVsDistributionChart');
+        if (collVsDistCtx && allMonths.length > 0) {
+            new Chart(collVsDistCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: allMonths.map(m => {
+                        const d = new Date(m + '-01');
+                        return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    }),
+                    datasets: [
+                        { label: 'Collection', data: allMonths.map(m => collMap[m] || 0), backgroundColor: 'rgba(102, 126, 234, 0.7)' },
+                        { label: 'Distribution', data: allMonths.map(m => distMap[m] || 0), backgroundColor: 'rgba(245, 87, 108, 0.7)' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => '₹' + v.toLocaleString() } }
+                    }
+                }
+            });
+        }
 
         // Group Status Pie Chart
         const statusCtx = document.getElementById('groupStatusChart').getContext('2d');
@@ -1930,6 +2228,20 @@ require_once 'includes/header.php';
                   `This shows amounts given to bid winners.`);
         }
 
+        function filterGroupsBySearch() {
+            const search = document.getElementById('searchGroups').value.toLowerCase();
+            const items = document.querySelectorAll('.group-item-new[data-group-name]');
+            items.forEach(item => {
+                const name = item.getAttribute('data-group-name') || '';
+                const status = item.getAttribute('data-group-status');
+                const filterBtn = document.querySelector('.filter-btn-new.active');
+                const statusFilter = filterBtn ? filterBtn.getAttribute('data-filter') : 'all';
+                const statusMatch = statusFilter === 'all' || status === statusFilter;
+                const searchMatch = !search || name.includes(search);
+                item.style.display = (statusMatch && searchMatch) ? 'flex' : 'none';
+            });
+        }
+
         function filterGroupsNew(status) {
             const groupItems = document.querySelectorAll('.group-item-new[data-group-status]');
             const filterButtons = document.querySelectorAll('.filter-btn-new');
@@ -1945,9 +2257,13 @@ require_once 'includes/header.php';
                 activeButton.classList.add('active');
             }
 
-            // Filter groups with smooth animation
+            // Filter groups with smooth animation (also apply search)
+            const search = (document.getElementById('searchGroups') || {}).value?.toLowerCase() || '';
             groupItems.forEach(item => {
-                if (status === 'all' || item.getAttribute('data-group-status') === status) {
+                const statusMatch = status === 'all' || item.getAttribute('data-group-status') === status;
+                const name = item.getAttribute('data-group-name') || '';
+                const searchMatch = !search || name.includes(search);
+                if (statusMatch && searchMatch) {
                     item.style.display = 'flex';
                     item.style.opacity = '0';
                     item.style.transform = 'translateY(10px)';
@@ -1971,8 +2287,8 @@ require_once 'includes/header.php';
 
         // Initialize the new groups section
         document.addEventListener('DOMContentLoaded', function() {
-            // Set default filter to 'all'
-            filterGroupsNew('all');
+            // Set default filter to 'active'
+            filterGroupsNew('active');
 
             // Add smooth scroll behavior
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {

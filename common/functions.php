@@ -75,6 +75,63 @@ function getMemberById($memberId) {
 }
 
 // Group Functions
+
+/**
+ * Auto-sync BC group status: mark as 'completed' when all months are done or end date has passed.
+ * Call this when loading admin dashboard to keep status in sync.
+ */
+function syncGroupStatus() {
+    $pdo = getDB();
+    $clientId = $_SESSION['client_id'] ?? null;
+
+    // Get active groups (respect client in multi-tenant)
+    if ($clientId !== null) {
+        $stmt = $pdo->prepare("SELECT * FROM bc_groups WHERE client_id = ? AND status = 'active'");
+        $stmt->execute([$clientId]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM bc_groups WHERE status = 'active'");
+    }
+    $groups = $stmt->fetchAll();
+    $updated = 0;
+
+    foreach ($groups as $group) {
+        if (($group['status'] ?? 'active') !== 'active') {
+            continue;
+        }
+
+        $groupId = $group['id'];
+        $totalMembers = (int) $group['total_members'];
+        $startDate = $group['start_date'] ?? null;
+
+        // Check completed months
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM monthly_bids WHERE group_id = ?");
+        $stmt->execute([$groupId]);
+        $completedMonths = (int) $stmt->fetchColumn();
+
+        $shouldComplete = false;
+
+        // Completed by bids: all months have bids
+        if ($completedMonths >= $totalMembers) {
+            $shouldComplete = true;
+        }
+        // Completed by date: end date has passed (start_date + total_members-1 months)
+        elseif ($startDate && $totalMembers > 0) {
+            $endDate = (new DateTime($startDate))->add(new DateInterval('P' . ($totalMembers - 1) . 'M'));
+            if ($endDate <= new DateTime('today')) {
+                $shouldComplete = true;
+            }
+        }
+
+        if ($shouldComplete) {
+            $stmt = $pdo->prepare("UPDATE bc_groups SET status = 'completed' WHERE id = ?");
+            $stmt->execute([$groupId]);
+            $updated += $stmt->rowCount();
+        }
+    }
+
+    return $updated;
+}
+
 function getAllGroups() {
     $pdo = getDB();
     
