@@ -1889,6 +1889,10 @@ require_once 'includes/header.php';
                                 <i class="fas fa-credit-card"></i>
                                 <span>Payments</span>
                             </a>
+                            <a href="bc_info.php?group_id=<?= $group['id'] ?>" class="action-btn-new primary" target="_blank">
+                                <i class="fas fa-share-alt"></i>
+                                <span>BC Info</span>
+                            </a>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -1921,6 +1925,10 @@ require_once 'includes/header.php';
                     <a href="payment_config.php" class="quick-action-btn" title="QR Code Settings">
                         <i class="fas fa-qrcode"></i>
                         <span>QR Settings</span>
+                    </a>
+                    <a href="bc_info.php" class="quick-action-btn" title="BC Info - Share group snapshot">
+                        <i class="fas fa-share-alt"></i>
+                        <span>BC Info</span>
                     </a>
                     <a href="payment_status.php" class="quick-action-btn" title="Payment Status">
                         <i class="fas fa-credit-card"></i>
