@@ -343,16 +343,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_member'])) {
             $stmt = $pdo->prepare("DELETE FROM member_payments WHERE group_id = ? AND member_id = ?");
             $stmt->execute([$groupId, $memberId]);
 
-            // STEP 2: Now remove from group_members (set status to inactive)
-            // This only removes the member from the group, NOT from the members table (account is preserved)
+            // STEP 2: Remove from group_members (delete assignment; members account is preserved)
+            // member_number is NOT NULL in group_members, so we delete the row rather than NULL-ing member_number
             
-            // First, get all existing member_numbers in this group (including inactive) to find a safe temporary range
-            $stmt = $pdo->prepare("SELECT COALESCE(MAX(member_number), 0) as max_number FROM group_members WHERE group_id = ?");
+            // Get max member_number for safe temporary renumbering of remaining active members
+            $stmt = $pdo->prepare("SELECT COALESCE(MAX(member_number), 0) as max_number FROM group_members WHERE group_id = ? AND status = 'active'");
             $stmt->execute([$groupId]);
             $maxExistingNumber = $stmt->fetchColumn();
             
-            // Set status to inactive and member_number to NULL to free it up
-            $stmt = $pdo->prepare("UPDATE group_members SET status = 'inactive', member_number = NULL WHERE group_id = ? AND member_id = ?");
+            $stmt = $pdo->prepare("DELETE FROM group_members WHERE group_id = ? AND member_id = ?");
             $stmt->execute([$groupId, $memberId]);
 
             // Update member numbers for remaining members (renumber them sequentially)
