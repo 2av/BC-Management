@@ -37,6 +37,23 @@ $randomPicks = getRandomPicks($selectedGroupId);
 // Get current active month
 $currentActiveMonth = getCurrentActiveMonthNumber($selectedGroupId);
 
+// Pending members for spin wheel — haven't received any amount yet (no monthly_bids win)
+$pendingMembersForSpin = [];
+$pdo = getDB();
+$stmt = $pdo->prepare("
+    SELECT DISTINCT taken_by_member_id as member_id
+    FROM monthly_bids
+    WHERE group_id = ? AND taken_by_member_id IS NOT NULL
+");
+$stmt->execute([$selectedGroupId]);
+$receivedMemberIds = array_column($stmt->fetchAll(), 'member_id');
+
+foreach ($members as $memberOption) {
+    if (!in_array($memberOption['id'], $receivedMemberIds)) {
+        $pendingMembersForSpin[] = $memberOption;
+    }
+}
+
 // Organize payments by member and month
 $paymentsMatrix = [];
 foreach ($memberPayments as $payment) {
@@ -61,26 +78,8 @@ foreach ($members as $memberInGroup) {
 // Check if current member is akhilesh (case-insensitive)
 $isAkhilesh = (strtolower($member['member_name']) === 'akhilesh' || strtolower($member['username'] ?? '') === 'akhilesh');
 
-// Get members who haven't received any amount (haven't won in monthly_bids)
-$membersWhoHaventReceived = [];
-if ($isAkhilesh) {
-    $pdo = getDB();
-    // Get all members who have won (received amount)
-    $stmt = $pdo->prepare("
-        SELECT DISTINCT taken_by_member_id as member_id
-        FROM monthly_bids 
-        WHERE group_id = ? AND taken_by_member_id IS NOT NULL
-    ");
-    $stmt->execute([$selectedGroupId]);
-    $wonMemberIds = array_column($stmt->fetchAll(), 'member_id');
-    
-    // Filter members to only those who haven't received
-    foreach ($members as $memberOption) {
-        if (!in_array($memberOption['id'], $wonMemberIds)) {
-            $membersWhoHaventReceived[] = $memberOption;
-        }
-    }
-}
+// Get members who haven't received any amount (for Akhilesh custom pick tool)
+$membersWhoHaventReceived = $pendingMembersForSpin;
 
 // Handle saving selected member for random pick
 $savedSelectedMemberId = null;
@@ -97,8 +96,16 @@ if ($isAkhilesh && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_s
 }
 
 // Get saved selected member from session
+$savedSelectedMemberId = null;
+$savedSelectedMemberName = '';
 if ($isAkhilesh && isset($_SESSION['akhilesh_selected_member_' . $selectedGroupId])) {
     $savedSelectedMemberId = $_SESSION['akhilesh_selected_member_' . $selectedGroupId];
+    foreach ($pendingMembersForSpin as $m) {
+        if ($m['id'] == $savedSelectedMemberId) {
+            $savedSelectedMemberName = $m['member_name'];
+            break;
+        }
+    }
 }
 
 // Set page title for the header
@@ -402,6 +409,105 @@ require_once 'includes/header.php';
             70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
             100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
         }
+
+        /* Spin Wheel Modal */
+        .spin-wheel-modal .modal-content {
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .spin-wheel-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 576px) {
+            .spin-wheel-container {
+                width: 280px;
+                height: 280px;
+            }
+        }
+
+        .spin-wheel-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .spin-wheel-pointer {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 14px solid transparent;
+            border-right: 14px solid transparent;
+            border-top: 28px solid #dc3545;
+            z-index: 10;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        }
+
+        .spin-wheel-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #fff, #f0f0f0);
+            border-radius: 50%;
+            border: 3px solid #333;
+            z-index: 5;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .spin-result-banner {
+            display: none;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 16px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .spin-result-banner.show {
+            display: block;
+        }
+
+        .spin-result-banner .winner-name {
+            font-size: 1.4rem;
+            font-weight: bold;
+        }
+
+        #spinWheelBtn {
+            transition: all 0.3s ease;
+        }
+
+        #spinWheelBtn:hover {
+            transform: scale(1.05);
+        }
+
+        .spin-confirm-modal .modal-header {
+            border-bottom: none;
+        }
+
+        .spin-confirm-modal .confirm-winner-box {
+            background: #f8f9fa;
+            border: 2px dashed #28a745;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 12px 0;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #28a745;
+        }
     </style>
 
 <!-- Page content starts here -->
@@ -499,6 +605,9 @@ require_once 'includes/header.php';
                                 </div>
                                 <div class="col-md-4">
                                     <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-warning btn-lg" id="spinWheelBtn">
+                                            <i class="fas fa-dharmachakra me-2"></i>Spin to Pick
+                                        </button>
                                         <button type="submit" class="btn btn-success btn-lg">
                                             <i class="fas fa-save me-2"></i>Save Member
                                         </button>
@@ -524,6 +633,71 @@ require_once 'includes/header.php';
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
                     All members have already received their amount. No members available for random pick.
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Spin Wheel Modal -->
+        <?php if ($currentActiveMonth && !empty($pendingMembersForSpin)): ?>
+        <div class="modal fade spin-wheel-modal" id="spinWheelModal" tabindex="-1" aria-labelledby="spinWheelModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title" id="spinWheelModalLabel">
+                            <i class="fas fa-dharmachakra me-2"></i>Spin to Pick a Member
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center py-4">
+                        <p class="text-muted mb-3" id="spinWheelSubtitle">Spin the wheel to randomly select a pending member.</p>
+                        <div class="spin-wheel-container">
+                            <div class="spin-wheel-pointer"></div>
+                            <canvas id="spinWheelCanvas" class="spin-wheel-canvas" width="320" height="320"></canvas>
+                            <div class="spin-wheel-center"></div>
+                        </div>
+                        <div class="spin-result-banner" id="spinResultBanner">
+                            <div><i class="fas fa-trophy me-1"></i> Selected Winner</div>
+                            <div class="winner-name" id="spinWinnerName"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer justify-content-center">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-warning btn-lg px-4" id="spinBtn">
+                            <i class="fas fa-play me-2"></i>SPIN
+                        </button>
+                        <button type="button" class="btn btn-success btn-lg px-4 d-none" id="useSpinResultBtn">
+                            <i class="fas fa-check me-2"></i><span id="useSpinResultBtnText">Confirm</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spin Confirmation Modal -->
+        <div class="modal fade spin-confirm-modal" id="spinConfirmModal" tabindex="-1" aria-labelledby="spinConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title" id="spinConfirmModalLabel">
+                            <i class="fas fa-question-circle me-2"></i><span id="spinConfirmTitle">Confirm</span>
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <p id="spinConfirmMessage" class="mb-0"></p>
+                        <div class="confirm-winner-box d-none" id="spinConfirmWinnerBox">
+                            <i class="fas fa-user-check me-2"></i>
+                            <span id="spinConfirmWinnerName"></span>
+                        </div>
+                        <p id="spinConfirmSubtext" class="text-muted small mt-2 mb-0"></p>
+                    </div>
+                    <div class="modal-footer justify-content-center">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary px-4" id="spinConfirmOkBtn">
+                            <i class="fas fa-check me-2"></i>Confirm
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -943,96 +1117,21 @@ require_once 'includes/header.php';
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Random Pick functionality
+        // Random Pick functionality — opens spin wheel first
         document.addEventListener('DOMContentLoaded', function() {
-            // Handle random pick button clicks (both regular and saved selection)
             document.querySelectorAll('.random-pick-btn, .random-pick-btn-saved').forEach(button => {
                 button.addEventListener('click', function() {
                     const groupId = this.getAttribute('data-group-id');
                     const monthNumber = this.getAttribute('data-month');
-                    const useSaved = this.getAttribute('data-use-saved') === '1';
-                    const savedMemberId = useSaved ? parseInt(this.getAttribute('data-saved-member-id') || '0') : 0;
-                    const savedMemberName = this.getAttribute('data-saved-member-name') || '';
 
-                    // If using saved selection, use the saved member directly
-                    if (useSaved && savedMemberId) {
-                        // Use saved member name from data attribute
-                        const selectedMemberName = savedMemberName || 'Selected Member';
-
-                        if (!savedMemberName) {
-                            alert('Saved member not found. Please save your selection again.');
-                            return;
-                        }
-
-                        // Confirm action with saved member name
-                        if (!confirm(`You have selected "${selectedMemberName}" in Custom Random Pick Tool.\n\nUse this member for Month ${monthNumber}? This action cannot be undone.`)) {
-                            return;
-                        }
-
-                        // Disable button and show loading
-                        this.disabled = true;
-                        this.innerHTML = '🎲 Picking...';
-
-                        // Make AJAX request with saved member ID
-                        fetch('../admin/random_pick_member_custom.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: `group_id=${groupId}&month_number=${monthNumber}&selected_member_id=${savedMemberId}`
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                alert(`Pick successful! ${selectedMemberName} has been selected for Month ${monthNumber}.`);
-                                window.location.reload();
-                            } else {
-                                alert(`Error: ${data.message}`);
-                                this.disabled = false;
-                                this.innerHTML = '🎲 Pick';
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('An error occurred while making the pick. Please try again.');
-                            this.disabled = false;
-                            this.innerHTML = '🎲 Pick';
+                    if (typeof window.openSpinWheelForPick === 'function') {
+                        window.openSpinWheelForPick({
+                            groupId: groupId,
+                            monthNumber: monthNumber,
+                            pickButton: this
                         });
                     } else {
-                        // Regular random pick (from all available members)
-                        if (!confirm(`Are you sure you want to randomly pick a member for Month ${monthNumber}? This action cannot be undone.`)) {
-                            return;
-                        }
-
-                        // Disable button and show loading
-                        this.disabled = true;
-                        this.innerHTML = '🎲 Picking...';
-
-                        // Make AJAX request
-                        fetch('../admin/random_pick_member.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                            body: `group_id=${groupId}&month_number=${monthNumber}`
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                alert(`Random pick successful! ${data.selected_member.name} has been selected for Month ${monthNumber}.`);
-                                window.location.reload();
-                            } else {
-                                alert(`Error: ${data.message}`);
-                                this.disabled = false;
-                                this.innerHTML = '🎲 Pick';
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('An error occurred while making the random pick. Please try again.');
-                            this.disabled = false;
-                            this.innerHTML = '🎲 Pick';
-                        });
+                        alert('Spin wheel is not available. No pending members available for random pick.');
                     }
                 });
             });
@@ -1086,6 +1185,368 @@ require_once 'includes/header.php';
                 }
             }
         });
+        <?php endif; ?>
+
+        // Spin Wheel Feature
+        <?php if ($currentActiveMonth && !empty($pendingMembersForSpin)): ?>
+        (function() {
+            const pendingMembers = <?= json_encode(array_map(function($m) {
+                return [
+                    'id' => $m['id'],
+                    'name' => $m['member_name'],
+                    'number' => $m['member_number'] ?? null
+                ];
+            }, $pendingMembersForSpin)) ?>;
+
+            const savedCustomPickMemberId = <?= $savedSelectedMemberId ? (int)$savedSelectedMemberId : 'null' ?>;
+            const savedCustomPickMemberName = <?= json_encode($savedSelectedMemberName) ?>;
+
+            const wheelColors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8B500', '#00CED1', '#FF69B4', '#32CD32', '#FF8C00'
+            ];
+
+            let spinMembers = [];
+            let spinMode = 'pick';
+            let pickContext = null;
+            let predeterminedMemberId = null;
+            let currentRotation = 0;
+            let isSpinning = false;
+            let selectedWinner = null;
+
+            const canvas = document.getElementById('spinWheelCanvas');
+            const ctx = canvas.getContext('2d');
+            const spinBtn = document.getElementById('spinBtn');
+            const useResultBtn = document.getElementById('useSpinResultBtn');
+            const useResultBtnText = document.getElementById('useSpinResultBtnText');
+            const resultBanner = document.getElementById('spinResultBanner');
+            const winnerNameEl = document.getElementById('spinWinnerName');
+            const spinSubtitle = document.getElementById('spinWheelSubtitle');
+            const spinModal = document.getElementById('spinWheelModal');
+            const spinWheelBtn = document.getElementById('spinWheelBtn');
+            const confirmModal = document.getElementById('spinConfirmModal');
+            const confirmTitle = document.getElementById('spinConfirmTitle');
+            const confirmMessage = document.getElementById('spinConfirmMessage');
+            const confirmWinnerBox = document.getElementById('spinConfirmWinnerBox');
+            const confirmWinnerName = document.getElementById('spinConfirmWinnerName');
+            const confirmSubtext = document.getElementById('spinConfirmSubtext');
+            const confirmOkBtn = document.getElementById('spinConfirmOkBtn');
+
+            let confirmCallback = null;
+            const spinWheelModalInstance = new bootstrap.Modal(spinModal);
+            const spinConfirmModalInstance = new bootstrap.Modal(confirmModal);
+
+            function showSpinConfirm(options) {
+                confirmTitle.textContent = options.title || 'Confirm';
+                confirmMessage.textContent = options.message || '';
+                confirmSubtext.textContent = options.subtext || '';
+
+                if (options.winnerName) {
+                    confirmWinnerBox.classList.remove('d-none');
+                    confirmWinnerName.textContent = options.winnerName;
+                } else {
+                    confirmWinnerBox.classList.add('d-none');
+                    confirmWinnerName.textContent = '';
+                }
+
+                confirmOkBtn.className = 'btn px-4 ' + (options.okClass || 'btn-primary');
+                confirmOkBtn.innerHTML = '<i class="fas fa-check me-2"></i>' + (options.okText || 'Confirm');
+                confirmCallback = options.onConfirm || null;
+                spinConfirmModalInstance.show();
+            }
+
+            confirmOkBtn.addEventListener('click', function() {
+                spinConfirmModalInstance.hide();
+                if (typeof confirmCallback === 'function') {
+                    confirmCallback();
+                }
+                confirmCallback = null;
+            });
+
+            function drawWheel(rotation) {
+                if (!spinMembers.length) return;
+
+                const size = canvas.width;
+                const center = size / 2;
+                const radius = center - 4;
+                const sliceAngle = (2 * Math.PI) / spinMembers.length;
+
+                ctx.clearRect(0, 0, size, size);
+                ctx.save();
+                ctx.translate(center, center);
+                ctx.rotate(rotation);
+
+                spinMembers.forEach((member, i) => {
+                    const startAngle = i * sliceAngle;
+                    const endAngle = startAngle + sliceAngle;
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.arc(0, 0, radius, startAngle, endAngle);
+                    ctx.closePath();
+                    ctx.fillStyle = wheelColors[i % wheelColors.length];
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.save();
+                    ctx.rotate(startAngle + sliceAngle / 2);
+                    ctx.textAlign = 'right';
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px Arial, sans-serif';
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 3;
+
+                    let displayName = member.name;
+                    if (displayName.length > 12) {
+                        displayName = displayName.substring(0, 11) + '…';
+                    }
+                    ctx.fillText(displayName, radius - 14, 5);
+                    ctx.restore();
+                });
+
+                ctx.restore();
+
+                ctx.beginPath();
+                ctx.arc(center, center, 24, 0, 2 * Math.PI);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            function getCustomToolSelectedMemberId() {
+                const select = document.getElementById('memberSelect');
+                if (select && select.value) {
+                    return parseInt(select.value, 10);
+                }
+                return savedCustomPickMemberId || null;
+            }
+
+            function resolveWinnerIndex() {
+                let targetId = predeterminedMemberId;
+
+                if (!targetId && spinMode === 'selection') {
+                    targetId = getCustomToolSelectedMemberId();
+                }
+
+                if (targetId) {
+                    const index = spinMembers.findIndex(m => m.id === targetId);
+                    if (index !== -1) {
+                        return index;
+                    }
+                }
+
+                return Math.floor(Math.random() * spinMembers.length);
+            }
+
+            function spin() {
+                if (isSpinning || spinMembers.length === 0) return;
+
+                isSpinning = true;
+                spinBtn.disabled = true;
+                spinBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Spinning...';
+                resultBanner.classList.remove('show');
+                useResultBtn.classList.add('d-none');
+                selectedWinner = null;
+
+                const winnerIndex = resolveWinnerIndex();
+                const sliceAngle = (2 * Math.PI) / spinMembers.length;
+                const extraSpins = 5 + Math.floor(Math.random() * 3);
+                const targetAngle = extraSpins * 2 * Math.PI + (3 * Math.PI / 2 - winnerIndex * sliceAngle - sliceAngle / 2);
+                const startRotation = currentRotation;
+                const totalRotation = targetAngle - (startRotation % (2 * Math.PI));
+                const duration = 4000;
+                const startTime = performance.now();
+
+                function animate(now) {
+                    const elapsed = now - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const easeOut = 1 - Math.pow(1 - progress, 4);
+                    currentRotation = startRotation + totalRotation * easeOut;
+                    drawWheel(currentRotation);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        isSpinning = false;
+                        spinBtn.disabled = false;
+                        spinBtn.innerHTML = '<i class="fas fa-redo me-2"></i>SPIN AGAIN';
+                        selectedWinner = spinMembers[winnerIndex];
+                        winnerNameEl.textContent = selectedWinner.name +
+                            (selectedWinner.number ? ' (#' + selectedWinner.number + ')' : '');
+                        resultBanner.classList.add('show');
+                        useResultBtn.classList.remove('d-none');
+                    }
+                }
+
+                requestAnimationFrame(animate);
+            }
+
+            function submitMonthPick() {
+                if (!selectedWinner || !pickContext) return;
+
+                const pickButton = pickContext.pickButton;
+                if (pickButton) {
+                    pickButton.disabled = true;
+                    pickButton.innerHTML = '🎲 Picking...';
+                }
+
+                fetch('../admin/random_pick_member_custom.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `group_id=${pickContext.groupId}&month_number=${pickContext.monthNumber}&selected_member_id=${selectedWinner.id}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        spinWheelModalInstance.hide();
+                        alert(`Random pick successful! ${selectedWinner.name} has been selected for Month ${pickContext.monthNumber}.`);
+                        window.location.reload();
+                    } else {
+                        alert(`Error: ${data.message}`);
+                        if (pickButton) {
+                            pickButton.disabled = false;
+                            pickButton.innerHTML = '🎲 Pick';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while making the random pick. Please try again.');
+                    if (pickButton) {
+                        pickButton.disabled = false;
+                        pickButton.innerHTML = '🎲 Pick';
+                    }
+                });
+            }
+
+            function useSpinResult() {
+                if (!selectedWinner) return;
+
+                const winnerLabel = selectedWinner.name +
+                    (selectedWinner.number ? ' (#' + selectedWinner.number + ')' : '');
+
+                if (spinMode === 'selection') {
+                    showSpinConfirm({
+                        title: 'Confirm Selected Member',
+                        message: 'Do you want to use this member from the spin result?',
+                        winnerName: winnerLabel,
+                        subtext: 'This will select the member in the dropdown. Click Save Member to store your choice.',
+                        okText: 'Yes, Use This Member',
+                        okClass: 'btn-success',
+                        onConfirm: function() {
+                            const select = document.getElementById('memberSelect');
+                            if (select) {
+                                select.value = selectedWinner.id;
+                                select.dispatchEvent(new Event('change'));
+                            }
+                            spinWheelModalInstance.hide();
+                        }
+                    });
+                } else {
+                    showSpinConfirm({
+                        title: 'Confirm Random Pick',
+                        message: `Confirm this member for Month ${pickContext.monthNumber}?`,
+                        winnerName: winnerLabel,
+                        subtext: 'This action cannot be undone.',
+                        okText: 'Yes, Confirm Pick',
+                        okClass: 'btn-success',
+                        onConfirm: submitMonthPick
+                    });
+                }
+            }
+
+            function resetSpinModal() {
+                spinBtn.disabled = false;
+                spinBtn.innerHTML = '<i class="fas fa-play me-2"></i>SPIN';
+                resultBanner.classList.remove('show');
+                useResultBtn.classList.add('d-none');
+                selectedWinner = null;
+                isSpinning = false;
+            }
+
+            function openSpinWheel(options) {
+                spinMode = options.mode || 'pick';
+                spinMembers = pendingMembers;
+                pickContext = options.pickContext || null;
+                predeterminedMemberId = options.predeterminedMemberId || null;
+
+                if (!spinMembers.length) {
+                    alert('No pending members available for spin.');
+                    return;
+                }
+
+                const hasSavedPick = predeterminedMemberId || (spinMode === 'selection' && getCustomToolSelectedMemberId());
+                const savedName = predeterminedMemberId
+                    ? (spinMembers.find(m => m.id === predeterminedMemberId)?.name || savedCustomPickMemberName)
+                    : (spinMode === 'selection' && getCustomToolSelectedMemberId()
+                        ? spinMembers.find(m => m.id === getCustomToolSelectedMemberId())?.name
+                        : null);
+
+                if (spinMode === 'selection') {
+                    spinSubtitle.textContent = hasSavedPick && savedName
+                        ? `Spin the wheel — result will be your chosen member: ${savedName}`
+                        : 'Spin the wheel to select a pending member who hasn\'t received amount yet.';
+                    useResultBtnText.textContent = 'Use This Member';
+                } else if (hasSavedPick && savedName) {
+                    spinSubtitle.textContent = `Spin the wheel for Month ${pickContext.monthNumber} — result will be: ${savedName}`;
+                    useResultBtnText.textContent = 'Confirm Pick';
+                } else {
+                    spinSubtitle.textContent = `Spin the wheel to randomly pick a pending member for Month ${pickContext.monthNumber}.`;
+                    useResultBtnText.textContent = 'Confirm Pick';
+                }
+
+                spinWheelModalInstance.show();
+            }
+
+            window.openSpinWheelForPick = function(options) {
+                const useSaved = options.pickButton?.getAttribute('data-use-saved') === '1';
+                const savedMemberId = useSaved
+                    ? parseInt(options.pickButton.getAttribute('data-saved-member-id') || '0', 10)
+                    : 0;
+
+                openSpinWheel({
+                    mode: 'pick',
+                    predeterminedMemberId: savedMemberId || savedCustomPickMemberId || null,
+                    pickContext: {
+                        groupId: options.groupId,
+                        monthNumber: options.monthNumber,
+                        pickButton: options.pickButton
+                    }
+                });
+            };
+
+            spinBtn.addEventListener('click', spin);
+            useResultBtn.addEventListener('click', useSpinResult);
+
+            if (spinWheelBtn) {
+                spinWheelBtn.addEventListener('click', function() {
+                    openSpinWheel({ mode: 'selection' });
+                });
+            }
+
+            spinModal.addEventListener('shown.bs.modal', function() {
+                const container = document.querySelector('.spin-wheel-container');
+                const containerWidth = container ? container.offsetWidth : 320;
+                canvas.width = containerWidth;
+                canvas.height = containerWidth;
+                currentRotation = 0;
+                drawWheel(0);
+                resetSpinModal();
+            });
+
+            spinModal.addEventListener('hidden.bs.modal', function() {
+                resetSpinModal();
+                pickContext = null;
+                predeterminedMemberId = null;
+            });
+        })();
         <?php endif; ?>
 
         // Enhanced mobile tooltip handling
