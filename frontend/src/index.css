@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+
+  --color-background: #f4f7fa;
+  --color-foreground: #0b1f33;
+  --color-card: #ffffff;
+  --color-card-foreground: #0b1f33;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0b1f33;
+  --color-primary: #0f766e;
+  --color-primary-foreground: #f0fdfa;
+  --color-secondary: #e8eef5;
+  --color-secondary-foreground: #0b1f33;
+  --color-muted: #eef2f6;
+  --color-muted-foreground: #5b6b7c;
+  --color-accent: #c4a35a;
+  --color-accent-foreground: #0b1f33;
+  --color-destructive: #b42318;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #d7e0ea;
+  --color-input: #d7e0ea;
+  --color-ring: #0f766e;
+  --color-navy: #0b1f33;
+  --color-navy-soft: #122a42;
+  --color-teal-soft: #ccfbf1;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply min-h-screen bg-background font-sans text-foreground;
+    margin: 0;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}

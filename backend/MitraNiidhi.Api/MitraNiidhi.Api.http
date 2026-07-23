@@ -1,0 +1,6 @@
+@MitraNiidhi.Api_HostAddress = http://localhost:5027
+
+GET {{MitraNiidhi.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

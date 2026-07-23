@@ -1,10 +1,12 @@
 # Database Configuration (Security)
 db_config.php
+config/db_config.php
 
 # Environment Configuration
 .env
 .env.local
 .env.production
+.env.*.local
 
 # Uploaded Files
 uploads/
@@ -24,9 +26,12 @@ temp/
 # IDE Files
 .vscode/
 .idea/
+.vs/
 *.swp
 *.swo
 *~
+*.user
+*.suo
 
 # OS Files
 .DS_Store
@@ -43,14 +48,21 @@ config_local.php
 settings_local.php
 credentials.php
 
-# Node Modules (if using any frontend tools)
+# Node
 node_modules/
 npm-debug.log*
+frontend/dist/
+frontend/.env.local
 
-# Composer (if using)
+# Publish output
+publish/
+
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.dll
+*.pdb
+
+# Composer
 vendor/
 composer.lock
-
-# Test Files (optional)
-test_*.php
-debug_*.php

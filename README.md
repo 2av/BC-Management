@@ -1,145 +1,87 @@
-# Mitra Niidhi Samooh - Community Fund Management System
+# Mitra Niidhi Samooh
 
-A clean, minimal PHP-based system for managing Niidhi (Community Fund) groups that exactly matches Excel spreadsheet format. Mitra Niidhi Samooh helps communities organize and manage their collective savings and bidding committees efficiently.
+Community fund (BC / Niidhi) management — **React + ASP.NET Core** rewrite of the original PHP app.
 
-## Features
+## Stack
 
-- **Multiple BC Groups**: Manage multiple BC groups from one dashboard
-- **Excel-like Interface**: Deposit/Bid Details and Transaction Details tables exactly like your spreadsheet
-- **Monthly Bidding**: Track monthly bids, winners, and payments
-- **Member Management**: Add members and track their payments and profits
-- **Member Login Portal**: Individual members can login to view their status and group information
-- **Real-time Calculations**: Automatic calculation of net payable, gain per member, and profits
-- **Dual Access Levels**: Admin access for management, member access for viewing
-- **Simple & Clean**: Minimal, focused interface without unnecessary complexity
+| Layer | Tech |
+|-------|------|
+| Frontend | React (Vite + TypeScript), Tailwind, i18n EN/HI |
+| Backend | ASP.NET Core 9, Clean Architecture, MediatR, JWT |
+| Database | MySQL (`ayodhya5_bc`) via Pomelo EF Core |
 
-## Quick Setup
+## Portals
 
-1. **Upload Files**: Upload all files to your web server (XAMPP, WAMP, etc.)
+1. **Admin** — groups, ledger, bidding, payments, members, reports, settings, UPI/QR  
+2. **Member** — dashboard, bidding, payments + QR, notifications, profile, invoices, random pick  
+3. **Super Admin** — clients, plans, subscriptions, platform payments, audit log, platform settings  
 
-2. **Run Setup**: Visit `setup.php` in your browser and configure database connection
+## Run locally
 
-3. **Login**: Use the default credentials:
-   - **Admin Login**: `admin` / `admin123`
-   - **Member Login**: `akhilesh` / `member123` (sample member)
-
-4. **Create Groups**: Start creating your BC groups and adding members
-
-## Access Levels
-
-### Admin Access (`login.php`)
-- Create and manage BC groups
-- Add monthly bids and payments
-- View complete group data
-- Manage member login credentials
-- Full system administration
-
-### Member Access (`member_login.php`)
-- View personal payment history and status
-- See group overview (read-only)
-- Track profit/loss calculations
-- Monitor group progress
-- Highlighted personal data in group view
-
-## File Structure
-
+### API
+```bash
+cd backend
+dotnet run --project MitraNiidhi.Api --launch-profile http
 ```
-BC-Management/
-├── index.php                 # Main entry point (redirects to auth/landing.php)
-├── config.php                # Main configuration loader
-├── README.md                 # This file
-├── test_reorganization.php   # Test script for new structure
-├── db_config.sample.php      # Sample database configuration
-│
-├── /admin/                   # Admin-related files (32 files)
-│   ├── index.php            # Admin dashboard
-│   ├── members.php           # Member management
-│   ├── create_group.php      # Create BC group
-│   └── ...                   # Other admin files
-│
-├── /member/                  # Member-related files (7 files)
-│   ├── dashboard.php         # Member dashboard
-│   ├── bidding.php           # Member bidding
-│   └── ...                   # Other member files
-│
-├── /superadmin/              # SuperAdmin files (7 files)
-│   ├── dashboard.php         # SuperAdmin dashboard
-│   ├── clients.php           # Client management
-│   └── ...                   # Other superadmin files
-│
-├── /auth/                    # Authentication files (5 files)
-│   ├── landing.php           # Main landing page
-│   ├── login.php             # Admin login
-│   ├── member_login.php      # Member login
-│   └── ...                   # Other auth files
-│
-├── /config/                  # Configuration files (6 files)
-│   ├── db_config.php         # Database configuration
-│   ├── config.php            # Application constants
-│   └── ...                   # Other config files
-│
-├── /common/                  # Shared/common files (7 files)
-│   ├── functions.php         # Utility functions
-│   ├── auth.php              # Authentication functions
-│   ├── middleware.php        # Role-based access control
-│   └── /languages/           # Language files
-│
-├── /assets/                  # Static assets
-│   ├── /css/                 # Stylesheets
-│   ├── /js/                  # JavaScript files
-│   └── /images/              # Images
-│
-├── /uploads/                 # User uploads
-│   ├── /qr_codes/            # QR code uploads
-│   ├── /member_photos/       # Member photos
-│   └── /documents/           # Document uploads
-│
-├── /sql/                     # SQL files (15 files)
-│   ├── database.sql          # Main database structure
-│   ├── complete_database.sql # Complete database with data
-│   └── ...                   # Migration and fix scripts
-│
-├── /tests/                   # Test and utility files (50+ files)
-│   ├── setup.php             # Database setup
-│   ├── test_*.php            # Test files
-│   ├── fix_*.php             # Fix scripts
-│   └── ...                   # Debug and utility files
-│
-└── /docs/                    # Documentation (4 files)
-    ├── REORGANIZATION_GUIDE.md # Detailed reorganization guide
-    ├── BIDDING_SYSTEM_SETUP.md # Bidding system setup
-    └── ...                   # Other documentation
+API: http://localhost:5027 (Swagger in Development)
+
+### UI
+```bash
+cd frontend
+npm install
+npm run dev
+```
+UI: http://localhost:5173  
+
+Set `VITE_API_URL=http://localhost:5027` if needed (default matches).
+
+### Default logins
+| Portal | Username | Password |
+|--------|----------|----------|
+| Admin | `admin` | `admin123` |
+| Super Admin | `superadmin` | `superadmin123` |
+| Member | depends on DB | (legacy member hashes) |
+
+## Tests
+```bash
+cd backend
+dotnet test MitraNiidhi.Domain.Tests
+dotnet test MitraNiidhi.Application.Tests
 ```
 
-## How Niidhi Groups Work
+## Publish (production build)
 
-1. **Create Group**: Set group name, number of members, and monthly contribution
-2. **Add Members**: Enter all member names
-3. **Monthly Bidding**: Each month, members can bid to receive the collection early
-4. **Winner Selection**: Lowest bidder wins and receives net amount (total - bid)
-5. **Payment Tracking**: All members pay reduced amount based on the bid
-6. **Profit Calculation**: System automatically calculates profits for each member
+```bash
+# API → publish/api
+dotnet publish backend/MitraNiidhi.Api/MitraNiidhi.Api.csproj -c Release -o publish/api
 
-## Sample Data
+# UI → publish/web  (set your live API URL)
+cd frontend
+set VITE_API_URL=http://localhost:5027
+npm run build -- --outDir ../publish/web --emptyOutDir
+```
 
-The system comes with a sample Niidhi group "Family BC Group" with 9 members and ₹2000 monthly contribution, showing 4 months of completed transactions.
+See `publish/README.md` for how to run the packages.
 
-## Requirements
+## PHP legacy
 
-- PHP 7.4+ with PDO MySQL extension
-- MySQL 5.7+ or MariaDB 10.2+
-- Web server (Apache/Nginx)
+Completed PHP portal pages live under **`PHP Backup/`** (admin, member, auth, superadmin, root-debug).  
+They are **not** used by the React app.
 
-## Support
+Still on disk for reference / DB helpers only:
+- `common/`, `config/` — shared PHP helpers & DB config  
+- `tests/` — old PHP test scripts  
+- `index.php` — legacy entry (prefer React UI)
 
-This is a simple, focused system designed to match your exact Excel spreadsheet format. The interface is clean and minimal, perfect for managing multiple BC groups efficiently.
+## Project layout
+```
+frontend/          React app
+backend/           MitraNiidhi.* Clean Architecture
+PHP Backup/        Archived PHP portals
+config/            Legacy MySQL config (used by old PHP / reference)
+```
 
-## Screenshots
-
-The system displays:
-- **Basic Info**: Total members, monthly contribution, total collection
-- **Deposit/Bid Details**: Month-wise bidding information (exactly like Excel)
-- **Transaction Details**: Member-wise payment tracking with totals and profits
-- **Summary Cards**: Quick overview of group status
-
-All tables use the same color scheme and layout as your Excel spreadsheet for familiar usage.
+## Notes
+- Startup API auto-migrates missing tables/columns (including `audit_log`).  
+- Subscription expiry notifications run on a background job (every 6 hours) and when admins open notifications.  
+- Theme: fintech teal `#0F766E` / navy `#0B1F33`.
