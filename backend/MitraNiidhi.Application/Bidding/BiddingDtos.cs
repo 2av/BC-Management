@@ -32,7 +32,11 @@ public record GroupBiddingOverviewDto(
     int TotalMembers,
     decimal MonthlyContribution,
     decimal TotalMonthlyCollection,
-    IReadOnlyList<MonthBiddingDto> Months);
+    IReadOnlyList<MonthBiddingDto> Months,
+    int? OrganiserMemberId = null,
+    int? OrganiserGroupMemberId = null,
+    string? OrganiserName = null,
+    bool Month1Allocated = false);
 
 public record OpenBiddingRequest(int MonthNumber, DateOnly EndDate, decimal MinBidAmount, decimal MaxBidAmount);
 public record PlaceBidRequest(int MonthNumber, decimal BidAmount, int? GroupMemberId = null);

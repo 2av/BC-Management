@@ -378,6 +378,8 @@ public class SchemaMigrationService(AppDbContext db) : ISchemaMigrationService
     private static readonly (string Table, ExpectedColumn Column)[] ExtraColumns =
     [
         ("bc_groups", new("client_id", "INT NULL")),
+        ("bc_groups", new("organiser_member_id", "INT NULL")),
+        ("bc_groups", new("organiser_group_member_id", "INT NULL")),
         ("monthly_bids", new("client_id", "INT NULL")),
         ("member_payments", new("client_id", "INT NULL")),
         ("member_summary", new("client_id", "INT NULL")),

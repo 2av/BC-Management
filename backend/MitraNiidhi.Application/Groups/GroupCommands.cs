@@ -22,7 +22,7 @@ public class CreateGroupCommandHandler(IAppDbContext db, ICurrentUser currentUse
         if (req.TotalMembers is < 2 or > 50)
             return Result<GroupListItemDto>.Failure("Total members must be between 2 and 50.");
         if (req.MonthlyContribution <= 0)
-            return Result<GroupListItemDto>.Failure("Monthly contribution must be greater than 0.");
+            return Result<GroupListItemDto>.Failure("Monthly BC amount must be greater than 0.");
 
         var slots = (req.Members ?? Array.Empty<CreateGroupMemberInput>())
             .Where(m => m.MemberId.HasValue || !string.IsNullOrWhiteSpace(m.MemberName))
@@ -68,6 +68,7 @@ public class CreateGroupCommandHandler(IAppDbContext db, ICurrentUser currentUse
 
         // Track how many seats each login already got so we can label hands.
         var seatCounts = new Dictionary<int, int>();
+        var createdSeats = new List<GroupMember>();
         var plannedByMemberId = slots
             .Where(s => s.MemberId.HasValue)
             .GroupBy(s => s.MemberId!.Value)
@@ -116,6 +117,23 @@ public class CreateGroupCommandHandler(IAppDbContext db, ICurrentUser currentUse
             db.GroupMembers.Add(seat);
             await db.SaveChangesAsync(cancellationToken);
             await MemberUsernameHelper.EnsureSummaryAsync(db, group, memberId, cancellationToken, seat.Id);
+            createdSeats.Add(seat);
+        }
+
+        if (req.OrganiserSlotIndex is int orgIndex)
+        {
+            if (orgIndex < 0 || orgIndex >= createdSeats.Count)
+                return Result<GroupListItemDto>.Failure("Organiser must be one of the group members.");
+            var orgSeat = createdSeats[orgIndex];
+            group.OrganiserMemberId = orgSeat.MemberId;
+            group.OrganiserGroupMemberId = orgSeat.Id;
+        }
+        else
+        {
+            // Default: first seat is organiser (Month 1 recipient).
+            var first = createdSeats[0];
+            group.OrganiserMemberId = first.MemberId;
+            group.OrganiserGroupMemberId = first.Id;
         }
 
         for (var month = 1; month <= group.TotalMembers; month++)
@@ -133,7 +151,8 @@ public class CreateGroupCommandHandler(IAppDbContext db, ICurrentUser currentUse
 
         return Result<GroupListItemDto>.Success(new GroupListItemDto(
             group.Id, group.GroupName, group.TotalMembers, group.MonthlyContribution,
-            group.TotalMonthlyCollection, group.StartDate, "active", 0, 0));
+            group.TotalMonthlyCollection, group.StartDate, "active", 0, 0,
+            group.OrganiserMemberId, group.OrganiserGroupMemberId, null));
     }
 }
 
@@ -151,6 +170,8 @@ public class UpdateGroupCommandHandler(IAppDbContext db)
         var req = command.Request;
         if (string.IsNullOrWhiteSpace(req.GroupName))
             return Result.Failure("Group name is required.");
+        if (req.MonthlyContribution <= 0)
+            return Result.Failure("Monthly BC amount must be greater than 0.");
 
         var status = req.Status.Trim().ToLowerInvariant();
         if (status is not ("active" or "completed"))
@@ -159,6 +180,35 @@ public class UpdateGroupCommandHandler(IAppDbContext db)
         group.GroupName = req.GroupName.Trim();
         group.StartDate = req.StartDate;
         group.Status = status == "completed" ? GroupStatus.Completed : GroupStatus.Active;
+        group.MonthlyContribution = req.MonthlyContribution;
+        group.TotalMonthlyCollection = BcCalculationService.TotalMonthlyCollection(
+            req.MonthlyContribution,
+            group.TotalMembers);
+
+        if (req.OrganiserGroupMemberId is int orgSeatId || req.OrganiserMemberId is int)
+        {
+            GroupMember? orgSeat = null;
+            if (req.OrganiserGroupMemberId is int seatId)
+            {
+                orgSeat = await db.GroupMembers.FirstOrDefaultAsync(
+                    gm => gm.Id == seatId && gm.GroupId == group.Id && gm.Status == "active",
+                    cancellationToken);
+            }
+            else if (req.OrganiserMemberId is int mid)
+            {
+                orgSeat = await db.GroupMembers
+                    .Where(gm => gm.GroupId == group.Id && gm.MemberId == mid && gm.Status == "active")
+                    .OrderBy(gm => gm.MemberNumber)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (orgSeat is null)
+                return Result.Failure("Organiser must be an active member of this group.");
+
+            group.OrganiserMemberId = orgSeat.MemberId;
+            group.OrganiserGroupMemberId = orgSeat.Id;
+        }
+
         await db.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }
@@ -245,6 +295,35 @@ public class CloneGroupCommandHandler(IAppDbContext db, ICurrentUser currentUser
             await MemberUsernameHelper.EnsureSummaryAsync(db, group, member.Id, cancellationToken, seat.Id);
         }
 
+        await db.SaveChangesAsync(cancellationToken);
+
+        // Copy organiser if they were included in the clone roster.
+        if (source.OrganiserMemberId is int srcOrgMid && selectedIds.Contains(srcOrgMid))
+        {
+            var orgSeat = await db.GroupMembers
+                .Where(gm => gm.GroupId == group.Id && gm.MemberId == srcOrgMid && gm.Status == "active")
+                .OrderBy(gm => gm.MemberNumber)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (orgSeat is not null)
+            {
+                group.OrganiserMemberId = orgSeat.MemberId;
+                group.OrganiserGroupMemberId = orgSeat.Id;
+            }
+        }
+
+        if (group.OrganiserMemberId is null)
+        {
+            var firstSeat = await db.GroupMembers
+                .Where(gm => gm.GroupId == group.Id && gm.Status == "active")
+                .OrderBy(gm => gm.MemberNumber)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (firstSeat is not null)
+            {
+                group.OrganiserMemberId = firstSeat.MemberId;
+                group.OrganiserGroupMemberId = firstSeat.Id;
+            }
+        }
+
         for (var month = 1; month <= group.TotalMembers; month++)
         {
             db.MonthBiddingStatuses.Add(new MonthBiddingStatus
@@ -259,6 +338,7 @@ public class CloneGroupCommandHandler(IAppDbContext db, ICurrentUser currentUser
         await db.SaveChangesAsync(cancellationToken);
         return Result<GroupListItemDto>.Success(new GroupListItemDto(
             group.Id, group.GroupName, group.TotalMembers, group.MonthlyContribution,
-            group.TotalMonthlyCollection, group.StartDate, "active", 0, 0));
+            group.TotalMonthlyCollection, group.StartDate, "active", 0, 0,
+            group.OrganiserMemberId, group.OrganiserGroupMemberId, null));
     }
 }

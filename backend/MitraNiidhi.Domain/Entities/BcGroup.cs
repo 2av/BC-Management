@@ -13,9 +13,15 @@ public class BcGroup : IClientScoped
     public decimal TotalMonthlyCollection { get; set; }
     public DateOnly StartDate { get; set; }
     public GroupStatus Status { get; set; } = GroupStatus.Active;
+    /// <summary>Member who receives Month 1 pot (no bid). Optional until set.</summary>
+    public int? OrganiserMemberId { get; set; }
+    /// <summary>Specific seat when organiser has multiple hands.</summary>
+    public int? OrganiserGroupMemberId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Client? Client { get; set; }
+    public Member? OrganiserMember { get; set; }
+    public GroupMember? OrganiserGroupMember { get; set; }
     public ICollection<GroupMember> Members { get; set; } = new List<GroupMember>();
     public ICollection<MonthlyBid> MonthlyBids { get; set; } = new List<MonthlyBid>();
 }

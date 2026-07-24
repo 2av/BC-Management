@@ -8,6 +8,9 @@ export type GroupListItem = {
   status: string
   completedMonths: number
   pendingAmount: number
+  organiserMemberId?: number | null
+  organiserGroupMemberId?: number | null
+  organiserName?: string | null
 }
 
 export type DashboardPaymentItem = {
@@ -71,6 +74,10 @@ export type GroupLedger = {
   status: string
   monthlyBids: MonthlyBid[]
   members: MemberLedgerRow[]
+  organiserMemberId?: number | null
+  organiserGroupMemberId?: number | null
+  organiserName?: string | null
+  month1Allocated?: boolean
 }
 
 export type MemberDashboard = {

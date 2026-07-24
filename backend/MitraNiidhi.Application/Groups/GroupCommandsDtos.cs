@@ -11,12 +11,17 @@ public record CreateGroupRequest(
     decimal MonthlyContribution,
     DateOnly StartDate,
     IReadOnlyList<CreateGroupMemberInput>? Members = null,
-    IReadOnlyList<string>? MemberNames = null);
+    IReadOnlyList<string>? MemberNames = null,
+    /// <summary>0-based index into Members / MemberNames — who receives Month 1 pot.</summary>
+    int? OrganiserSlotIndex = null);
 
 public record UpdateGroupRequest(
     string GroupName,
     DateOnly StartDate,
-    string Status);
+    string Status,
+    decimal MonthlyContribution,
+    int? OrganiserMemberId = null,
+    int? OrganiserGroupMemberId = null);
 
 public record CloneGroupRequest(
     string NewGroupName,

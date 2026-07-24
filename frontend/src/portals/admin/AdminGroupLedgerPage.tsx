@@ -40,7 +40,9 @@ export function AdminGroupLedgerPage() {
         <>
           <PageHeader
             title={data.groupName}
-            description={`${data.totalMembers} members · ${formatInr(data.monthlyContribution)} / month · collection ${formatInr(data.totalMonthlyCollection)}`}
+            description={`${data.totalMembers} members · ${formatInr(data.monthlyContribution)} / month · collection ${formatInr(data.totalMonthlyCollection)}${
+              data.organiserName ? ` · organiser ${data.organiserName}` : ''
+            }`}
             actions={
               <div className="flex items-center gap-2">
                 <Badge variant={data.status === 'active' ? 'success' : 'muted'}>{data.status}</Badge>
@@ -70,6 +72,22 @@ export function AdminGroupLedgerPage() {
             }
           />
 
+          {!data.month1Allocated ? (
+            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Month 1 pot is not on the ledger yet
+              {data.organiserName ? ` (organiser: ${data.organiserName})` : ' — set organiser on Edit group first'}.
+              {isAdmin ? (
+                <>
+                  {' '}
+                  Go to{' '}
+                  <Link className="font-medium underline" to={`/admin/groups/${groupId}/bidding`}>
+                    Manage bidding
+                  </Link>{' '}
+                  → <strong>Assign Month 1 to organiser</strong>.
+                </>
+              ) : null}
+            </p>
+          ) : null}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Deposit / Bid details</CardTitle>

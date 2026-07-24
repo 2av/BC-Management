@@ -102,6 +102,8 @@ public class AppDbContext : DbContext, IAppDbContext
                 v => ToDbEnum(v),
                 v => FromDbEnum<GroupStatus>(v));
             e.HasOne(x => x.Client).WithMany(c => c.Groups).HasForeignKey(x => x.ClientId);
+            e.HasOne(x => x.OrganiserMember).WithMany().HasForeignKey(x => x.OrganiserMemberId);
+            e.HasOne(x => x.OrganiserGroupMember).WithMany().HasForeignKey(x => x.OrganiserGroupMemberId);
             e.HasQueryFilter(g => _currentUser.IsSuperAdmin
                 || !_currentUser.ClientId.HasValue
                 || g.ClientId == _currentUser.ClientId);

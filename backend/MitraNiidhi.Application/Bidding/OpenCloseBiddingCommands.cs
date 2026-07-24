@@ -26,6 +26,9 @@ public class OpenBiddingCommandHandler(IAppDbContext db)
         if (await db.MonthlyBids.AnyAsync(b => b.GroupId == command.GroupId && b.MonthNumber == req.MonthNumber, cancellationToken))
             return Result.Failure("This month already has a recorded winner.");
 
+        if (req.MonthNumber == 1)
+            return Result.Failure("Month 1 is reserved for the organiser — use “Assign Month 1 to organiser” instead of opening bids.");
+
         var status = await db.MonthBiddingStatuses
             .FirstOrDefaultAsync(m => m.GroupId == command.GroupId && m.MonthNumber == req.MonthNumber, cancellationToken);
 

@@ -81,7 +81,20 @@ export function AdminBiddingPage() {
     onError: (e: Error) => setError(e.message),
   })
 
+  const allocateOrganiserMutation = useMutation({
+    mutationFn: () => api.post<{ message?: string }>(`/api/groups/${id}/bidding/allocate-organiser`),
+    onSuccess: async (res) => {
+      setMessage(res.message ?? 'Month 1 pot assigned to organiser.')
+      setError(null)
+      await qc.invalidateQueries({ queryKey: ['bidding', id] })
+      await qc.invalidateQueries({ queryKey: ['group-ledger', id] })
+      await qc.invalidateQueries({ queryKey: ['groups'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
   const defaultMax = useMemo(() => (data ? Math.max(0, data.totalMonthlyCollection - 1) : 0), [data])
+  const month1 = data?.months.find((m) => m.monthNumber === 1)
 
   return (
     <div>
@@ -106,11 +119,51 @@ export function AdminBiddingPage() {
       {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
       {isLoading ? <p className="text-sm text-muted-foreground">Loading bidding status…</p> : null}
 
+      {data ? (
+        <Card className="mb-4 border-teal-200 bg-teal-50/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Month 1 · Organiser pot</CardTitle>
+            <CardDescription>
+              First month collection goes to the organiser (no bid). Organiser:{' '}
+              <strong>{data.organiserName ?? 'not set — edit the group first'}</strong>
+              {data.month1Allocated || month1?.winnerMemberName
+                ? ` · currently shown as ${month1?.winnerMemberName ?? 'allocated'}`
+                : null}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-2">
+            {!data.month1Allocated && !month1?.winnerMemberId ? (
+              <Button
+                disabled={!data.organiserMemberId || allocateOrganiserMutation.isPending}
+                onClick={() => {
+                  if (
+                    confirm(
+                      `Assign Month 1 pot (${formatInr(data.totalMonthlyCollection)}) to ${data.organiserName}? This records it on the ledger even if members already paid.`,
+                    )
+                  ) {
+                    allocateOrganiserMutation.mutate()
+                  }
+                }}
+              >
+                {allocateOrganiserMutation.isPending ? 'Assigning…' : 'Assign Month 1 to organiser'}
+              </Button>
+            ) : (
+              <Badge variant="success">Month 1 allocated</Badge>
+            )}
+            {!data.organiserMemberId ? (
+              <Button asChild size="sm" variant="outline">
+                <Link to="/admin/groups">Set organiser on Edit group</Link>
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Months</CardTitle>
-            <CardDescription>Open bidding, close it, then approve a winner.</CardDescription>
+            <CardDescription>Month 1 uses organiser allocation. From Month 2, open bidding then approve a winner.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {data?.months.map((m) => (
@@ -120,35 +173,44 @@ export function AdminBiddingPage() {
                     <div className="flex items-center gap-2">
                       <p className="font-semibold">Month {m.monthNumber}</p>
                       <Badge variant={statusVariant(m.biddingStatus)}>{m.biddingStatus.replace('_', ' ')}</Badge>
+                      {m.monthNumber === 1 ? <Badge variant="muted">Organiser</Badge> : null}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {m.totalBids} bid(s)
-                      {m.minimumBidAmount || m.maximumBidAmount
-                        ? ` · range ${formatInr(m.minimumBidAmount)} – ${formatInr(m.maximumBidAmount)}`
-                        : ''}
-                      {m.winnerMemberName ? ` · winner ${m.winnerMemberName}` : ''}
+                      {m.monthNumber === 1
+                        ? m.winnerMemberName
+                          ? `Taken by ${m.winnerMemberName} (organiser)`
+                          : `Reserved for organiser${data.organiserName ? ` (${data.organiserName})` : ''}`
+                        : `${m.totalBids} bid(s)${
+                            m.minimumBidAmount || m.maximumBidAmount
+                              ? ` · range ${formatInr(m.minimumBidAmount)} – ${formatInr(m.maximumBidAmount)}`
+                              : ''
+                          }${m.winnerMemberName ? ` · winner ${m.winnerMemberName}` : ''}`}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setSelectedMonth(m.monthNumber)}>
-                      View bids
-                    </Button>
-                    {(m.biddingStatus === 'not_started' || m.biddingStatus === 'closed') && !m.winnerMemberId ? (
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            setOpenForm({
-                              month: m.monthNumber,
-                              endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-                              min: '0',
-                              max: String(defaultMax),
-                            })
-                          }
-                        >
-                          Open
-                        </Button>
-                      ) : null}
-                    {m.biddingStatus === 'open' ? (
+                    {m.monthNumber > 1 ? (
+                      <Button size="sm" variant="outline" onClick={() => setSelectedMonth(m.monthNumber)}>
+                        View bids
+                      </Button>
+                    ) : null}
+                    {m.monthNumber > 1 &&
+                    (m.biddingStatus === 'not_started' || m.biddingStatus === 'closed') &&
+                    !m.winnerMemberId ? (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          setOpenForm({
+                            month: m.monthNumber,
+                            endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+                            min: '0',
+                            max: String(defaultMax),
+                          })
+                        }
+                      >
+                        Open
+                      </Button>
+                    ) : null}
+                    {m.monthNumber > 1 && m.biddingStatus === 'open' ? (
                       <Button size="sm" variant="secondary" onClick={() => closeMutation.mutate(m.monthNumber)}>
                         Close
                       </Button>
@@ -207,7 +269,7 @@ export function AdminBiddingPage() {
             <CardDescription>Lowest bid is typically preferred; admin chooses the winner.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {!selectedMonth ? <p className="text-sm text-muted-foreground">Select a month to review bids.</p> : null}
+            {!selectedMonth ? <p className="text-sm text-muted-foreground">Select a month (2+) to review bids.</p> : null}
             {selectedMonth && (!bids || bids.length === 0) ? (
               <p className="text-sm text-muted-foreground">No bids yet for this month.</p>
             ) : null}

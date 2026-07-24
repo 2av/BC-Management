@@ -19,6 +19,10 @@ export type GroupBiddingOverview = {
   monthlyContribution: number
   totalMonthlyCollection: number
   months: MonthBidding[]
+  organiserMemberId?: number | null
+  organiserGroupMemberId?: number | null
+  organiserName?: string | null
+  month1Allocated?: boolean
 }
 
 export type BidItem = {

@@ -316,8 +316,8 @@ export function AdminPaymentsPage() {
             <CardHeader>
               <CardTitle>Set month payment amount</CardTitle>
               <CardDescription>
-                Fixed due for bid / random months. Members see this amount on group Pay QR. Leave blank to use BC
-                contribution ({formatInr(data?.monthlyContribution ?? activeGroup?.monthlyContribution ?? 0)}).
+                Fixed due for bid / random months. Members see this amount on group Pay QR. Leave blank to use monthly
+                BC amount ({formatInr(data?.monthlyContribution ?? activeGroup?.monthlyContribution ?? 0)}).
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -57,4 +57,14 @@ public class BiddingController(IMediator mediator) : ControllerBase
         var result = await mediator.Send(new ApproveWinnerCommand(groupId, request), cancellationToken);
         return result.Succeeded ? Ok(new { message = "Winner approved." }) : BadRequest(new { message = result.Error });
     }
+
+    [HttpPost("allocate-organiser")]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin")]
+    public async Task<IActionResult> AllocateOrganiser(int groupId, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new AllocateOrganiserMonthCommand(groupId), cancellationToken);
+        return result.Succeeded
+            ? Ok(new { message = "Month 1 pot assigned to organiser." })
+            : BadRequest(new { message = result.Error });
+    }
 }

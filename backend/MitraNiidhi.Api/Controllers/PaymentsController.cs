@@ -53,7 +53,7 @@ public class PaymentsController(IMediator mediator) : ControllerBase
         return result.Succeeded
             ? Ok(new { message = request.PaymentAmount is > 0
                 ? $"Month {request.MonthNumber} due amount set to ₹{request.PaymentAmount:N0}."
-                : $"Month {request.MonthNumber} due amount cleared — BC contribution will be used." })
+                : $"Month {request.MonthNumber} due amount cleared — monthly BC amount will be used." })
             : BadRequest(new { message = result.Error });
     }
 

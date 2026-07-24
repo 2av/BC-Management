@@ -9,7 +9,10 @@ public record GroupListItemDto(
     DateOnly StartDate,
     string Status,
     int CompletedMonths,
-    decimal PendingAmount);
+    decimal PendingAmount,
+    int? OrganiserMemberId = null,
+    int? OrganiserGroupMemberId = null,
+    string? OrganiserName = null);
 
 public record DashboardStatsDto(
     int TotalGroups,
@@ -67,4 +70,8 @@ public record GroupLedgerDto(
     DateOnly StartDate,
     string Status,
     IReadOnlyList<MonthlyBidDto> MonthlyBids,
-    IReadOnlyList<MemberLedgerRowDto> Members);
+    IReadOnlyList<MemberLedgerRowDto> Members,
+    int? OrganiserMemberId = null,
+    int? OrganiserGroupMemberId = null,
+    string? OrganiserName = null,
+    bool Month1Allocated = false);

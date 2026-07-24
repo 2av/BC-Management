@@ -87,13 +87,38 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
             })
             .ToList();
 
+        string? organiserName = null;
+        if (group.OrganiserGroupMemberId is int orgSeatId)
+        {
+            var orgSeat = await db.GroupMembers
+                .Include(gm => gm.Member)
+                .FirstOrDefaultAsync(gm => gm.Id == orgSeatId, cancellationToken);
+            if (orgSeat is not null)
+                organiserName = $"{orgSeat.Member.MemberName}" +
+                    (string.IsNullOrWhiteSpace(orgSeat.HandLabel) ? "" : $" · {orgSeat.HandLabel}");
+        }
+        else if (group.OrganiserMemberId is int orgMid)
+        {
+            organiserName = await db.Members
+                .Where(m => m.Id == orgMid)
+                .Select(m => m.MemberName)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var month1Allocated = await db.MonthlyBids.AnyAsync(
+            b => b.GroupId == request.GroupId && b.MonthNumber == 1, cancellationToken);
+
         return Result<GroupBiddingOverviewDto>.Success(new GroupBiddingOverviewDto(
             group.Id,
             group.GroupName,
             group.TotalMembers,
             group.MonthlyContribution,
             group.TotalMonthlyCollection,
-            months));
+            months,
+            group.OrganiserMemberId,
+            group.OrganiserGroupMemberId,
+            organiserName,
+            month1Allocated));
     }
 
     private static string ToStatus(BiddingStatus status) => status switch

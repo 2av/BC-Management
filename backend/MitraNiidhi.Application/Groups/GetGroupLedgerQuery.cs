@@ -107,6 +107,19 @@ public class GetGroupLedgerQueryHandler(IAppDbContext db)
                 b.PaymentDate);
         }).ToList();
 
+        string? organiserName = null;
+        if (group.OrganiserGroupMemberId is int orgSeatId && seatById.TryGetValue(orgSeatId, out var orgSeat))
+            organiserName = SeatHelper.FormatDisplayName(orgSeat.MemberName, orgSeat.HandLabel, orgSeat.MemberNumber);
+        else if (group.OrganiserMemberId is int orgMid)
+        {
+            organiserName = await db.Members
+                .Where(m => m.Id == orgMid)
+                .Select(m => m.MemberName)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var month1Allocated = bids.Any(b => b.MonthNumber == 1);
+
         return Result<GroupLedgerDto>.Success(new GroupLedgerDto(
             group.Id,
             group.GroupName,
@@ -116,6 +129,10 @@ public class GetGroupLedgerQueryHandler(IAppDbContext db)
             group.StartDate,
             group.Status.ToString().ToLowerInvariant(),
             bidDtos,
-            rows));
+            rows,
+            group.OrganiserMemberId,
+            group.OrganiserGroupMemberId,
+            organiserName,
+            month1Allocated));
     }
 }

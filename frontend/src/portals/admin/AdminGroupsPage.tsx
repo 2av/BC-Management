@@ -37,9 +37,12 @@ export function AdminGroupsPage() {
   const [contribution, setContribution] = useState('5000')
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
   const [slots, setSlots] = useState<MemberSlotValue[]>(() => Array.from({ length: 5 }, () => null))
+  const [organiserSlotIndex, setOrganiserSlotIndex] = useState(0)
   const [editName, setEditName] = useState('')
   const [editDate, setEditDate] = useState('')
   const [editStatus, setEditStatus] = useState('active')
+  const [editContribution, setEditContribution] = useState('5000')
+  const [editOrganiserGroupMemberId, setEditOrganiserGroupMemberId] = useState('')
   const [editAssignSlot, setEditAssignSlot] = useState<MemberSlotValue[]>([null])
   const [cloneName, setCloneName] = useState('')
   const [cloneDate, setCloneDate] = useState(new Date().toISOString().slice(0, 10))
@@ -84,16 +87,20 @@ export function AdminGroupsPage() {
 
   const createReady =
     !!name.trim() &&
+    Number(contribution) > 0 &&
     slots.length === members &&
     slots.every((s) => s != null)
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.post('/api/groups', {
+    mutationFn: () => {
+      const monthlyContribution = Number(contribution)
+      if (!(monthlyContribution > 0)) throw new Error('Monthly BC amount must be greater than 0.')
+      return api.post('/api/groups', {
         groupName: name,
         totalMembers: members,
-        monthlyContribution: Number(contribution),
+        monthlyContribution,
         startDate,
+        organiserSlotIndex,
         members: slots
           .filter((s): s is NonNullable<MemberSlotValue> => s != null)
           .map((s) =>
@@ -101,7 +108,8 @@ export function AdminGroupsPage() {
               ? { memberId: s.memberId as number | null, memberName: null as string | null }
               : { memberId: null as number | null, memberName: s.memberName },
           ),
-      }),
+      })
+    },
     onSuccess: async () => {
       setMessage('Group created.')
       setError(null)
@@ -114,14 +122,26 @@ export function AdminGroupsPage() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.put(`/api/groups/${editId}`, {
+    mutationFn: () => {
+      const monthlyContribution = Number(editContribution)
+      if (!(monthlyContribution > 0)) throw new Error('Monthly BC amount must be greater than 0.')
+      return api.put(`/api/groups/${editId}`, {
         groupName: editName,
         startDate: editDate,
         status: editStatus,
-      }),
+        monthlyContribution,
+        organiserGroupMemberId: editOrganiserGroupMemberId
+          ? Number(editOrganiserGroupMemberId)
+          : null,
+        organiserMemberId: editOrganiserGroupMemberId
+          ? (editRoster?.find((r) => r.groupMemberId === Number(editOrganiserGroupMemberId))?.memberId ??
+            null)
+          : null,
+      })
+    },
     onSuccess: async () => {
       setMessage('Group updated.')
+      setError(null)
       await qc.invalidateQueries({ queryKey: ['groups'] })
     },
     onError: (e: Error) => setError(e.message),
@@ -191,13 +211,28 @@ export function AdminGroupsPage() {
       while (next.length < members) next.push(null)
       return next
     })
+    setOrganiserSlotIndex((i) => Math.min(i, Math.max(0, members - 1)))
   }, [members])
+
+  useEffect(() => {
+    if (!editId || !editingGroup) return
+    if (editingGroup.organiserGroupMemberId) {
+      setEditOrganiserGroupMemberId(String(editingGroup.organiserGroupMemberId))
+      return
+    }
+    if (editRoster?.length) {
+      const byMember = editRoster.find((r) => r.memberId === editingGroup.organiserMemberId)
+      setEditOrganiserGroupMemberId(byMember ? String(byMember.groupMemberId) : String(editRoster[0].groupMemberId))
+    }
+  }, [editId, editingGroup, editRoster])
 
   function openEdit(g: GroupListItem) {
     setEditId(g.id)
     setEditName(g.groupName)
     setEditDate(g.startDate.slice(0, 10))
     setEditStatus(g.status)
+    setEditContribution(String(g.monthlyContribution))
+    setEditOrganiserGroupMemberId(g.organiserGroupMemberId ? String(g.organiserGroupMemberId) : '')
     setEditAssignSlot([null])
     setShowCreate(false)
     setCloneId(null)
@@ -245,16 +280,26 @@ export function AdminGroupsPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Monthly contribution</Label>
-              <Input value={contribution} onChange={(e) => setContribution(e.target.value)} />
+              <Label>Monthly BC amount (₹)</Label>
+              <Input
+                type="number"
+                min={1}
+                step="1"
+                value={contribution}
+                onChange={(e) => setContribution(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Per member per month. Used as payment default when a month amount is not set.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Start date</Label>
               <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Collection</Label>
+              <Label>Monthly collection</Label>
               <p className="flex h-10 items-center font-medium">{formatInr(collection)}</p>
+              <p className="text-xs text-muted-foreground">BC amount × members</p>
             </div>
             <MemberSlotsPicker
               slotCount={members}
@@ -262,6 +307,32 @@ export function AdminGroupsPage() {
               value={slots}
               onChange={setSlots}
             />
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+              <Label>Organiser (Month 1 recipient)</Label>
+              <select
+                className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
+                value={organiserSlotIndex}
+                onChange={(e) => setOrganiserSlotIndex(Number(e.target.value))}
+              >
+                {slots.map((s, i) => {
+                  const label =
+                    s == null
+                      ? `Seat ${i + 1} (pick member first)`
+                      : s.kind === 'existing'
+                        ? `Seat ${i + 1} · ${directory?.find((m) => m.id === s.memberId)?.memberName ?? `Member #${s.memberId}`}`
+                        : `Seat ${i + 1} · ${s.memberName}`
+                  return (
+                    <option key={i} value={i} disabled={s == null}>
+                      {label}
+                    </option>
+                  )
+                })}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Month 1 collection goes to this person (no bid). Assign it later from Bidding if payments are already
+                done.
+              </p>
+            </div>
             <div className="flex gap-2 sm:col-span-2 lg:col-span-3">
               <Button
                 disabled={!createReady || createMutation.isPending}
@@ -298,6 +369,41 @@ export function AdminGroupsPage() {
                 <option value="active">active</option>
                 <option value="completed">completed</option>
               </select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Monthly BC amount (₹)</Label>
+              <Input
+                type="number"
+                min={1}
+                step="1"
+                value={editContribution}
+                onChange={(e) => setEditContribution(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Default payment amount when a month due is not set. Collection ={' '}
+                {formatInr(Number(editContribution || 0) * (editingGroup?.totalMembers ?? 0))}.
+              </p>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Organiser (Month 1 recipient)</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={editOrganiserGroupMemberId}
+                onChange={(e) => setEditOrganiserGroupMemberId(e.target.value)}
+              >
+                <option value="">Select organiser…</option>
+                {(editRoster ?? [])
+                  .filter((r) => r.status === 'active')
+                  .map((r) => (
+                    <option key={r.groupMemberId} value={String(r.groupMemberId)}>
+                      #{r.memberNumber} {r.memberName}
+                      {r.handLabel ? ` · ${r.handLabel}` : ''}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Month 1 pot goes to this seat. After saving, open Bidding → Assign Month 1 to organiser.
+              </p>
             </div>
 
             <div className="space-y-2 sm:col-span-4">
@@ -454,8 +560,12 @@ export function AdminGroupsPage() {
                   <p className="font-medium">{g.totalMembers}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Monthly</p>
+                  <p className="text-muted-foreground">Monthly BC</p>
                   <p className="font-medium">{formatInr(g.monthlyContribution)}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Organiser (Month 1)</p>
+                  <p className="font-medium">{g.organiserName ?? 'Not set — edit group'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Progress</p>
