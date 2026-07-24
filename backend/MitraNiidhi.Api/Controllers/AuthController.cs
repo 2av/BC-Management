@@ -14,11 +14,23 @@ public class AuthController(IMediator mediator) : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new LoginCommand(request), cancellationToken);
-        if (!result.Succeeded)
-            return Unauthorized(new { message = result.Error });
+        try
+        {
+            var result = await mediator.Send(new LoginCommand(request), cancellationToken);
+            if (!result.Succeeded)
+                return Unauthorized(new { message = result.Error });
 
-        return Ok(result.Data);
+            return Ok(result.Data);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                message = ex.Message,
+                exception = ex.GetType().Name,
+                detail = ex.InnerException?.Message
+            });
+        }
     }
 
     [HttpGet("me")]

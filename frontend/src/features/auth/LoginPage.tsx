@@ -102,7 +102,7 @@ export function LoginPage() {
           <CardContent>
             <form className="space-y-4" onSubmit={onSubmit}>
               {error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-destructive">
+                <div className="whitespace-pre-wrap break-words rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-destructive">
                   {error}
                 </div>
               ) : null}

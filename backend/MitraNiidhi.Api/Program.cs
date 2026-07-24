@@ -59,9 +59,44 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("Frontend");
+
+// Surface unhandled exceptions as JSON so the UI can show the real error.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("UnhandledException");
+        logger.LogError(ex, "Unhandled exception on {Method} {Path}", context.Request.Method, context.Request.Path);
+
+        if (context.Response.HasStarted)
+            throw;
+
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new
+        {
+            message = ex.Message,
+            exception = ex.GetType().Name,
+            detail = ex.InnerException?.Message
+        });
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+app.MapGet("/api/health", () => Results.Ok(new
+{
+    status = "ok",
+    time = DateTime.UtcNow
+}));
 
 app.Run();
 
