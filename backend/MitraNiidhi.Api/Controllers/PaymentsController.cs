@@ -29,6 +29,34 @@ public class PaymentsController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(new { message = "Payment updated." }) : BadRequest(new { message = result.Error });
     }
 
+    [HttpPost("api/groups/{groupId:int}/payments")]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin")]
+    public async Task<IActionResult> Create(
+        int groupId,
+        [FromBody] CreatePaymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new CreatePaymentCommand(groupId, request), cancellationToken);
+        return result.Succeeded
+            ? Ok(new { message = $"Added {result.Data} payment(s).", count = result.Data })
+            : BadRequest(new { message = result.Error });
+    }
+
+    [HttpPost("api/groups/{groupId:int}/payments/set-month-amount")]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin")]
+    public async Task<IActionResult> SetMonthAmount(
+        int groupId,
+        [FromBody] SetMonthPaymentAmountRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new SetMonthPaymentAmountCommand(groupId, request), cancellationToken);
+        return result.Succeeded
+            ? Ok(new { message = request.PaymentAmount is > 0
+                ? $"Month {request.MonthNumber} due amount set to ₹{request.PaymentAmount:N0}."
+                : $"Month {request.MonthNumber} due amount cleared — BC contribution will be used." })
+            : BadRequest(new { message = result.Error });
+    }
+
     [HttpPost("api/groups/{groupId:int}/payments/bulk-mark-paid")]
     [Authorize(Roles = "ClientAdmin,SuperAdmin")]
     public async Task<IActionResult> BulkMarkPaid(

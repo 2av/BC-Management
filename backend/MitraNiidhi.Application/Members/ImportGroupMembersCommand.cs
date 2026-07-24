@@ -25,9 +25,6 @@ public class ImportGroupMembersCommandHandler(IAppDbContext db, IPasswordHasher 
         if (group.Status == Domain.Enums.GroupStatus.Completed)
             return Result<ImportMembersResultDto>.Failure("This group is completed — members cannot be imported.");
 
-        if (await db.MonthlyBids.AnyAsync(b => b.GroupId == command.GroupId, cancellationToken))
-            return Result<ImportMembersResultDto>.Failure("BC has already started for this group — members cannot be imported.");
-
         var lines = command.Request.CsvContent
             .Replace("\r\n", "\n")
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Search, X } from 'lucide-react'
@@ -8,7 +8,7 @@ import { formatInr } from '@/features/groups/types'
 import type { MemberPayments } from '@/features/payments/types'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { StatCard } from '@/components/layout/StatCard'
-import { UpiQrCard, type PaymentMethods } from '@/components/payments/UpiQrCard'
+import { UpiQrCard, PAYMENT_BRAND, type PaymentMethods } from '@/components/payments/UpiQrCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,12 +17,16 @@ import { Label } from '@/components/ui/label'
 import { TablePagination } from '@/components/ui/table-pagination'
 
 type Detail = {
+  paymentId: number | null
   groupName: string
   monthNumber: number
   amount: number
   memberName: string
   winnerName: string | null
   paymentStatus: string
+  transactionId: string | null
+  payeeName: string
+  paymentNote: string
   qrEnabled: boolean
   upiId: string | null
   qrImageUrl: string | null
@@ -49,6 +53,10 @@ export function MemberPaymentsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [utr, setUtr] = useState('')
+  const [utrMessage, setUtrMessage] = useState<string | null>(null)
+  const [utrError, setUtrError] = useState<string | null>(null)
+  const qc = useQueryClient()
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-payments'],
@@ -64,6 +72,26 @@ export function MemberPaymentsPage() {
     queryKey: ['payment-detail', gid, m],
     queryFn: () => api.get<Detail>(`/api/members/me/payments/${gid}/${m}`),
     enabled: hasDetail,
+  })
+
+  useEffect(() => {
+    setUtr(detail?.transactionId ?? '')
+    setUtrMessage(null)
+    setUtrError(null)
+  }, [detail?.transactionId, gid, m])
+
+  const submitUtr = useMutation({
+    mutationFn: () =>
+      api.post<{ message?: string }>(`/api/members/me/payments/${gid}/${m}/utr`, {
+        transactionId: utr.trim(),
+      }),
+    onSuccess: async (res) => {
+      setUtrMessage(res.message ?? t('member.utrSubmitted'))
+      setUtrError(null)
+      await qc.invalidateQueries({ queryKey: ['payment-detail', gid, m] })
+      await qc.invalidateQueries({ queryKey: ['my-payments'] })
+    },
+    onError: (e: Error) => setUtrError(e.message),
   })
 
   const groups = useMemo(() => {
@@ -110,17 +138,23 @@ export function MemberPaymentsPage() {
     setSearch('')
   }
 
+  const paymentText = hasDetail && detail?.groupName
+    ? `${PAYMENT_BRAND} - ${detail.groupName}`
+    : PAYMENT_BRAND
+
   const detailMethods: PaymentMethods | null =
     hasDetail && detail?.qrImageUrl
       ? {
           qrEnabled: Boolean(detail.qrImageUrl && detail.upiId),
           upiId: detail.upiId ?? '',
-          payeeName: methods?.payeeName ?? 'BC Admin',
-          paymentNote: methods?.paymentNote ?? '',
+          payeeName: detail.payeeName || PAYMENT_BRAND,
+          paymentNote: detail.paymentNote || paymentText,
           qrImageUrl: detail.qrImageUrl,
           upiUrl: detail.upiUrl,
         }
-      : methods ?? null
+      : methods
+        ? { ...methods, payeeName: PAYMENT_BRAND, paymentNote: PAYMENT_BRAND }
+        : null
 
   const pending = (data?.payments ?? []).filter((p) => p.paymentStatus === 'pending')
 
@@ -160,11 +194,13 @@ export function MemberPaymentsPage() {
                 {detail.paymentStatus}
               </Badge>
               {detail.paymentStatus === 'paid' ? (
-                <p className="text-muted-foreground">This month is already marked paid.</p>
+                <p className="text-muted-foreground">{t('member.alreadyPaid')}</p>
               ) : (
-                <p className="text-muted-foreground">
-                  Scan the QR below or pay to the UPI ID, then wait for admin confirmation.
-                </p>
+                <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
+                  <li>{t('member.payStepScan')}</li>
+                  <li>{t('member.payStepRemark', { remark: paymentText })}</li>
+                  <li>{t('member.payStepUtr')}</li>
+                </ol>
               )}
             </CardContent>
           </Card>
@@ -175,10 +211,43 @@ export function MemberPaymentsPage() {
 
       <UpiQrCard
         methods={detailMethods}
+        title={PAYMENT_BRAND}
+        paymentText={paymentText}
+        amount={
+          hasDetail && detail && detail.paymentStatus !== 'paid' ? detail.amount : null
+        }
         amountLabel={
           hasDetail && detail && detail.paymentStatus !== 'paid' ? formatInr(detail.amount) : undefined
         }
       />
+
+      {hasDetail && detail && detail.paymentStatus !== 'paid' ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base">{t('member.utrLabel')}</CardTitle>
+            <CardDescription>{t('member.utrHint')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="member-utr">{t('member.utrLabel')}</Label>
+              <Input
+                id="member-utr"
+                placeholder={t('member.utrPlaceholder')}
+                value={utr}
+                onChange={(e) => setUtr(e.target.value)}
+              />
+            </div>
+            <Button
+              disabled={submitUtr.isPending || utr.trim().length < 6}
+              onClick={() => submitUtr.mutate()}
+            >
+              {submitUtr.isPending ? t('common.saving') : t('member.submitUtr')}
+            </Button>
+            {utrMessage ? <p className="text-sm text-emerald-700">{utrMessage}</p> : null}
+            {utrError ? <p className="text-sm text-destructive">{utrError}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!hasDetail && pending.length > 0 ? (
         <Card className="mb-6">

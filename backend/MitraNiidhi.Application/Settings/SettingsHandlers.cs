@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Application.Payments;
 using MitraNiidhi.Domain.Entities;
 
 namespace MitraNiidhi.Application.Settings;
@@ -167,12 +168,15 @@ public class GetPaymentQrQueryHandler(IAppDbContext db, ICurrentUser currentUser
             return Result<PaymentQrDto>.Failure("QR payments are disabled.");
 
         var bid = await db.MonthlyBids.FirstOrDefaultAsync(b => b.GroupId == request.GroupId && b.MonthNumber == request.MonthNumber, ct);
-        var amount = bid?.GainPerMember ?? group.MonthlyContribution;
+        var due = await db.MonthBiddingStatuses
+            .Where(s => s.GroupId == request.GroupId && s.MonthNumber == request.MonthNumber)
+            .Select(s => s.PaymentDueAmount)
+            .FirstOrDefaultAsync(ct);
+        var amount = UpiPaymentHelper.ResolveDueAmount(group.MonthlyContribution, due, bid?.GainPerMember);
         var upiId = map.GetValueOrDefault("upi_id", "");
-        var payee = map.GetValueOrDefault("bank_account_name", "BC Admin");
-        var note = $"{map.GetValueOrDefault("payment_note", "BC Payment")} - {group.GroupName} M{request.MonthNumber}";
-        var upiUrl = $"upi://pay?pa={Uri.EscapeDataString(upiId)}&pn={Uri.EscapeDataString(payee)}&am={amount:0.##}&cu=INR&tn={Uri.EscapeDataString(note)}";
-        var qrUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={Uri.EscapeDataString(upiUrl)}";
+        var payee = UpiPaymentHelper.BrandPayee;
+        var note = UpiPaymentHelper.PaymentNote(group.GroupName, request.MonthNumber);
+        var (upiUrl, qrUrl) = UpiPaymentHelper.BuildUrls(upiId, payee, note, amount);
 
         return Result<PaymentQrDto>.Success(new PaymentQrDto(upiUrl, qrUrl, amount, payee, upiId, note));
     }

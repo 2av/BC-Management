@@ -182,8 +182,6 @@ public class UnassignMemberCommandHandler(IAppDbContext db)
             return Result.Failure("Group not found.");
         if (group.Status == Domain.Enums.GroupStatus.Completed)
             return Result.Failure("This group is completed — seats cannot be removed.");
-        if (await db.MonthlyBids.AnyAsync(b => b.GroupId == command.GroupId, cancellationToken))
-            return Result.Failure("BC has already started for this group — seats cannot be removed.");
 
         var hasPayments = await db.MemberPayments.AnyAsync(
             p => p.GroupId == command.GroupId
@@ -235,9 +233,6 @@ internal static class AssignInternal
 
         if (group.Status == Domain.Enums.GroupStatus.Completed)
             return Result.Failure("This group is completed — roster cannot be changed.");
-
-        if (await db.MonthlyBids.AnyAsync(b => b.GroupId == groupId, cancellationToken))
-            return Result.Failure("BC has already started for this group — roster cannot be changed.");
 
         var existingSeats = await db.GroupMembers
             .Where(gm => gm.GroupId == groupId && gm.MemberId == memberId)

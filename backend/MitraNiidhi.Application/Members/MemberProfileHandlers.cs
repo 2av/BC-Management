@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Application.Payments;
 using MitraNiidhi.Application.Settings;
 using MitraNiidhi.Domain.Enums;
 
@@ -32,6 +33,7 @@ public record PaymentMonthOptionDto(
     DateOnly? PaymentDate);
 
 public record MemberPaymentDetailDto(
+    int? PaymentId,
     int GroupId,
     string GroupName,
     int MonthNumber,
@@ -39,6 +41,9 @@ public record MemberPaymentDetailDto(
     string MemberName,
     string? WinnerName,
     string PaymentStatus,
+    string? TransactionId,
+    string PayeeName,
+    string PaymentNote,
     bool QrEnabled,
     string? UpiId,
     string? QrImageUrl,
@@ -116,13 +121,18 @@ public class GetPaymentOptionsQueryHandler(IAppDbContext db, ICurrentUser curren
             var payments = await db.MemberPayments
                 .Where(p => p.GroupId == group.Id && p.MemberId == memberId)
                 .ToListAsync(ct);
+            var dues = await db.MonthBiddingStatuses
+                .Where(s => s.GroupId == group.Id)
+                .ToDictionaryAsync(s => s.MonthNumber, s => s.PaymentDueAmount, ct);
 
             for (var month = 1; month <= group.TotalMembers; month++)
             {
                 var bid = bids.FirstOrDefault(b => b.MonthNumber == month);
                 var payment = payments.FirstOrDefault(p => p.MonthNumber == month);
+                dues.TryGetValue(month, out var due);
+                var amount = UpiPaymentHelper.ResolveDueAmount(
+                    group.MonthlyContribution, due, bid?.GainPerMember);
                 string status;
-                decimal amount;
                 DateOnly? paidDate = null;
 
                 if (payment?.PaymentStatus == PaymentStatus.Paid)
@@ -131,15 +141,15 @@ public class GetPaymentOptionsQueryHandler(IAppDbContext db, ICurrentUser curren
                     amount = payment.PaymentAmount;
                     paidDate = payment.PaymentDate;
                 }
-                else if (bid is not null)
+                else if (bid is not null || due is > 0 || payment is not null)
                 {
                     status = "pending";
-                    amount = bid.GainPerMember;
+                    if (payment is not null && payment.PaymentAmount > 0)
+                        amount = payment.PaymentAmount;
                 }
                 else
                 {
                     status = "not_ready";
-                    amount = group.MonthlyContribution;
                 }
 
                 options.Add(new PaymentMonthOptionDto(group.Id, group.GroupName, month, amount, status, paidDate));
@@ -182,14 +192,13 @@ public class GetMemberPaymentMethodsQueryHandler(IAppDbContext db, ICurrentUser 
 
         var qrEnabled = map.GetValueOrDefault("qr_enabled", "0") == "1";
         var upiId = map.GetValueOrDefault("upi_id", "");
-        var payee = map.GetValueOrDefault("bank_account_name", "BC Admin");
-        var note = map.GetValueOrDefault("payment_note", "BC Payment");
+        var payee = UpiPaymentHelper.BrandPayee;
+        var note = UpiPaymentHelper.PaymentNote();
         string? upiUrl = null;
         string? qrImageUrl = null;
         if (qrEnabled && !string.IsNullOrWhiteSpace(upiId))
         {
-            upiUrl = $"upi://pay?pa={Uri.EscapeDataString(upiId)}&pn={Uri.EscapeDataString(payee)}&cu=INR&tn={Uri.EscapeDataString(note)}";
-            qrImageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={Uri.EscapeDataString(upiUrl)}";
+            (upiUrl, qrImageUrl) = UpiPaymentHelper.BuildUrls(upiId, payee, note);
         }
 
         return Result<MemberPaymentMethodsDto>.Success(new MemberPaymentMethodsDto(
@@ -223,8 +232,15 @@ public class GetMemberPaymentDetailQueryHandler(IAppDbContext db, ICurrentUser c
             .FirstOrDefaultAsync(b => b.GroupId == request.GroupId && b.MonthNumber == request.MonthNumber, ct);
         var payment = await db.MemberPayments.FirstOrDefaultAsync(
             p => p.GroupId == request.GroupId && p.MemberId == memberId && p.MonthNumber == request.MonthNumber, ct);
+        var due = await db.MonthBiddingStatuses
+            .Where(s => s.GroupId == request.GroupId && s.MonthNumber == request.MonthNumber)
+            .Select(s => s.PaymentDueAmount)
+            .FirstOrDefaultAsync(ct);
 
-        var amount = bid?.GainPerMember ?? group.MonthlyContribution;
+        var amount = UpiPaymentHelper.ResolveDueAmount(
+            group.MonthlyContribution, due, bid?.GainPerMember);
+        if (payment is not null && payment.PaymentStatus != PaymentStatus.Paid && payment.PaymentAmount > 0)
+            amount = payment.PaymentAmount;
         var status = payment?.PaymentStatus.ToString().ToLowerInvariant() ?? "pending";
 
         var clientId = group.ClientId ?? currentUser.ClientId ?? 1;
@@ -234,6 +250,8 @@ public class GetMemberPaymentDetailQueryHandler(IAppDbContext db, ICurrentUser c
 
         var unpaid = payment?.PaymentStatus != PaymentStatus.Paid;
         var upiId = configMap.GetValueOrDefault("upi_id", "");
+        var payee = UpiPaymentHelper.BrandPayee;
+        var note = UpiPaymentHelper.PaymentNote(group.GroupName, request.MonthNumber);
         var qrEnabled = configMap.GetValueOrDefault("qr_enabled", "0") == "1"
                         && unpaid
                         && !string.IsNullOrWhiteSpace(upiId);
@@ -241,17 +259,112 @@ public class GetMemberPaymentDetailQueryHandler(IAppDbContext db, ICurrentUser c
         string? qrImageUrl = null;
         if (configMap.GetValueOrDefault("qr_enabled", "0") == "1" && !string.IsNullOrWhiteSpace(upiId))
         {
-            var payee = configMap.GetValueOrDefault("bank_account_name", "BC Admin");
-            var note = $"{configMap.GetValueOrDefault("payment_note", "BC Payment")} - {group.GroupName} M{request.MonthNumber}";
-            upiUrl = unpaid
-                ? $"upi://pay?pa={Uri.EscapeDataString(upiId)}&pn={Uri.EscapeDataString(payee)}&am={amount:0.##}&cu=INR&tn={Uri.EscapeDataString(note)}"
-                : $"upi://pay?pa={Uri.EscapeDataString(upiId)}&pn={Uri.EscapeDataString(payee)}&cu=INR&tn={Uri.EscapeDataString(note)}";
-            qrImageUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={Uri.EscapeDataString(upiUrl)}";
+            (upiUrl, qrImageUrl) = UpiPaymentHelper.BuildUrls(
+                upiId, payee, note, unpaid ? amount : null);
         }
 
         return Result<MemberPaymentDetailDto>.Success(new MemberPaymentDetailDto(
-            group.Id, group.GroupName, request.MonthNumber, amount, member.MemberName,
-            bid?.TakenByMember?.MemberName, status, qrEnabled || (unpaid && !string.IsNullOrWhiteSpace(qrImageUrl)),
-            string.IsNullOrWhiteSpace(upiId) ? null : upiId, qrImageUrl, upiUrl));
+            payment?.Id,
+            group.Id,
+            group.GroupName,
+            request.MonthNumber,
+            amount,
+            member.MemberName,
+            bid?.TakenByMember?.MemberName,
+            status,
+            payment?.TransactionId,
+            payee,
+            note,
+            qrEnabled || (unpaid && !string.IsNullOrWhiteSpace(qrImageUrl)),
+            string.IsNullOrWhiteSpace(upiId) ? null : upiId,
+            qrImageUrl,
+            upiUrl));
+    }
+}
+
+public record SubmitPaymentUtrRequest(string TransactionId, int? GroupMemberId = null);
+
+public record SubmitPaymentUtrCommand(int GroupId, int MonthNumber, SubmitPaymentUtrRequest Request)
+    : IRequest<Result>;
+
+public class SubmitPaymentUtrCommandHandler(IAppDbContext db, ICurrentUser currentUser)
+    : IRequestHandler<SubmitPaymentUtrCommand, Result>
+{
+    public async Task<Result> Handle(SubmitPaymentUtrCommand command, CancellationToken ct)
+    {
+        if (currentUser.UserId is null)
+            return Result.Failure("Not authenticated.");
+
+        var utr = command.Request.TransactionId?.Trim() ?? "";
+        if (utr.Length < 6)
+            return Result.Failure("Enter a valid UTR / UPI reference (at least 6 characters).");
+        if (utr.Length > 64)
+            return Result.Failure("UTR is too long.");
+
+        var memberId = currentUser.UserId.Value;
+        var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == command.GroupId, ct);
+        if (group is null)
+            return Result.Failure("Group not found.");
+
+        var seats = await db.GroupMembers
+            .Where(gm => gm.GroupId == command.GroupId && gm.MemberId == memberId && gm.Status == "active")
+            .ToListAsync(ct);
+        if (seats.Count == 0)
+            return Result.Failure("Access denied.");
+
+        var seat = command.Request.GroupMemberId is int seatId
+            ? seats.FirstOrDefault(s => s.Id == seatId)
+            : seats.OrderBy(s => s.MemberNumber).FirstOrDefault();
+        if (seat is null)
+            return Result.Failure("Member seat not found in this group.");
+
+        if (command.MonthNumber < 1 || command.MonthNumber > group.TotalMembers)
+            return Result.Failure("Invalid month.");
+
+        var payment = await db.MemberPayments.FirstOrDefaultAsync(
+            p => p.GroupId == command.GroupId
+                 && p.MonthNumber == command.MonthNumber
+                 && (p.GroupMemberId == seat.Id
+                     || (p.GroupMemberId == null && p.MemberId == memberId)),
+            ct);
+
+        if (payment is null)
+        {
+            var bid = await db.MonthlyBids.FirstOrDefaultAsync(
+                b => b.GroupId == command.GroupId && b.MonthNumber == command.MonthNumber, ct);
+            var due = await db.MonthBiddingStatuses
+                .Where(s => s.GroupId == command.GroupId && s.MonthNumber == command.MonthNumber)
+                .Select(s => s.PaymentDueAmount)
+                .FirstOrDefaultAsync(ct);
+            payment = new Domain.Entities.MemberPayment
+            {
+                GroupId = command.GroupId,
+                ClientId = group.ClientId,
+                MemberId = memberId,
+                GroupMemberId = seat.Id,
+                MonthNumber = command.MonthNumber,
+                PaymentAmount = UpiPaymentHelper.ResolveDueAmount(
+                    group.MonthlyContribution, due, bid?.GainPerMember),
+                PaymentStatus = PaymentStatus.Pending,
+                PaymentMethod = "upi",
+                TransactionId = utr,
+                Notes = "UTR submitted by member"
+            };
+            db.MemberPayments.Add(payment);
+        }
+        else
+        {
+            if (payment.PaymentStatus == PaymentStatus.Paid)
+                return Result.Failure("This month is already marked paid.");
+            payment.GroupMemberId ??= seat.Id;
+            payment.TransactionId = utr;
+            payment.PaymentMethod = "upi";
+            payment.UpdatedAt = DateTime.UtcNow;
+            if (string.IsNullOrWhiteSpace(payment.Notes))
+                payment.Notes = "UTR submitted by member";
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Result.Success();
     }
 }

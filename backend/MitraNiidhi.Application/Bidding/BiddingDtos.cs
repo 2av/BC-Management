@@ -36,4 +36,9 @@ public record GroupBiddingOverviewDto(
 
 public record OpenBiddingRequest(int MonthNumber, DateOnly EndDate, decimal MinBidAmount, decimal MaxBidAmount);
 public record PlaceBidRequest(int MonthNumber, decimal BidAmount, int? GroupMemberId = null);
-public record ApproveWinnerRequest(int MonthNumber, int WinnerMemberId, decimal WinningBidAmount, int? WinnerGroupMemberId = null);
+public record ApproveWinnerRequest(
+    int MonthNumber,
+    int WinnerMemberId,
+    decimal WinningBidAmount,
+    int? WinnerGroupMemberId = null,
+    decimal? PaymentAmount = null);

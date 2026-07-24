@@ -183,6 +183,7 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(x => x.MinimumBidAmount).HasPrecision(10, 2);
             e.Property(x => x.MaximumBidAmount).HasPrecision(10, 2);
             e.Property(x => x.WinningBidAmount).HasPrecision(10, 2);
+            e.Property(x => x.PaymentDueAmount).HasPrecision(10, 2);
             e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId);
             e.HasOne(x => x.WinnerMember).WithMany().HasForeignKey(x => x.WinnerMemberId);
             e.HasOne(x => x.WinnerGroupMember).WithMany().HasForeignKey(x => x.WinnerGroupMemberId);

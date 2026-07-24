@@ -60,6 +60,34 @@ public class GetDashboardStatsQueryHandler(IAppDbContext db)
             pendingByGroup.GetValueOrDefault(g.Id)
         )).ToList();
 
+        var pendingPayments = await db.MemberPayments
+            .Include(p => p.Member)
+            .Include(p => p.Group)
+            .Include(p => p.GroupMember)
+            .Where(p => p.PaymentStatus == PaymentStatus.Pending)
+            .OrderByDescending(p => p.UpdatedAt)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        var recentPayments = pendingPayments
+            .OrderByDescending(p => !string.IsNullOrWhiteSpace(p.TransactionId))
+            .ThenByDescending(p => p.UpdatedAt)
+            .Take(20)
+            .Select(p => new DashboardPaymentItemDto(
+                p.Id,
+                p.GroupId,
+                p.Group.GroupName,
+                p.Member.MemberName,
+                p.GroupMember?.MemberNumber ?? 0,
+                p.GroupMember?.HandLabel,
+                p.MonthNumber,
+                p.PaymentAmount,
+                "pending",
+                p.TransactionId,
+                p.UpdatedAt
+            ))
+            .ToList();
+
         var dto = new DashboardStatsDto(
             groups.Count,
             groups.Count(g => g.Status == GroupStatus.Active),
@@ -69,7 +97,8 @@ public class GetDashboardStatsQueryHandler(IAppDbContext db)
             totalDistributed,
             totalCollected - totalDistributed,
             thisMonthCollected,
-            recent);
+            recent,
+            recentPayments);
 
         return Result<DashboardStatsDto>.Success(dto);
     }

@@ -50,6 +50,10 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             req.WinningBidAmount,
             isBid: req.WinningBidAmount > 0);
 
+        var dueAmount = req.PaymentAmount is decimal overrideAmt && overrideAmt > 0
+            ? overrideAmt
+            : settlement.GainPerMember;
+
         if (db is not DbContext efContext)
             return Result.Failure("Database context unavailable.");
 
@@ -60,6 +64,7 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             status.WinnerMemberId = winnerSeat.MemberId;
             status.WinnerGroupMemberId = winnerSeat.Id;
             status.WinningBidAmount = req.WinningBidAmount;
+            status.PaymentDueAmount = dueAmount;
             status.AdminApprovedBy = currentUser.UserId;
             status.AdminApprovedAt = DateTime.UtcNow;
             status.UpdatedAt = DateTime.UtcNow;
@@ -79,7 +84,7 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
                 IsBid = settlement.IsBid,
                 BidAmount = settlement.BidAmount,
                 NetPayable = settlement.NetPayable,
-                GainPerMember = settlement.GainPerMember,
+                GainPerMember = dueAmount,
                 PaymentDate = DateOnly.FromDateTime(DateTime.Today)
             });
 
@@ -117,13 +122,13 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
                         MemberId = seat.MemberId,
                         GroupMemberId = seat.Id,
                         MonthNumber = req.MonthNumber,
-                        PaymentAmount = settlement.GainPerMember,
+                        PaymentAmount = dueAmount,
                         PaymentStatus = PaymentStatus.Pending
                     });
                 }
                 else if (existingPayment.PaymentStatus == PaymentStatus.Pending)
                 {
-                    existingPayment.PaymentAmount = settlement.GainPerMember;
+                    existingPayment.PaymentAmount = dueAmount;
                     existingPayment.UpdatedAt = DateTime.UtcNow;
                 }
 
@@ -172,7 +177,7 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
                 NotificationWriter.Add(
                     db, "member", memberId,
                     $"Payment due — {group.GroupName} M{req.MonthNumber}",
-                    $"Winner: {winnerLabel}. Amount due per seat: ₹{settlement.GainPerMember:N0}.",
+                    $"Winner: {winnerLabel}. Amount due per seat: ₹{dueAmount:N0}.",
                     "warning");
             }
 

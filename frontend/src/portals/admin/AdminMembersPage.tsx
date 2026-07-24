@@ -49,11 +49,15 @@ export function AdminMembersPage() {
   function isRosterLocked(groupId: number) {
     const g = groups?.find((x) => x.id === groupId)
     if (!g) return false
-    return g.status === 'completed' || g.completedMonths > 0
+    return g.status === 'completed'
+  }
+
+  function isGroupCompleted(groupId: number) {
+    return groups?.find((x) => x.id === groupId)?.status === 'completed'
   }
 
   const editableGroups = useMemo(
-    () => (groups ?? []).filter((g) => g.status !== 'completed' && g.completedMonths === 0),
+    () => (groups ?? []).filter((g) => g.status !== 'completed'),
     [groups],
   )
 
@@ -273,14 +277,6 @@ export function AdminMembersPage() {
                         {g.groupName}
                       </option>
                     ))}
-                    {(groups ?? [])
-                      .filter((g) => g.status === 'completed' || g.completedMonths > 0)
-                      .map((g) => (
-                        <option key={g.id} value={g.id} disabled>
-                          {g.groupName}
-                          {g.status === 'completed' ? ' (completed)' : ' (BC started)'}
-                        </option>
-                      ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -359,14 +355,6 @@ export function AdminMembersPage() {
                   {g.groupName}
                 </option>
               ))}
-              {(groups ?? [])
-                .filter((g) => g.status === 'completed' || g.completedMonths > 0)
-                .map((g) => (
-                  <option key={g.id} value={g.id} disabled>
-                    {g.groupName}
-                    {g.status === 'completed' ? ' (completed)' : ' (BC started)'}
-                  </option>
-                ))}
             </select>
           </div>
           <div className="space-y-1.5">
@@ -472,10 +460,12 @@ export function AdminMembersPage() {
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1">
-                        {m.groups.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">Unassigned</span>
-                        ) : (
-                          m.groups.map((g) => (
+                        {(() => {
+                          const visible = m.groups.filter((g) => !isGroupCompleted(g.groupId))
+                          if (visible.length === 0) {
+                            return <span className="text-xs text-muted-foreground">Unassigned</span>
+                          }
+                          return visible.map((g) => (
                             <Badge
                               key={g.groupMemberId}
                               variant={g.status === 'active' ? 'default' : 'muted'}
@@ -485,7 +475,7 @@ export function AdminMembersPage() {
                               {g.status !== 'active' ? ' (off)' : ''}
                             </Badge>
                           ))
-                        )}
+                        })()}
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
@@ -497,7 +487,9 @@ export function AdminMembersPage() {
                           Edit
                         </Button>
                         {(() => {
-                          const activeGroups = m.groups.filter((g) => g.status === 'active')
+                          const activeGroups = m.groups.filter(
+                            (g) => g.status === 'active' && !isGroupCompleted(g.groupId),
+                          )
                           const uniqueGroupIds = [...new Set(activeGroups.map((g) => g.groupId))]
                           return (
                             <>
@@ -505,13 +497,7 @@ export function AdminMembersPage() {
                                 const seats = activeGroups.filter((g) => g.groupId === groupId)
                                 const first = seats[0]
                                 const locked = isRosterLocked(groupId)
-                                const lockReason = (() => {
-                                  const g = groups?.find((x) => x.id === groupId)
-                                  if (!g) return ''
-                                  if (g.status === 'completed') return 'Group completed'
-                                  if (g.completedMonths > 0) return 'BC started'
-                                  return ''
-                                })()
+                                const lockReason = locked ? 'Group completed' : ''
                                 return (
                                   <span key={groupId} className="flex flex-wrap items-center gap-1">
                                     <Button

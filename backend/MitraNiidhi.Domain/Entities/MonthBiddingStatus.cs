@@ -17,6 +17,8 @@ public class MonthBiddingStatus : IClientScoped
     public int? WinnerMemberId { get; set; }
     public int? WinnerGroupMemberId { get; set; }
     public decimal? WinningBidAmount { get; set; }
+    /// <summary>Per-member due for this month (bid/random fixed). Null → use bid gain or BC contribution.</summary>
+    public decimal? PaymentDueAmount { get; set; }
     public int? AdminApprovedBy { get; set; }
     public DateTime? AdminApprovedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -53,4 +53,17 @@ public class MembersController(IMediator mediator) : ControllerBase
         var result = await mediator.Send(new GetMemberPaymentDetailQuery(groupId, month), ct);
         return result.Succeeded ? Ok(result.Data) : BadRequest(new { message = result.Error });
     }
+
+    [HttpPost("me/payments/{groupId:int}/{month:int}/utr")]
+    public async Task<IActionResult> SubmitUtr(
+        int groupId,
+        int month,
+        [FromBody] SubmitPaymentUtrRequest request,
+        CancellationToken ct)
+    {
+        var result = await mediator.Send(new SubmitPaymentUtrCommand(groupId, month, request), ct);
+        return result.Succeeded
+            ? Ok(new { message = "UTR submitted. Admin will confirm your payment." })
+            : BadRequest(new { message = result.Error });
+    }
 }

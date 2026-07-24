@@ -44,10 +44,16 @@ public class GetGroupPaymentsQueryHandler(IAppDbContext db)
             .Where(b => b.GroupId == request.GroupId)
             .ToDictionaryAsync(b => b.MonthNumber, cancellationToken);
 
+        var dueByMonth = await db.MonthBiddingStatuses
+            .Where(s => s.GroupId == request.GroupId)
+            .ToDictionaryAsync(s => s.MonthNumber, s => s.PaymentDueAmount, cancellationToken);
+
         var items = payments.Select(p =>
         {
             bids.TryGetValue(p.MonthNumber, out var bid);
-            var expected = bid?.GainPerMember ?? group.MonthlyContribution;
+            dueByMonth.TryGetValue(p.MonthNumber, out var due);
+            var expected = UpiPaymentHelper.ResolveDueAmount(
+                group.MonthlyContribution, due, bid?.GainPerMember);
             var seat = p.GroupMemberId is int sid
                 ? seats.FirstOrDefault(s => s.Id == sid)
                 : seats.FirstOrDefault(s => s.MemberId == p.MemberId);
@@ -68,6 +74,7 @@ public class GetGroupPaymentsQueryHandler(IAppDbContext db)
                 expected,
                 PaymentStatusMapper.ToApi(p.PaymentStatus),
                 p.PaymentDate,
+                p.TransactionId,
                 winnerName,
                 bid?.BidAmount,
                 bid?.GainPerMember);
@@ -76,6 +83,18 @@ public class GetGroupPaymentsQueryHandler(IAppDbContext db)
         var allForStats = await db.MemberPayments
             .Where(p => p.GroupId == request.GroupId)
             .ToListAsync(cancellationToken);
+
+        var monthDues = Enumerable.Range(1, group.TotalMembers)
+            .Select(m =>
+            {
+                dueByMonth.TryGetValue(m, out var due);
+                bids.TryGetValue(m, out var bid);
+                return new MonthPaymentDueDto(
+                    m,
+                    due,
+                    UpiPaymentHelper.ResolveDueAmount(group.MonthlyContribution, due, bid?.GainPerMember));
+            })
+            .ToList();
 
         return Result<GroupPaymentsOverviewDto>.Success(new GroupPaymentsOverviewDto(
             group.Id,
@@ -86,6 +105,7 @@ public class GetGroupPaymentsQueryHandler(IAppDbContext db)
             allForStats.Where(p => p.PaymentStatus == PaymentStatus.Pending).Sum(p => p.PaymentAmount),
             allForStats.Count(p => p.PaymentStatus == PaymentStatus.Paid),
             allForStats.Where(p => p.PaymentStatus == PaymentStatus.Paid).Sum(p => p.PaymentAmount),
-            items));
+            items,
+            monthDues));
     }
 }

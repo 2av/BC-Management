@@ -16,6 +16,7 @@ public record PaymentItemDto(
     decimal ExpectedAmount,
     string PaymentStatus,
     DateOnly? PaymentDate,
+    string? TransactionId,
     string? WinnerName,
     decimal? BidAmount,
     decimal? GainPerMember);
@@ -29,7 +30,8 @@ public record GroupPaymentsOverviewDto(
     decimal PendingAmount,
     int PaidCount,
     decimal PaidAmount,
-    IReadOnlyList<PaymentItemDto> Payments);
+    IReadOnlyList<PaymentItemDto> Payments,
+    IReadOnlyList<MonthPaymentDueDto> MonthDues);
 
 public record UpdatePaymentRequest(
     string PaymentStatus,
@@ -40,6 +42,21 @@ public record UpdatePaymentRequest(
     string? Notes);
 
 public record BulkMarkPaidRequest(int MonthNumber, IReadOnlyList<int>? PaymentIds, DateOnly? PaymentDate);
+
+public record CreatePaymentRequest(
+    int? GroupMemberId = null,
+    IReadOnlyList<int>? GroupMemberIds = null,
+    int MonthNumber = 0,
+    decimal PaymentAmount = 0,
+    string PaymentStatus = "paid",
+    DateOnly? PaymentDate = null,
+    string? PaymentMethod = null,
+    string? TransactionId = null,
+    string? Notes = null);
+
+public record SetMonthPaymentAmountRequest(int MonthNumber, decimal? PaymentAmount);
+
+public record MonthPaymentDueDto(int MonthNumber, decimal? PaymentDueAmount, decimal EffectiveAmount);
 
 public record MemberPaymentItemDto(
     int Id,

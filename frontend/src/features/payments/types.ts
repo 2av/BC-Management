@@ -12,9 +12,16 @@ export type PaymentItem = {
   expectedAmount: number
   paymentStatus: string
   paymentDate: string | null
+  transactionId: string | null
   winnerName: string | null
   bidAmount: number | null
   gainPerMember: number | null
+}
+
+export type MonthPaymentDue = {
+  monthNumber: number
+  paymentDueAmount: number | null
+  effectiveAmount: number
 }
 
 export type GroupPaymentsOverview = {
@@ -27,6 +34,7 @@ export type GroupPaymentsOverview = {
   paidCount: number
   paidAmount: number
   payments: PaymentItem[]
+  monthDues: MonthPaymentDue[]
 }
 
 export type MemberPayments = {

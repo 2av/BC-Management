@@ -14,6 +14,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+/** Last month of the BC (start + totalMembers − 1 months). */
+function groupEndMonthLabel(startDate: string, totalMembers: number) {
+  const d = new Date(startDate)
+  if (Number.isNaN(d.getTime())) return '—'
+  d.setMonth(d.getMonth() + Math.max(0, totalMembers - 1))
+  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+}
+
 export function AdminGroupsPage() {
   const { t } = useTranslation()
   const api = useApi()
@@ -35,6 +43,7 @@ export function AdminGroupsPage() {
   const [editAssignSlot, setEditAssignSlot] = useState<MemberSlotValue[]>([null])
   const [cloneName, setCloneName] = useState('')
   const [cloneDate, setCloneDate] = useState(new Date().toISOString().slice(0, 10))
+  const [statusTab, setStatusTab] = useState<'active' | 'completed'>('active')
 
   const { data, isLoading, error: loadError } = useQuery({
     queryKey: ['groups'],
@@ -47,8 +56,7 @@ export function AdminGroupsPage() {
   })
 
   const editingGroup = data?.find((g) => g.id === editId) ?? null
-  const editRosterLocked =
-    !!editingGroup && (editingGroup.status === 'completed' || editingGroup.completedMonths > 0)
+  const editRosterLocked = !!editingGroup && editingGroup.status === 'completed'
 
   const { data: editRoster } = useQuery({
     queryKey: ['group-members', editId],
@@ -59,6 +67,19 @@ export function AdminGroupsPage() {
   const collection = useMemo(
     () => Number(contribution || 0) * Number(members || 0),
     [contribution, members],
+  )
+
+  const activeCount = useMemo(
+    () => data?.filter((g) => g.status === 'active').length ?? 0,
+    [data],
+  )
+  const completedCount = useMemo(
+    () => data?.filter((g) => g.status === 'completed').length ?? 0,
+    [data],
+  )
+  const visibleGroups = useMemo(
+    () => (data ?? []).filter((g) => g.status === statusTab),
+    [data, statusTab],
   )
 
   const createReady =
@@ -126,6 +147,19 @@ export function AdminGroupsPage() {
       setMessage('Member added to group.')
       setError(null)
       setEditAssignSlot([null])
+      await qc.invalidateQueries({ queryKey: ['group-members', editId] })
+      await qc.invalidateQueries({ queryKey: ['groups'] })
+      await qc.invalidateQueries({ queryKey: ['members'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const removeSeatMutation = useMutation({
+    mutationFn: (seat: { memberId: number; groupMemberId: number; label: string }) =>
+      api.delete(`/api/groups/${editId}/members/${seat.memberId}?groupMemberId=${seat.groupMemberId}`),
+    onSuccess: async () => {
+      setMessage('Member removed from group.')
+      setError(null)
       await qc.invalidateQueries({ queryKey: ['group-members', editId] })
       await qc.invalidateQueries({ queryKey: ['groups'] })
       await qc.invalidateQueries({ queryKey: ['members'] })
@@ -270,10 +304,40 @@ export function AdminGroupsPage() {
               <Label>Current roster</Label>
               <div className="flex flex-wrap gap-1.5">
                 {(editRoster ?? []).map((r) => (
-                  <Badge key={r.groupMemberId} variant={r.status === 'active' ? 'default' : 'muted'}>
-                    #{r.memberNumber} {r.memberName}
-                    {r.handLabel ? ` · ${r.handLabel}` : ''}
-                  </Badge>
+                  <span
+                    key={r.groupMemberId}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs"
+                  >
+                    <Badge variant={r.status === 'active' ? 'default' : 'muted'}>
+                      #{r.memberNumber} {r.memberName}
+                      {r.handLabel ? ` · ${r.handLabel}` : ''}
+                      {r.status !== 'active' ? ' (off)' : ''}
+                    </Badge>
+                    {!editRosterLocked && r.status === 'active' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-1.5 text-destructive"
+                        disabled={removeSeatMutation.isPending}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Remove ${r.memberName}${r.handLabel ? ` · ${r.handLabel}` : ''} (#${r.memberNumber}) from this group?`,
+                            )
+                          ) {
+                            removeSeatMutation.mutate({
+                              memberId: r.memberId,
+                              groupMemberId: r.groupMemberId,
+                              label: r.memberName,
+                            })
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </span>
                 ))}
                 {(editRoster ?? []).length === 0 ? (
                   <span className="text-sm text-muted-foreground">No seats yet.</span>
@@ -290,7 +354,8 @@ export function AdminGroupsPage() {
                   onChange={setEditAssignSlot}
                 />
                 <p className="mb-2 text-xs text-muted-foreground">
-                  Add an existing member (extra hand if already in group) or create a new login.
+                  Add an existing member (extra hand if already in group) or create a new login. You can still change
+                  the roster after payments have started; only completed groups are locked.
                 </p>
                 <Button
                   size="sm"
@@ -303,11 +368,7 @@ export function AdminGroupsPage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground sm:col-span-4">
-                Roster is locked because this group is completed or the BC has started. Manage from{' '}
-                <Link className="text-primary underline" to="/admin/members">
-                  Members
-                </Link>{' '}
-                only for profile edits.
+                Roster is locked because this group is marked completed.
               </p>
             )}
 
@@ -349,8 +410,31 @@ export function AdminGroupsPage() {
 
       {isLoading ? <p className="text-sm text-muted-foreground">Loading groups…</p> : null}
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={statusTab === 'active' ? 'default' : 'outline'}
+          onClick={() => setStatusTab('active')}
+        >
+          Active ({activeCount})
+        </Button>
+        <Button
+          size="sm"
+          variant={statusTab === 'completed' ? 'default' : 'outline'}
+          onClick={() => setStatusTab('completed')}
+        >
+          Completed ({completedCount})
+        </Button>
+      </div>
+
+      {!isLoading && visibleGroups.length === 0 ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          {statusTab === 'active' ? 'No active groups.' : 'No completed groups.'}
+        </p>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {data?.map((g) => (
+        {visibleGroups.map((g) => (
           <Card key={g.id} className="transition-shadow hover:shadow-md">
             <CardContent className="space-y-4 p-5">
               <div className="flex items-start justify-between gap-3">
@@ -358,6 +442,8 @@ export function AdminGroupsPage() {
                   <h3 className="font-semibold text-foreground">{g.groupName}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Started {new Date(g.startDate).toLocaleDateString('en-IN')}
+                    {' · '}
+                    Ends {groupEndMonthLabel(g.startDate, g.totalMembers)}
                   </p>
                 </div>
                 <Badge variant={g.status === 'active' ? 'success' : 'muted'}>{g.status}</Badge>
@@ -374,12 +460,42 @@ export function AdminGroupsPage() {
                 <div>
                   <p className="text-muted-foreground">Progress</p>
                   <p className="font-medium">
-                    {g.completedMonths}/{g.totalMembers}
+                    {g.completedMonths}/{g.totalMembers} months
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pending</p>
                   <p className="font-medium">{formatInr(g.pendingAmount)}</p>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Months completed</span>
+                  <span className="font-medium text-foreground">
+                    {g.totalMembers > 0
+                      ? Math.round((g.completedMonths / g.totalMembers) * 100)
+                      : 0}
+                    %
+                  </span>
+                </div>
+                <div
+                  className="h-2 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={g.completedMonths}
+                  aria-valuemin={0}
+                  aria-valuemax={g.totalMembers}
+                  aria-label={`${g.completedMonths} of ${g.totalMembers} months completed`}
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-300"
+                    style={{
+                      width: `${
+                        g.totalMembers > 0
+                          ? Math.min(100, (g.completedMonths / g.totalMembers) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">

@@ -20,7 +20,21 @@ public record DashboardStatsDto(
     decimal TotalDistributed,
     decimal CashInHand,
     decimal ThisMonthCollected,
-    IReadOnlyList<GroupListItemDto> RecentGroups);
+    IReadOnlyList<GroupListItemDto> RecentGroups,
+    IReadOnlyList<DashboardPaymentItemDto> RecentPayments);
+
+public record DashboardPaymentItemDto(
+    int Id,
+    int GroupId,
+    string GroupName,
+    string MemberName,
+    int MemberNumber,
+    string? HandLabel,
+    int MonthNumber,
+    decimal PaymentAmount,
+    string PaymentStatus,
+    string? TransactionId,
+    DateTime UpdatedAt);
 
 public record MonthlyBidDto(
     int MonthNumber,

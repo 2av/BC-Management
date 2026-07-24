@@ -395,6 +395,7 @@ public class SchemaMigrationService(AppDbContext db) : ISchemaMigrationService
         ("group_members", new("hand_label", "VARCHAR(50) NULL")),
         ("monthly_bids", new("taken_by_group_member_id", "INT NULL")),
         ("month_bidding_status", new("winner_group_member_id", "INT NULL")),
+        ("month_bidding_status", new("payment_due_amount", "DECIMAL(10,2) NULL")),
         ("member_bids", new("group_member_id", "INT NULL")),
         ("member_payments", new("group_member_id", "INT NULL")),
         ("member_summary", new("group_member_id", "INT NULL")),

@@ -10,6 +10,20 @@ export type GroupListItem = {
   pendingAmount: number
 }
 
+export type DashboardPaymentItem = {
+  id: number
+  groupId: number
+  groupName: string
+  memberName: string
+  memberNumber: number
+  handLabel: string | null
+  monthNumber: number
+  paymentAmount: number
+  paymentStatus: string
+  transactionId: string | null
+  updatedAt: string
+}
+
 export type DashboardStats = {
   totalGroups: number
   activeGroups: number
@@ -20,6 +34,7 @@ export type DashboardStats = {
   cashInHand: number
   thisMonthCollected: number
   recentGroups: GroupListItem[]
+  recentPayments: DashboardPaymentItem[]
 }
 
 export type MonthlyBid = {

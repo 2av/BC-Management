@@ -12,6 +12,8 @@ import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PAYMENT_BRAND, UpiQrCard, type PaymentMethods } from '@/components/payments/UpiQrCard'
+import { PaymentQrModal } from '@/components/payments/PaymentQrModal'
 import { cn } from '@/lib/utils'
 import { AdminGroupLedgerPage } from '../admin/AdminGroupLedgerPage'
 import { MemberBiddingPage } from './MemberBiddingPage'
@@ -104,9 +106,20 @@ function MemberDashboardPage() {
   const { t } = useTranslation()
   const api = useApi()
   const [groupTab, setGroupTab] = useState<'active' | 'completed'>('active')
+  const [payGroup, setPayGroup] = useState<{
+    groupId: number
+    groupName: string
+    groupMemberId: number
+  } | null>(null)
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['member-dashboard'],
     queryFn: () => api.get<MemberDashboard>('/api/members/me/dashboard'),
+  })
+
+  const { data: methods } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => api.get<PaymentMethods>('/api/members/me/payment-methods'),
   })
 
   const activeGroups = data?.groups.filter((g) => g.status === 'active') ?? []
@@ -135,6 +148,25 @@ function MemberDashboardPage() {
             <StatCard label={t('member.totalPaid')} value={formatInr(data.totalPaid)} icon={<Wallet className="h-5 w-5" />} />
             <StatCard label={t('member.amountReceived')} value={formatInr(data.totalReceived)} icon={<Receipt className="h-5 w-5" />} />
             <StatCard label={t('member.pendingDues')} value={formatInr(data.pendingDues)} icon={<Gavel className="h-5 w-5" />} />
+          </div>
+
+          <div className="mb-2">
+            <UpiQrCard
+              methods={
+                methods
+                  ? {
+                      ...methods,
+                      payeeName: PAYMENT_BRAND,
+                      paymentNote: PAYMENT_BRAND,
+                    }
+                  : methods
+              }
+              title={PAYMENT_BRAND}
+              paymentText={PAYMENT_BRAND}
+            />
+            {methods?.qrEnabled ? (
+              <p className="-mt-4 mb-6 text-sm text-muted-foreground">{t('member.dashboardPayHint')}</p>
+            ) : null}
           </div>
 
           <Card>
@@ -223,14 +255,29 @@ function MemberDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button asChild variant="outline" className="flex-1">
                         <Link to={`/member/groups/${g.groupId}`}>{t('common.ledger')}</Link>
                       </Button>
                       {g.status === 'active' ? (
-                        <Button asChild className="flex-1">
-                          <Link to="/member/bidding">{t('nav.bidding')}</Link>
-                        </Button>
+                        <>
+                          <Button
+                            className="flex-1"
+                            variant="secondary"
+                            onClick={() =>
+                              setPayGroup({
+                                groupId: g.groupId,
+                                groupName: g.groupName,
+                                groupMemberId: g.groupMemberId,
+                              })
+                            }
+                          >
+                            {t('nav.pay')}
+                          </Button>
+                          <Button asChild className="flex-1">
+                            <Link to="/member/bidding">{t('nav.bidding')}</Link>
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   </div>
@@ -243,6 +290,14 @@ function MemberDashboardPage() {
               ) : null}
             </CardContent>
           </Card>
+
+          <PaymentQrModal
+            open={!!payGroup}
+            onClose={() => setPayGroup(null)}
+            groupId={payGroup?.groupId ?? 0}
+            groupName={payGroup?.groupName ?? ''}
+            groupMemberId={payGroup?.groupMemberId}
+          />
         </>
       ) : null}
     </div>
