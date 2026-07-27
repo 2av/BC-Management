@@ -16,6 +16,13 @@ public class JwtTokenService(IConfiguration configuration) : IJwtTokenService
         var issuer = configuration["Jwt:Issuer"] ?? "MitraNiidhi";
         var audience = configuration["Jwt:Audience"] ?? "MitraNiidhi.App";
         var expiresMinutes = int.TryParse(configuration["Jwt:ExpiresMinutes"], out var m) ? m : 480;
+        // Members stay signed-in on the mobile app until they explicitly log out.
+        if (role == UserRole.Member)
+        {
+            expiresMinutes = int.TryParse(configuration["Jwt:MemberExpiresMinutes"], out var memberMins)
+                ? memberMins
+                : 525_600; // 365 days default
+        }
 
         var claims = new List<Claim>
         {

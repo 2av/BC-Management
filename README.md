@@ -51,17 +51,30 @@ dotnet test MitraNiidhi.Application.Tests
 
 ## Publish (production build)
 
+Live hosts:
+- Web: `https://bc.agprimetech.com`
+- API: `https://bc.api.agprimetech.com`
+
 ```bash
-# API → publish/api
+# API → publish/api (+ zip)
 dotnet publish backend/MitraNiidhi.Api/MitraNiidhi.Api.csproj -c Release -o publish/api
 
-# UI → publish/web  (set your live API URL)
+# UI → publish/web  (uses frontend/.env.production → live API)
 cd frontend
-set VITE_API_URL=http://localhost:5027
 npm run build -- --outDir ../publish/web --emptyOutDir
+
+# Android APK → publish/mobile (after expo prebuild)
+cd ../mobile
+$env:EXPO_PUBLIC_API_URL="https://bc.api.agprimetech.com"
+$env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+$env:GRADLE_USER_HOME="C:\g\caches"
+npx expo prebuild --platform android
+cd android
+.\gradlew.bat assembleRelease -g C:\g\caches
+copy app\build\outputs\apk\release\app-release.apk ..\..\publish\mobile\MitraNiidhi-release.apk
 ```
 
-See `publish/README.md` for how to run the packages.
+See `publish/README.md` for IIS deploy + CORS notes.
 
 ## PHP legacy
 
@@ -75,8 +88,9 @@ Still on disk for reference / DB helpers only:
 
 ## Project layout
 ```
-frontend/          React app
-backend/           MitraNiidhi.* Clean Architecture
+frontend/          React web (admin, member, super admin)
+backend/           MitraNiidhi.* Clean Architecture API
+mobile/            Expo member app (APK share — see mobile/README.md)
 PHP Backup/        Archived PHP portals
 config/            Legacy MySQL config (used by old PHP / reference)
 ```

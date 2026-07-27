@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 import { TablePagination } from '@/components/ui/table-pagination'
 
 const emptyForm = {
@@ -22,7 +23,8 @@ const emptyForm = {
   groupId: '',
   memberNumber: '',
   status: 'active',
-  resetPassword: false,
+  newPassword: '',
+  confirmPassword: '',
 }
 
 export function AdminMembersPage() {
@@ -92,6 +94,10 @@ export function AdminMembersPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (editing) {
+        if (form.newPassword || form.confirmPassword) {
+          if (form.newPassword.length < 6) throw new Error('New password must be at least 6 characters.')
+          if (form.newPassword !== form.confirmPassword) throw new Error('Passwords do not match.')
+        }
         return api.put(`/api/members/${editing.id}`, {
           memberName: form.memberName,
           username: form.username || null,
@@ -99,12 +105,13 @@ export function AdminMembersPage() {
           email: form.email || null,
           address: form.address || null,
           status: form.status,
-          resetPassword: form.resetPassword,
+          newPassword: form.newPassword.trim() || null,
         })
       }
       return api.post('/api/members', {
         memberName: form.memberName,
         username: form.username || null,
+        password: form.newPassword.trim() || null,
         phone: form.phone || null,
         email: form.email || null,
         address: form.address || null,
@@ -192,7 +199,8 @@ export function AdminMembersPage() {
       groupId: '',
       memberNumber: '',
       status: m.status,
-      resetPassword: false,
+      newPassword: '',
+      confirmPassword: '',
     })
     setShowForm(true)
   }
@@ -303,16 +311,43 @@ export function AdminMembersPage() {
                     <option value="inactive">inactive</option>
                   </select>
                 </div>
-                <label className="flex items-center gap-2 self-end pb-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.resetPassword}
-                    onChange={(e) => setForm({ ...form, resetPassword: e.target.checked })}
-                  />
-                  Reset password to member123
-                </label>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Reset password (optional)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Set a temporary password. Member must change it on next login.
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <PasswordInput
+                      placeholder="New password"
+                      value={form.newPassword}
+                      onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+                      autoComplete="new-password"
+                    />
+                    <PasswordInput
+                      placeholder="Confirm password"
+                      value={form.confirmPassword}
+                      onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
               </>
             )}
+            {!editing ? (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Initial password (optional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Defaults to member123 if empty. Member must change it on first login.
+                </p>
+                <PasswordInput
+                  className="mt-2"
+                  placeholder="Initial password"
+                  value={form.newPassword}
+                  onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+                  autoComplete="new-password"
+                />
+              </div>
+            ) : null}
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
               <Button disabled={!form.memberName || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
                 {editing ? 'Save changes' : 'Create'}

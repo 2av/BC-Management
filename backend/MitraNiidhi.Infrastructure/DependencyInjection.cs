@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Infrastructure.Identity;
+using MitraNiidhi.Infrastructure.Notifications;
 using MitraNiidhi.Infrastructure.Persistence;
 
 namespace MitraNiidhi.Infrastructure;
@@ -21,11 +22,20 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUser, CurrentUserService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
+        services.AddHttpClient("ExpoPush", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Encoding", "gzip, deflate");
+        });
+        services.AddScoped<IPushNotificationService, ExpoPushNotificationService>();
+        services.AddSingleton<MemberPushSaveInterceptor>();
 
         var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
-        services.AddDbContext<AppDbContext>(options =>
+        services.AddDbContext<AppDbContext>((sp, options) =>
             options.UseMySql(connectionString, serverVersion)
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(sp.GetRequiredService<MemberPushSaveInterceptor>()));
 
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<ISchemaMigrationService, SchemaMigrationService>();

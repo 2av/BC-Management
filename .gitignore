@@ -57,6 +57,15 @@ frontend/.env.local
 # Publish output
 publish/
 
+# Mobile (Expo)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/android/
+mobile/ios/
+*.apk
+*.aab
+
 # .NET
 backend/**/bin/
 backend/**/obj/

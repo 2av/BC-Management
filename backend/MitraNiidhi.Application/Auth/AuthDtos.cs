@@ -10,4 +10,5 @@ public record AuthUserDto(
     string FullName,
     UserRole Role,
     int? ClientId,
-    string AccessToken);
+    string AccessToken,
+    bool MustChangePassword = false);

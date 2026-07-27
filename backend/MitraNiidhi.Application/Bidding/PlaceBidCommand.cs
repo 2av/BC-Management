@@ -5,6 +5,7 @@ using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
 using MitraNiidhi.Domain.Entities;
 using MitraNiidhi.Domain.Enums;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Bidding;
 
@@ -21,8 +22,8 @@ public class PlaceBidCommandHandler(IAppDbContext db, ICurrentUser currentUser)
         var memberId = currentUser.UserId.Value;
         var req = command.Request;
 
-        if (req.BidAmount <= 0)
-            return Result.Failure("Bid amount must be greater than 0.");
+        if (req.BoliAmount <= 0)
+            return Result.Failure("Boli amount must be greater than 0.");
 
         var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == command.GroupId, cancellationToken);
         if (group is null)
@@ -46,14 +47,31 @@ public class PlaceBidCommandHandler(IAppDbContext db, ICurrentUser currentUser)
         if (status is null || status.BiddingStatus != BiddingStatus.Open)
             return Result.Failure("Bidding is not open for this month.");
 
-        if (req.BidAmount >= group.TotalMonthlyCollection)
-            return Result.Failure($"Bid must be less than total collection ({group.TotalMonthlyCollection:0}).");
+        await GetGroupBcChartQueryHandler.EnsureChartRowsAsync(db, group, cancellationToken);
+        var chart = await db.GroupMonthCharts.FirstOrDefaultAsync(
+            c => c.GroupId == command.GroupId && c.MonthNumber == req.MonthNumber, cancellationToken);
+        if (chart?.BoliStartAmount is null)
+            return Result.Failure("No boli start configured for this month on the BC chart.");
 
-        if (status.MinimumBidAmount > 0 && req.BidAmount < status.MinimumBidAmount)
-            return Result.Failure($"Bid must be at least {status.MinimumBidAmount:0}.");
+        var step = group.BoliStepAmount > 0 ? group.BoliStepAmount : 1000m;
+        var existingBids = await db.MemberBids
+            .Where(b => b.GroupId == command.GroupId && b.MonthNumber == req.MonthNumber)
+            .ToListAsync(cancellationToken);
 
-        if (status.MaximumBidAmount > 0 && req.BidAmount > status.MaximumBidAmount)
-            return Result.Failure($"Bid cannot exceed {status.MaximumBidAmount:0}.");
+        decimal? currentBestReceive = existingBids.Count == 0
+            ? null
+            : existingBids.Min(b => BcChartService.ToReceive(group.TotalMonthlyCollection, b.BidAmount));
+
+        if (!BcChartService.IsAllowedBoliReceive(req.BoliAmount, chart.BoliStartAmount, step, currentBestReceive))
+        {
+            var next = BcChartService.NextBoliReceive(chart.BoliStartAmount, step, currentBestReceive);
+            return Result.Failure(next is null
+                ? "No further boli steps are available for this month."
+                : $"Next boli must be exactly ₹{next:0} (step ₹{step:0}).");
+        }
+
+        if (req.BoliAmount >= group.TotalMonthlyCollection)
+            return Result.Failure($"Boli must be less than total collection ({group.TotalMonthlyCollection:0}).");
 
         if (await db.MemberBids.AnyAsync(
                 b => b.GroupId == command.GroupId
@@ -63,6 +81,8 @@ public class PlaceBidCommandHandler(IAppDbContext db, ICurrentUser currentUser)
                 cancellationToken))
             return Result.Failure("This hand already placed a bid for this month.");
 
+        var discount = BcChartService.ToDiscount(group.TotalMonthlyCollection, req.BoliAmount);
+
         db.MemberBids.Add(new MemberBid
         {
             GroupId = command.GroupId,
@@ -70,10 +90,15 @@ public class PlaceBidCommandHandler(IAppDbContext db, ICurrentUser currentUser)
             MemberId = memberId,
             GroupMemberId = seat.Id,
             MonthNumber = req.MonthNumber,
-            BidAmount = req.BidAmount,
+            BidAmount = discount,
             BidStatus = "pending",
             BidDate = DateTime.UtcNow
         });
+
+        // Keep max as highest discount seen (lowest boli) for legacy displays.
+        if (discount > status.MaximumBidAmount)
+            status.MaximumBidAmount = discount;
+        status.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
         return Result.Success();

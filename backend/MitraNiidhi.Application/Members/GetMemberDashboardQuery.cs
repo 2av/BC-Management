@@ -20,7 +20,10 @@ public record MemberGroupDto(
     int PendingMonths,
     decimal TotalPaid,
     decimal GivenAmount,
-    decimal Profit);
+    decimal Profit,
+    decimal PendingAmount,
+    int PendingPaymentCount,
+    int? NextPendingMonth);
 
 public record MemberDashboardDto(
     string FullName,
@@ -73,11 +76,20 @@ public class GetMemberDashboardQueryHandler(IAppDbContext db, ICurrentUser curre
             .Select(g => new { GroupId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.GroupId, x => x.Count, cancellationToken);
 
-        var pending = await db.MemberPayments
+        var pendingPayments = await db.MemberPayments
             .Where(p => p.MemberId == memberId
                         && groupIds.Contains(p.GroupId)
                         && p.PaymentStatus == Domain.Enums.PaymentStatus.Pending)
-            .SumAsync(p => (decimal?)p.PaymentAmount, cancellationToken) ?? 0;
+            .Select(p => new
+            {
+                p.GroupId,
+                p.GroupMemberId,
+                p.MonthNumber,
+                p.PaymentAmount
+            })
+            .ToListAsync(cancellationToken);
+
+        var pending = pendingPayments.Sum(p => p.PaymentAmount);
 
         var groups = memberships.Select(m =>
         {
@@ -87,6 +99,24 @@ public class GetMemberDashboardQueryHandler(IAppDbContext db, ICurrentUser curre
             var completed = completedByGroup.GetValueOrDefault(m.GroupId, 0);
             var pendingMonths = Math.Max(0, m.TotalMembers - completed);
             var endDate = m.StartDate.AddMonths(Math.Max(0, m.TotalMembers));
+
+            // Prefer seat-scoped rows; fall back to member+group when GroupMemberId is null.
+            var forSeat = pendingPayments
+                .Where(p => p.GroupId == m.GroupId && p.GroupMemberId == m.Id)
+                .ToList();
+            if (forSeat.Count == 0)
+            {
+                forSeat = pendingPayments
+                    .Where(p => p.GroupId == m.GroupId && p.GroupMemberId == null)
+                    .ToList();
+            }
+
+            var pendingAmount = forSeat.Sum(p => p.PaymentAmount);
+            var pendingCount = forSeat.Count;
+            int? nextMonth = forSeat.Count == 0
+                ? null
+                : forSeat.Min(p => p.MonthNumber);
+
             return new MemberGroupDto(
                 m.Id,
                 m.GroupId,
@@ -102,7 +132,10 @@ public class GetMemberDashboardQueryHandler(IAppDbContext db, ICurrentUser curre
                 pendingMonths,
                 summary?.TotalPaid ?? 0,
                 summary?.GivenAmount ?? 0,
-                summary?.Profit ?? 0);
+                summary?.Profit ?? 0,
+                pendingAmount,
+                pendingCount,
+                nextMonth);
         }).ToList();
 
         return Result<MemberDashboardDto>.Success(new MemberDashboardDto(

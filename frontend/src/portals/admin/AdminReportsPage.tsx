@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useApi } from '@/shared/api/client'
+import { API_BASE, useApi } from '@/shared/api/client'
 import { formatInr, type GroupListItem } from '@/features/groups/types'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { StatCard } from '@/components/layout/StatCard'
@@ -97,8 +97,9 @@ export function AdminReportsPage() {
     if (to) params.set('to', to)
     const q = params.toString()
     const path = `/api/reports/export/${type}${q ? `?${q}` : ''}`
-    const token = JSON.parse(localStorage.getItem('mitra_auth') || '{}')?.accessToken
-    const res = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:5027'}${path}`, {
+    const token = JSON.parse(localStorage.getItem('mitra_auth') || '{}')?.accessToken as string | undefined
+    if (!token) throw new Error('Session expired. Please sign in again.')
+    const res = await fetch(`${API_BASE}${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!res.ok) throw new Error('Export failed')

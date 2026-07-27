@@ -17,6 +17,8 @@ public class BcGroup : IClientScoped
     public int? OrganiserMemberId { get; set; }
     /// <summary>Specific seat when organiser has multiple hands.</summary>
     public int? OrganiserGroupMemberId { get; set; }
+    /// <summary>Each next boli (receive amount) must be this much lower than the current best.</summary>
+    public decimal BoliStepAmount { get; set; } = 1000;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Client? Client { get; set; }
@@ -24,4 +26,5 @@ public class BcGroup : IClientScoped
     public GroupMember? OrganiserGroupMember { get; set; }
     public ICollection<GroupMember> Members { get; set; } = new List<GroupMember>();
     public ICollection<MonthlyBid> MonthlyBids { get; set; } = new List<MonthlyBid>();
+    public ICollection<GroupMonthChart> MonthCharts { get; set; } = new List<GroupMonthChart>();
 }

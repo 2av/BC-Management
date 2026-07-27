@@ -80,7 +80,6 @@ export function MemberRandomPicksPage() {
           },
         )
       }
-      // Server-side fair random (members without decide-winner privilege)
       return api.post<{ effectiveMemberName: string; monthNumber: number }>(
         `/api/groups/${id}/random-picks`,
         { monthNumber },
@@ -95,6 +94,22 @@ export function MemberRandomPicksPage() {
     },
     onError: (e: Error) => setError(e.message),
   })
+
+  if (available && !available.canCustomPick) {
+    return (
+      <div>
+        <Button asChild variant="ghost" className="mb-4 px-0 text-muted-foreground">
+          <Link to={`/member/groups/${id}`}>
+            <ArrowLeft className="h-4 w-4" />
+            Back to ledger
+          </Link>
+        </Button>
+        <p className="text-sm text-amber-800">
+          {available.blockReason ?? 'You are not allowed to run the random spin.'}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div>

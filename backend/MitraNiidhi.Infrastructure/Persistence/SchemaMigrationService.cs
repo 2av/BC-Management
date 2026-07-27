@@ -215,6 +215,48 @@ public class SchemaMigrationService(AppDbContext db) : ISchemaMigrationService
                 new("read_at", "TIMESTAMP NULL"),
                 new("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
             ]),
+        new("member_push_tokens", """
+            CREATE TABLE IF NOT EXISTS member_push_tokens (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                member_id INT NOT NULL,
+                token VARCHAR(512) NOT NULL,
+                platform VARCHAR(20) NOT NULL DEFAULT 'unknown',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_member_push_token (token),
+                INDEX idx_member_push_member (member_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """,
+            [
+                new("member_id", "INT NOT NULL"),
+                new("token", "VARCHAR(512) NOT NULL"),
+                new("platform", "VARCHAR(20) NOT NULL DEFAULT 'unknown'"),
+                new("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                new("updated_at", "TIMESTAMP NULL DEFAULT NULL")
+            ]),
+        new("group_month_charts", """
+            CREATE TABLE IF NOT EXISTS group_month_charts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                client_id INT NULL,
+                group_id INT NOT NULL,
+                month_number INT NOT NULL,
+                random_amount DECIMAL(10,2) NOT NULL,
+                boli_start_amount DECIMAL(10,2) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_group_month_chart (group_id, month_number),
+                INDEX idx_group_month_charts_group (group_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """,
+            [
+                new("client_id", "INT NULL"),
+                new("group_id", "INT NOT NULL"),
+                new("month_number", "INT NOT NULL"),
+                new("random_amount", "DECIMAL(10,2) NOT NULL"),
+                new("boli_start_amount", "DECIMAL(10,2) NULL"),
+                new("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                new("updated_at", "TIMESTAMP NULL DEFAULT NULL")
+            ]),
         new("random_picks", """
             CREATE TABLE IF NOT EXISTS random_picks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -380,6 +422,7 @@ public class SchemaMigrationService(AppDbContext db) : ISchemaMigrationService
         ("bc_groups", new("client_id", "INT NULL")),
         ("bc_groups", new("organiser_member_id", "INT NULL")),
         ("bc_groups", new("organiser_group_member_id", "INT NULL")),
+        ("bc_groups", new("boli_step_amount", "DECIMAL(10,2) NOT NULL DEFAULT 1000.00")),
         ("monthly_bids", new("client_id", "INT NULL")),
         ("member_payments", new("client_id", "INT NULL")),
         ("member_summary", new("client_id", "INT NULL")),
@@ -402,7 +445,8 @@ public class SchemaMigrationService(AppDbContext db) : ISchemaMigrationService
         ("member_payments", new("group_member_id", "INT NULL")),
         ("member_summary", new("group_member_id", "INT NULL")),
         ("random_picks", new("selected_group_member_id", "INT NULL")),
-        ("random_picks", new("admin_override_group_member_id", "INT NULL"))
+        ("random_picks", new("admin_override_group_member_id", "INT NULL")),
+        ("members", new("must_change_password", "TINYINT(1) NOT NULL DEFAULT 0"))
     ];
 
     public async Task<SchemaCheckResultDto> CheckAsync(CancellationToken cancellationToken = default)

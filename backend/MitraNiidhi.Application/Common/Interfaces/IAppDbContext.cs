@@ -17,6 +17,7 @@ public interface IAppDbContext
     DbSet<MemberSummary> MemberSummaries { get; }
     DbSet<MonthBiddingStatus> MonthBiddingStatuses { get; }
     DbSet<MemberBid> MemberBids { get; }
+    DbSet<GroupMonthChart> GroupMonthCharts { get; }
     DbSet<RandomPick> RandomPicks { get; }
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
     DbSet<ClientSubscription> ClientSubscriptions { get; }
@@ -24,6 +25,7 @@ public interface IAppDbContext
     DbSet<PaymentConfig> PaymentConfigs { get; }
     DbSet<SystemSetting> SystemSettings { get; }
     DbSet<Notification> Notifications { get; }
+    DbSet<MemberPushToken> MemberPushTokens { get; }
     DbSet<AuditLog> AuditLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

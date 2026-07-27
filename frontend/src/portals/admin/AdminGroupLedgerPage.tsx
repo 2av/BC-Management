@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+type SpinAccess = { canCustomPick: boolean }
+
 export function AdminGroupLedgerPage() {
   const { id } = useParams()
   const location = useLocation()
@@ -19,8 +21,14 @@ export function AdminGroupLedgerPage() {
     queryFn: () => api.get<GroupLedger>(`/api/groups/${groupId}/ledger`),
     enabled: Number.isFinite(groupId) && groupId > 0,
   })
+  const { data: spinAccess } = useQuery({
+    queryKey: ['random-available', groupId],
+    queryFn: () => api.get<SpinAccess>(`/api/groups/${groupId}/random-picks/available-members`),
+    enabled: !isAdmin && Number.isFinite(groupId) && groupId > 0,
+  })
 
   const months = data?.monthlyBids.map((b) => b.monthNumber) ?? []
+  const showMemberSpin = Boolean(spinAccess?.canCustomPick)
 
   return (
     <div>
@@ -51,18 +59,20 @@ export function AdminGroupLedgerPage() {
                     <Button asChild size="sm">
                       <Link to={`/admin/groups/${groupId}/bidding`}>Manage bidding</Link>
                     </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/admin/groups/${groupId}/bc-chart`}>BC Chart</Link>
+                    </Button>
                     <Button asChild size="sm" variant="secondary">
                       <Link to={`/admin/groups/${groupId}/random-picks`}>Random pick</Link>
                     </Button>
                   </>
                 ) : (
                   <>
-                    <Button asChild size="sm" variant="outline">
-                      <Link to="/member/bidding">Place bid</Link>
-                    </Button>
-                    <Button asChild size="sm" variant="secondary">
-                      <Link to={`/member/groups/${groupId}/random-picks`}>Random pick</Link>
-                    </Button>
+                    {showMemberSpin ? (
+                      <Button asChild size="sm" variant="secondary">
+                        <Link to={`/member/groups/${groupId}/random-picks`}>Random pick</Link>
+                      </Button>
+                    ) : null}
                     <Button asChild size="sm" variant="outline">
                       <Link to={`/member/groups/${groupId}/invoice`}>Invoice</Link>
                     </Button>

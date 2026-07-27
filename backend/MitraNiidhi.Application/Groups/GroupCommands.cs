@@ -342,3 +342,104 @@ public class CloneGroupCommandHandler(IAppDbContext db, ICurrentUser currentUser
             group.OrganiserMemberId, group.OrganiserGroupMemberId, null));
     }
 }
+
+public record DeleteGroupCommand(int GroupId) : IRequest<Result>;
+
+/// <summary>
+/// Permanently deletes a group and all related data (payments, bids, seats, etc.),
+/// matching the legacy PHP manage_groups delete — allowed even when payments exist.
+/// </summary>
+public class DeleteGroupCommandHandler(IAppDbContext db) : IRequestHandler<DeleteGroupCommand, Result>
+{
+    public async Task<Result> Handle(DeleteGroupCommand command, CancellationToken cancellationToken)
+    {
+        var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == command.GroupId, cancellationToken);
+        if (group is null)
+            return Result.Failure("Group not found.");
+
+        var month1Paid = await db.MemberPayments.AnyAsync(
+            p => p.GroupId == command.GroupId
+                 && p.MonthNumber == 1
+                 && p.PaymentStatus == Domain.Enums.PaymentStatus.Paid,
+            cancellationToken);
+        if (month1Paid)
+            return Result.Failure("Cannot delete this group — Month 1 payment is already done.");
+
+        if (db is not DbContext efContext)
+            return Result.Failure("Database context unavailable.");
+
+        await using var tx = await efContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // Break FKs that point at group_members before removing seats.
+            group.OrganiserMemberId = null;
+            group.OrganiserGroupMemberId = null;
+            await db.SaveChangesAsync(cancellationToken);
+
+            var monthlyBids = await db.MonthlyBids
+                .Where(b => b.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            foreach (var b in monthlyBids)
+                b.TakenByGroupMemberId = null;
+
+            var statuses = await db.MonthBiddingStatuses
+                .Where(s => s.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            foreach (var s in statuses)
+                s.WinnerGroupMemberId = null;
+
+            var payments = await db.MemberPayments
+                .Where(p => p.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            foreach (var p in payments)
+                p.GroupMemberId = null;
+
+            var summaries = await db.MemberSummaries
+                .Where(s => s.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            foreach (var s in summaries)
+                s.GroupMemberId = null;
+
+            var memberBids = await db.MemberBids
+                .Where(b => b.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            foreach (var b in memberBids)
+                b.GroupMemberId = null;
+
+            var picks = await db.RandomPicks
+                .Where(p => p.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            foreach (var p in picks)
+            {
+                p.SelectedGroupMemberId = null;
+                p.AdminOverrideGroupMemberId = null;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+
+            db.RandomPicks.RemoveRange(picks);
+            db.MemberBids.RemoveRange(memberBids);
+            db.MonthBiddingStatuses.RemoveRange(statuses);
+            db.MemberPayments.RemoveRange(payments);
+            db.MemberSummaries.RemoveRange(summaries);
+            db.MonthlyBids.RemoveRange(monthlyBids);
+            await db.SaveChangesAsync(cancellationToken);
+
+            var seats = await db.GroupMembers
+                .Where(gm => gm.GroupId == command.GroupId)
+                .ToListAsync(cancellationToken);
+            db.GroupMembers.RemoveRange(seats);
+            await db.SaveChangesAsync(cancellationToken);
+
+            db.BcGroups.Remove(group);
+            await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return Result.Failure($"Failed to delete group: {ex.Message}");
+        }
+    }
+}

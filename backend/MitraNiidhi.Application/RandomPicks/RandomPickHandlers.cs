@@ -121,10 +121,14 @@ public class GetAvailableRandomMembersQueryHandler(IAppDbContext db, ICurrentUse
 
         var activeMonth = await RandomPickRules.GetActiveMonthAsync(db, request.GroupId, cancellationToken);
         var available = await RandomPickRules.GetAvailableAsync(db, request.GroupId, cancellationToken);
-        var canCustom = RandomPickRules.CanCustomPick(currentUser);
+        var canCustom = await RandomPickRules.CanRunSpinAsync(db, currentUser, cancellationToken);
         string? block = null;
-        var canPlace = true;
-        if (activeMonth is null)
+        var canPlace = canCustom;
+        if (!canPlace)
+        {
+            block = "Only admin or an authorised member can run the random spin.";
+        }
+        else if (activeMonth is null)
         {
             canPlace = false;
             block = "All months are already completed.";
@@ -164,7 +168,7 @@ public class CustomRandomPickCommandHandler(IAppDbContext db, ICurrentUser curre
 {
     public async Task<Result<RandomPickDto>> Handle(CustomRandomPickCommand command, CancellationToken cancellationToken)
     {
-        if (!RandomPickRules.CanCustomPick(currentUser))
+        if (!await RandomPickRules.CanRunSpinAsync(db, currentUser, cancellationToken))
             return Result<RandomPickDto>.Failure("You are not allowed to decide the winner. Use a fair random pick.");
 
         var guard = await RandomPickRules.ValidatePlaceAsync(
@@ -238,14 +242,34 @@ public class ClearOverrideCommandHandler(IAppDbContext db)
 
 internal static class RandomPickRules
 {
-    private static readonly HashSet<string> CustomPickUsernames =
+    private static readonly HashSet<string> SpinAllowUsernames =
         new(StringComparer.OrdinalIgnoreCase) { "akhilesh" };
 
-    public static bool CanCustomPick(ICurrentUser currentUser) =>
-        currentUser.Role is UserRole.ClientAdmin or UserRole.SuperAdmin
-        || (currentUser.Role == UserRole.Member
-            && !string.IsNullOrWhiteSpace(currentUser.Username)
-            && CustomPickUsernames.Contains(currentUser.Username.Trim()));
+    private static readonly HashSet<string> SpinAllowPhones =
+        new(StringComparer.Ordinal) { "9768985225" };
+
+    /// <summary>Admin, or allowlisted member (username akhilesh / mobile 9768985225).</summary>
+    public static async Task<bool> CanRunSpinAsync(
+        IAppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken)
+    {
+        if (currentUser.Role is UserRole.ClientAdmin or UserRole.SuperAdmin)
+            return true;
+
+        if (currentUser.Role != UserRole.Member || currentUser.UserId is null)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(currentUser.Username)
+            && SpinAllowUsernames.Contains(currentUser.Username.Trim()))
+            return true;
+
+        var phone = await db.Members.AsNoTracking()
+            .Where(m => m.Id == currentUser.UserId.Value)
+            .Select(m => m.Phone)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var last10 = PhoneNormalizer.Last10Digits(phone);
+        return last10 is not null && SpinAllowPhones.Contains(last10);
+    }
 
     public static async Task<Result> EnsureGroupAccessAsync(
         IAppDbContext db, ICurrentUser currentUser, int groupId, CancellationToken cancellationToken)
@@ -298,6 +322,9 @@ internal static class RandomPickRules
     {
         var access = await EnsureGroupAccessAsync(db, currentUser, groupId, cancellationToken);
         if (!access.Succeeded) return access;
+
+        if (!await CanRunSpinAsync(db, currentUser, cancellationToken))
+            return Result.Failure("Only admin or an authorised member can run the random spin.");
 
         var group = await db.BcGroups.FirstAsync(g => g.Id == groupId, cancellationToken);
         if (monthNumber < 1 || monthNumber > group.TotalMembers)

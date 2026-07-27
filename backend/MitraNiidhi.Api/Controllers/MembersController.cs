@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MitraNiidhi.Application.Members;
+using MitraNiidhi.Application.Notifications;
 
 namespace MitraNiidhi.Api.Controllers;
 
@@ -10,6 +11,20 @@ namespace MitraNiidhi.Api.Controllers;
 [Authorize(Roles = "Member")]
 public class MembersController(IMediator mediator) : ControllerBase
 {
+    [HttpPost("me/push-token")]
+    public async Task<IActionResult> RegisterPushToken([FromBody] RegisterPushTokenRequest request, CancellationToken ct)
+    {
+        var result = await mediator.Send(new RegisterPushTokenCommand(request), ct);
+        return result.Succeeded ? Ok(new { message = "Push token registered." }) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpDelete("me/push-token")]
+    public async Task<IActionResult> UnregisterPushToken([FromQuery] string token, CancellationToken ct)
+    {
+        var result = await mediator.Send(new UnregisterPushTokenCommand(token ?? ""), ct);
+        return result.Succeeded ? Ok(new { message = "Push token removed." }) : BadRequest(new { message = result.Error });
+    }
+
     [HttpGet("me/dashboard")]
     public async Task<IActionResult> MyDashboard(CancellationToken cancellationToken)
     {

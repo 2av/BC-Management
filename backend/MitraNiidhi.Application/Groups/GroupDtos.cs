@@ -12,7 +12,8 @@ public record GroupListItemDto(
     decimal PendingAmount,
     int? OrganiserMemberId = null,
     int? OrganiserGroupMemberId = null,
-    string? OrganiserName = null);
+    string? OrganiserName = null,
+    bool Month1PaymentDone = false);
 
 public record DashboardStatsDto(
     int TotalGroups,

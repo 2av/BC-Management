@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Gavel } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '@/shared/api/client'
 import { formatInr } from '@/features/groups/types'
 import type { BidItem, GroupBiddingOverview } from '@/features/bidding/types'
+import type { GroupMemberRosterItem } from '@/features/members/types'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,10 @@ export function AdminBiddingPage() {
   const api = useApi()
   const qc = useQueryClient()
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null)
-  const [openForm, setOpenForm] = useState<{ month: number; endDate: string; min: string; max: string } | null>(null)
+  const [openForm, setOpenForm] = useState<{ month: number; endDate: string } | null>(null)
+  const [manualSeatId, setManualSeatId] = useState('')
+  const [manualBoli, setManualBoli] = useState('')
+  const [manualMode, setManualMode] = useState<'boli' | 'random'>('boli')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,11 +47,17 @@ export function AdminBiddingPage() {
     enabled: id > 0 && selectedMonth != null,
   })
 
+  const { data: roster } = useQuery({
+    queryKey: ['group-members', id],
+    queryFn: () => api.get<GroupMemberRosterItem[]>(`/api/groups/${id}/members`),
+    enabled: id > 0,
+  })
+
   const openMutation = useMutation({
-    mutationFn: (body: { monthNumber: number; endDate: string; minBidAmount: number; maxBidAmount: number }) =>
+    mutationFn: (body: { monthNumber: number; endDate: string }) =>
       api.post(`/api/groups/${id}/bidding/open`, body),
     onSuccess: async () => {
-      setMessage('Bidding opened.')
+      setMessage('Bidding opened using BC chart boli start for this month.')
       setError(null)
       setOpenForm(null)
       await qc.invalidateQueries({ queryKey: ['bidding', id] })
@@ -70,10 +80,14 @@ export function AdminBiddingPage() {
       winnerMemberId: number
       winnerGroupMemberId?: number | null
       winningBidAmount: number
+      boliAmount?: number | null
+      useRandomAmount?: boolean
     }) => api.post(`/api/groups/${id}/bidding/approve-winner`, body),
     onSuccess: async () => {
       setMessage('Winner approved. Ledger updated.')
       setError(null)
+      setManualSeatId('')
+      setManualBoli('')
       await qc.invalidateQueries({ queryKey: ['bidding', id] })
       await qc.invalidateQueries({ queryKey: ['month-bids', id, selectedMonth] })
       await qc.invalidateQueries({ queryKey: ['group-ledger', id] })
@@ -93,8 +107,112 @@ export function AdminBiddingPage() {
     onError: (e: Error) => setError(e.message),
   })
 
-  const defaultMax = useMemo(() => (data ? Math.max(0, data.totalMonthlyCollection - 1) : 0), [data])
   const month1 = data?.months.find((m) => m.monthNumber === 1)
+
+  /** Hide months up through the last fully-paid month; show everything after. */
+  const lastPaidMonth = useMemo(() => {
+    const paid = (data?.months ?? []).filter((m) => m.paymentDone).map((m) => m.monthNumber)
+    return paid.length ? Math.max(...paid) : 0
+  }, [data?.months])
+
+  const visibleMonths = useMemo(
+    () => (data?.months ?? []).filter((m) => m.monthNumber > lastPaidMonth),
+    [data?.months, lastPaidMonth],
+  )
+
+  const paidMonthsSummary = useMemo(
+    () => (data?.months ?? []).filter((m) => m.monthNumber <= lastPaidMonth && m.paymentDone),
+    [data?.months, lastPaidMonth],
+  )
+
+  useEffect(() => {
+    if (!visibleMonths.length) {
+      setSelectedMonth(null)
+      return
+    }
+    if (selectedMonth == null || !visibleMonths.some((m) => m.monthNumber === selectedMonth)) {
+      const prefer =
+        visibleMonths.find((m) => m.biddingStatus === 'open') ??
+        visibleMonths.find((m) => m.monthNumber > 1) ??
+        visibleMonths[0]
+      setSelectedMonth(prefer.monthNumber > 1 ? prefer.monthNumber : null)
+    }
+  }, [visibleMonths, selectedMonth])
+
+  const selectedMonthMeta = data?.months.find((m) => m.monthNumber === selectedMonth)
+
+  const wonSeatIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const m of data?.months ?? []) {
+      if (m.winnerGroupMemberId) ids.add(m.winnerGroupMemberId)
+    }
+    return ids
+  }, [data?.months])
+
+  const eligibleSeats = useMemo(() => {
+    return (roster ?? [])
+      .filter((s) => s.status === 'active' && !wonSeatIds.has(s.groupMemberId))
+      .slice()
+      .sort((a, b) => a.memberNumber - b.memberNumber)
+  }, [roster, wonSeatIds])
+
+  const selectedMonthStatus = selectedMonthMeta?.biddingStatus
+  const canSetWinner =
+    selectedMonth != null &&
+    selectedMonth > 1 &&
+    selectedMonthStatus != null &&
+    selectedMonthStatus !== 'completed' &&
+    selectedMonth > lastPaidMonth
+
+  function submitManualWinner() {
+    if (!selectedMonth || !manualSeatId) {
+      setError('Select a member.')
+      return
+    }
+    const seat = eligibleSeats.find((s) => String(s.groupMemberId) === manualSeatId)
+    if (!seat) {
+      setError('Selected member is not eligible (already won or inactive).')
+      return
+    }
+
+    if (manualMode === 'random') {
+      if (
+        !confirm(
+          `Set #${seat.memberNumber} ${seat.memberName} as Month ${selectedMonth} winner using chart Random amount (${formatInr(selectedMonthMeta?.randomAmount ?? 0)})?`,
+        )
+      ) {
+        return
+      }
+      approveMutation.mutate({
+        monthNumber: selectedMonth,
+        winnerMemberId: seat.memberId,
+        winnerGroupMemberId: seat.groupMemberId,
+        winningBidAmount: 0,
+        useRandomAmount: true,
+      })
+      return
+    }
+
+    const amount = Number(manualBoli || selectedMonthMeta?.nextBoliAmount || selectedMonthMeta?.boliStartAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Enter the boli (receive) amount.')
+      return
+    }
+    if (
+      !confirm(
+        `Set #${seat.memberNumber} ${seat.memberName}${seat.handLabel ? ` · ${seat.handLabel}` : ''} as Month ${selectedMonth} winner with boli ${formatInr(amount)}?`,
+      )
+    ) {
+      return
+    }
+    approveMutation.mutate({
+      monthNumber: selectedMonth,
+      winnerMemberId: seat.memberId,
+      winnerGroupMemberId: seat.groupMemberId,
+      winningBidAmount: 0,
+      boliAmount: amount,
+    })
+  }
 
   return (
     <div>
@@ -109,10 +227,17 @@ export function AdminBiddingPage() {
         title={data ? `${t('pages.biddingTitle')} · ${data.groupName}` : t('pages.biddingTitle')}
         description={
           data
-            ? `Collection ${formatInr(data.totalMonthlyCollection)} · contribution ${formatInr(data.monthlyContribution)}`
+            ? `Collection ${formatInr(data.totalMonthlyCollection)} · step ${formatInr(data.boliStepAmount ?? 1000)} · contribution ${formatInr(data.monthlyContribution)}`
             : t('pages.biddingDesc')
         }
-        actions={<Badge>Admin</Badge>}
+        actions={
+          <div className="flex gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/admin/groups/${id}/bc-chart`}>BC Chart</Link>
+            </Button>
+            <Badge>Admin</Badge>
+          </div>
+        }
       />
 
       {message ? <p className="mb-3 text-sm text-emerald-700">{message}</p> : null}
@@ -120,143 +245,148 @@ export function AdminBiddingPage() {
       {isLoading ? <p className="text-sm text-muted-foreground">Loading bidding status…</p> : null}
 
       {data ? (
-        <Card className="mb-4 border-teal-200 bg-teal-50/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Month 1 · Organiser pot</CardTitle>
-            <CardDescription>
-              First month collection goes to the organiser (no bid). Organiser:{' '}
-              <strong>{data.organiserName ?? 'not set — edit the group first'}</strong>
-              {data.month1Allocated || month1?.winnerMemberName
-                ? ` · currently shown as ${month1?.winnerMemberName ?? 'allocated'}`
-                : null}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-2">
-            {!data.month1Allocated && !month1?.winnerMemberId ? (
-              <Button
-                disabled={!data.organiserMemberId || allocateOrganiserMutation.isPending}
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Assign Month 1 pot (${formatInr(data.totalMonthlyCollection)}) to ${data.organiserName}? This records it on the ledger even if members already paid.`,
-                    )
-                  ) {
-                    allocateOrganiserMutation.mutate()
-                  }
-                }}
-              >
-                {allocateOrganiserMutation.isPending ? 'Assigning…' : 'Assign Month 1 to organiser'}
-              </Button>
-            ) : (
-              <Badge variant="success">Month 1 allocated</Badge>
-            )}
-            {!data.organiserMemberId ? (
-              <Button asChild size="sm" variant="outline">
-                <Link to="/admin/groups">Set organiser on Edit group</Link>
-              </Button>
-            ) : null}
-          </CardContent>
-        </Card>
+        <>
+          {lastPaidMonth === 0 && !data.month1Allocated && !month1?.winnerMemberId ? (
+            <Card className="mb-4 border-teal-200 bg-teal-50/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Month 1 · Organiser pot</CardTitle>
+                <CardDescription>
+                  First month collection goes to the organiser (no bid). Organiser:{' '}
+                  <strong>{data.organiserName ?? 'not set — edit the group first'}</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center gap-2">
+                <Button
+                  disabled={!data.organiserMemberId || allocateOrganiserMutation.isPending}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Assign Month 1 pot (${formatInr(data.totalMonthlyCollection)}) to ${data.organiserName}? This records it on the ledger even if members already paid.`,
+                      )
+                    ) {
+                      allocateOrganiserMutation.mutate()
+                    }
+                  }}
+                >
+                  {allocateOrganiserMutation.isPending ? 'Assigning…' : 'Assign Month 1 to organiser'}
+                </Button>
+                {!data.organiserMemberId ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/admin/groups">Set organiser on Edit group</Link>
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {paidMonthsSummary.length > 0 ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Paid (hidden): {paidMonthsSummary.map((m) => `M${m.monthNumber}`).join(', ')} — showing months after M
+              {lastPaidMonth}
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Months</CardTitle>
-            <CardDescription>Month 1 uses organiser allocation. From Month 2, open bidding then approve a winner.</CardDescription>
+            <CardDescription>
+              Months whose payments are fully paid are hidden. Remaining months stay available for bidding.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {data?.months.map((m) => (
-              <div key={m.monthNumber} className="rounded-xl border border-border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">Month {m.monthNumber}</p>
-                      <Badge variant={statusVariant(m.biddingStatus)}>{m.biddingStatus.replace('_', ' ')}</Badge>
-                      {m.monthNumber === 1 ? <Badge variant="muted">Organiser</Badge> : null}
+            {!data ? null : visibleMonths.length === 0 ? (
+              <p className="text-sm text-muted-foreground">All months have payments completed for this group.</p>
+            ) : (
+              visibleMonths.map((m) => (
+                <div key={m.monthNumber} className="rounded-xl border border-border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">Month {m.monthNumber}</p>
+                        <Badge variant={statusVariant(m.biddingStatus)}>
+                          {m.biddingStatus.replace('_', ' ')}
+                        </Badge>
+                        {m.monthNumber === 1 ? <Badge variant="muted">Organiser</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {m.monthNumber === 1
+                          ? m.winnerMemberName
+                            ? `Taken by ${m.winnerMemberName} (organiser)`
+                            : `Reserved for organiser${data.organiserName ? ` (${data.organiserName})` : ''}`
+                          : `${m.totalBids} bid(s)${
+                              m.boliStartAmount != null ? ` · boli start ${formatInr(m.boliStartAmount)}` : ''
+                            }${m.randomAmount != null ? ` · random ${formatInr(m.randomAmount)}` : ''}${
+                              m.nextBoliAmount != null ? ` · next ${formatInr(m.nextBoliAmount)}` : ''
+                            }${m.winnerMemberName ? ` · winner ${m.winnerMemberName}` : ''}`}
+                      </p>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {m.monthNumber === 1
-                        ? m.winnerMemberName
-                          ? `Taken by ${m.winnerMemberName} (organiser)`
-                          : `Reserved for organiser${data.organiserName ? ` (${data.organiserName})` : ''}`
-                        : `${m.totalBids} bid(s)${
-                            m.minimumBidAmount || m.maximumBidAmount
-                              ? ` · range ${formatInr(m.minimumBidAmount)} – ${formatInr(m.maximumBidAmount)}`
-                              : ''
-                          }${m.winnerMemberName ? ` · winner ${m.winnerMemberName}` : ''}`}
-                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {m.monthNumber > 1 ? (
+                        <Button size="sm" variant="outline" onClick={() => setSelectedMonth(m.monthNumber)}>
+                          View / set winner
+                        </Button>
+                      ) : null}
+                      {m.monthNumber > 1 &&
+                      (m.biddingStatus === 'not_started' || m.biddingStatus === 'closed') &&
+                      !m.winnerMemberId ? (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            setOpenForm({
+                              month: m.monthNumber,
+                              endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+                            })
+                          }
+                        >
+                          Open
+                        </Button>
+                      ) : null}
+                      {m.monthNumber > 1 && m.biddingStatus === 'open' ? (
+                        <Button size="sm" variant="secondary" onClick={() => closeMutation.mutate(m.monthNumber)}>
+                          Close
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {m.monthNumber > 1 ? (
-                      <Button size="sm" variant="outline" onClick={() => setSelectedMonth(m.monthNumber)}>
-                        View bids
-                      </Button>
-                    ) : null}
-                    {m.monthNumber > 1 &&
-                    (m.biddingStatus === 'not_started' || m.biddingStatus === 'closed') &&
-                    !m.winnerMemberId ? (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          setOpenForm({
-                            month: m.monthNumber,
-                            endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-                            min: '0',
-                            max: String(defaultMax),
-                          })
-                        }
-                      >
-                        Open
-                      </Button>
-                    ) : null}
-                    {m.monthNumber > 1 && m.biddingStatus === 'open' ? (
-                      <Button size="sm" variant="secondary" onClick={() => closeMutation.mutate(m.monthNumber)}>
-                        Close
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
 
-                {openForm?.month === m.monthNumber ? (
-                  <div className="mt-4 grid gap-3 rounded-lg bg-muted/50 p-3 sm:grid-cols-4">
-                    <div className="space-y-1">
-                      <Label>End date</Label>
-                      <Input
-                        type="date"
-                        value={openForm.endDate}
-                        onChange={(e) => setOpenForm({ ...openForm, endDate: e.target.value })}
-                      />
+                  {openForm?.month === m.monthNumber ? (
+                    <div className="mt-4 grid gap-3 rounded-lg bg-muted/50 p-3 sm:grid-cols-3">
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>End date</Label>
+                        <Input
+                          type="date"
+                          value={openForm.endDate}
+                          onChange={(e) => setOpenForm({ ...openForm, endDate: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Boli start from BC Chart:{' '}
+                          {m.boliStartAmount != null ? formatInr(m.boliStartAmount) : 'not set — edit BC Chart first'}
+                          {data.boliStepAmount != null ? ` · step ${formatInr(data.boliStepAmount)}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <Button
+                          onClick={() =>
+                            openMutation.mutate({
+                              monthNumber: openForm.month,
+                              endDate: openForm.endDate,
+                            })
+                          }
+                        >
+                          Confirm open
+                        </Button>
+                        <Button variant="ghost" onClick={() => setOpenForm(null)}>
+                          Cancel
+                        </Button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label>Min bid</Label>
-                      <Input value={openForm.min} onChange={(e) => setOpenForm({ ...openForm, min: e.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Max bid</Label>
-                      <Input value={openForm.max} onChange={(e) => setOpenForm({ ...openForm, max: e.target.value })} />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <Button
-                        onClick={() =>
-                          openMutation.mutate({
-                            monthNumber: openForm.month,
-                            endDate: openForm.endDate,
-                            minBidAmount: Number(openForm.min),
-                            maxBidAmount: Number(openForm.max),
-                          })
-                        }
-                      >
-                        Confirm open
-                      </Button>
-                      <Button variant="ghost" onClick={() => setOpenForm(null)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+                  ) : null}
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -264,45 +394,139 @@ export function AdminBiddingPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Gavel className="h-4 w-4" />
-              {selectedMonth ? `Month ${selectedMonth} bids` : 'Bids'}
+              {selectedMonth ? `Month ${selectedMonth} winner` : 'Winner'}
             </CardTitle>
-            <CardDescription>Lowest bid is typically preferred; admin chooses the winner.</CardDescription>
+            <CardDescription>
+              Approve app bids, or set winner manually. Amounts come from BC Chart.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {!selectedMonth ? <p className="text-sm text-muted-foreground">Select a month (2+) to review bids.</p> : null}
-            {selectedMonth && (!bids || bids.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No bids yet for this month.</p>
+          <CardContent className="space-y-4">
+            {!selectedMonth ? (
+              <p className="text-sm text-muted-foreground">Select a month (2+) to review bids or set a winner.</p>
             ) : null}
-            {bids?.map((b) => (
-              <div key={b.id} className="rounded-lg border border-border p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">
-                      #{b.memberNumber} {b.memberName}
-                      {b.handLabel ? ` · ${b.handLabel}` : ''}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatInr(b.bidAmount)} · {b.bidStatus}
-                    </p>
-                  </div>
-                  {data?.months.find((m) => m.monthNumber === selectedMonth)?.biddingStatus !== 'completed' ? (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        approveMutation.mutate({
-                          monthNumber: selectedMonth!,
-                          winnerMemberId: b.memberId,
-                          winnerGroupMemberId: b.groupMemberId,
-                          winningBidAmount: b.bidAmount,
-                        })
-                      }
-                    >
-                      Approve
-                    </Button>
-                  ) : null}
+
+            {selectedMonth && selectedMonthMeta ? (
+              <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                Chart: random {formatInr(selectedMonthMeta.randomAmount ?? 0)}
+                {selectedMonthMeta.boliStartAmount != null
+                  ? ` · boli start ${formatInr(selectedMonthMeta.boliStartAmount)}`
+                  : ' · no boli'}
+                {selectedMonthMeta.nextBoliAmount != null
+                  ? ` · next allowed ${formatInr(selectedMonthMeta.nextBoliAmount)}`
+                  : ''}
+                {data?.boliStepAmount != null ? ` · step ${formatInr(data.boliStepAmount)}` : ''}
+              </p>
+            ) : null}
+
+            {canSetWinner ? (
+              <div className="space-y-3 rounded-xl border border-dashed border-teal-300 bg-teal-50/50 p-3">
+                <p className="text-sm font-medium text-teal-900">Set winner manually</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant={manualMode === 'boli' ? 'default' : 'outline'}
+                    onClick={() => setManualMode('boli')}
+                  >
+                    With boli
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={manualMode === 'random' ? 'default' : 'outline'}
+                    onClick={() => setManualMode('random')}
+                  >
+                    Random (no boli)
+                  </Button>
                 </div>
+                <div className="space-y-1">
+                  <Label htmlFor="manual-seat">Member / seat</Label>
+                  <select
+                    id="manual-seat"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={manualSeatId}
+                    onChange={(e) => setManualSeatId(e.target.value)}
+                  >
+                    <option value="">Select member…</option>
+                    {eligibleSeats.map((s) => (
+                      <option key={s.groupMemberId} value={s.groupMemberId}>
+                        #{s.memberNumber} {s.memberName}
+                        {s.handLabel ? ` · ${s.handLabel}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {manualMode === 'boli' ? (
+                  <div className="space-y-1">
+                    <Label htmlFor="manual-boli">Boli receive amount (₹)</Label>
+                    <Input
+                      id="manual-boli"
+                      inputMode="decimal"
+                      placeholder={
+                        selectedMonthMeta?.nextBoliAmount != null
+                          ? String(selectedMonthMeta.nextBoliAmount)
+                          : 'e.g. 85000'
+                      }
+                      value={manualBoli}
+                      onChange={(e) => setManualBoli(e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Uses chart random amount {formatInr(selectedMonthMeta?.randomAmount ?? 0)} (spin / no bid).
+                  </p>
+                )}
+                <Button
+                  className="w-full"
+                  disabled={approveMutation.isPending || eligibleSeats.length === 0}
+                  onClick={submitManualWinner}
+                >
+                  {approveMutation.isPending ? 'Saving…' : 'Confirm manual winner'}
+                </Button>
+                {eligibleSeats.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No eligible seats left (all have already won).</p>
+                ) : null}
               </div>
-            ))}
+            ) : null}
+
+            {selectedMonth && selectedMonthStatus === 'completed' ? (
+              <p className="text-sm text-muted-foreground">This month already has an approved winner.</p>
+            ) : null}
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">App bids</p>
+              {selectedMonth && (!bids || bids.length === 0) ? (
+                <p className="text-sm text-muted-foreground">No in-app bids yet for this month.</p>
+              ) : null}
+              {bids?.map((b) => (
+                <div key={b.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">
+                        #{b.memberNumber} {b.memberName}
+                        {b.handLabel ? ` · ${b.handLabel}` : ''}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Boli {formatInr(b.boliAmount ?? 0)} · {b.bidStatus}
+                      </p>
+                    </div>
+                    {canSetWinner ? (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          approveMutation.mutate({
+                            monthNumber: selectedMonth!,
+                            winnerMemberId: b.memberId,
+                            winnerGroupMemberId: b.groupMemberId,
+                            winningBidAmount: b.bidAmount,
+                          })
+                        }
+                      >
+                        Approve
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

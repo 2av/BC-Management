@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { apiFetch } from '@/shared/api/client'
@@ -9,10 +9,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
+import { PasswordInput } from '@/components/ui/password-input'
+
+function safeReturnPath(raw: string | null | undefined, home: string): string {
+  if (!raw) return home
+  if (!raw.startsWith('/') || raw.startsWith('//')) return home
+  if (raw.startsWith('/login')) return home
+  return raw
+}
 
 export function LoginPage() {
   const { t } = useTranslation()
-  const { portal = 'admin' } = useParams()
+  const { portal = 'member' } = useParams()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const portalMap: Record<string, { role: UserRole; title: string; home: string; blurb: string }> = {
     admin: {
       role: 'ClientAdmin',
@@ -40,6 +50,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const sessionExpired = searchParams.get('expired') === '1'
+  const isMember = portal === 'member'
 
   if (!config) {
     return (
@@ -51,7 +63,7 @@ export function LoginPage() {
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link to="/">{t('login.backHome')}</Link>
+              <Link to="/login/member">{t('login.backToMember')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -73,7 +85,16 @@ export function LoginPage() {
         }),
       })
       login(user)
-      navigate(config.home)
+      const fromState = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
+      const fromPath = fromState?.pathname
+        ? `${fromState.pathname}${fromState.search ?? ''}`
+        : null
+      if (user.mustChangePassword && config.role === 'Member') {
+        navigate('/member/account')
+        return
+      }
+      const next = safeReturnPath(searchParams.get('returnUrl') ?? fromPath, config.home)
+      navigate(next)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
@@ -86,14 +107,21 @@ export function LoginPage() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,118,110,0.12),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(11,31,51,0.08),transparent_35%)]" />
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
         <div className="mb-4 flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            {t('login.backHome')}
-          </Link>
+          {isMember ? (
+            <span className="text-sm text-muted-foreground">{t('app.brandFull')}</span>
+          ) : (
+            <Link
+              to="/login/member"
+              className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {t('login.backToMember')}
+            </Link>
+          )}
           <LanguageSwitcher />
         </div>
 
-        <Card className="shadow-md">
+        <Card className={`shadow-md ${isMember ? 'border-primary/30 ring-1 ring-primary/15' : ''}`}>
           <CardHeader>
             <p className="font-display text-lg text-primary">{t('app.brandFull')}</p>
             <CardTitle className="text-2xl">{config.title}</CardTitle>
@@ -101,6 +129,11 @@ export function LoginPage() {
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={onSubmit}>
+              {sessionExpired ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  Your session expired. Please sign in again.
+                </div>
+              ) : null}
               {error ? (
                 <div className="whitespace-pre-wrap break-words rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-destructive">
                   {error}
@@ -118,9 +151,8 @@ export function LoginPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">{t('login.password')}</Label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
@@ -134,6 +166,19 @@ export function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        {isMember ? (
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            <span>{t('landing.staffAccess')} </span>
+            <Link to="/login/admin" className="underline-offset-2 hover:text-foreground hover:underline">
+              {t('landing.adminTitle')}
+            </Link>
+            <span aria-hidden="true"> · </span>
+            <Link to="/login/super-admin" className="underline-offset-2 hover:text-foreground hover:underline">
+              {t('landing.superAdminTitle')}
+            </Link>
+          </p>
+        ) : null}
       </div>
     </div>
   )

@@ -68,3 +68,33 @@ public class BiddingController(IMediator mediator) : ControllerBase
             : BadRequest(new { message = result.Error });
     }
 }
+
+[ApiController]
+[Route("api/groups/{groupId:int}/bc-chart")]
+[Authorize]
+public class BcChartController(IMediator mediator) : ControllerBase
+{
+    [HttpGet]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin,Member")]
+    public async Task<IActionResult> Get(int groupId, CancellationToken ct)
+    {
+        var result = await mediator.Send(new GetGroupBcChartQuery(groupId), ct);
+        return result.Succeeded ? Ok(result.Data) : NotFound(new { message = result.Error });
+    }
+
+    [HttpPut]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin")]
+    public async Task<IActionResult> Save(int groupId, [FromBody] SaveGroupBcChartRequest request, CancellationToken ct)
+    {
+        var result = await mediator.Send(new SaveGroupBcChartCommand(groupId, request), ct);
+        return result.Succeeded ? Ok(result.Data) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpPost("generate-defaults")]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin")]
+    public async Task<IActionResult> GenerateDefaults(int groupId, CancellationToken ct)
+    {
+        var result = await mediator.Send(new GenerateDefaultBcChartCommand(groupId), ct);
+        return result.Succeeded ? Ok(result.Data) : BadRequest(new { message = result.Error });
+    }
+}

@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthContext'
-import { LandingPage } from './portals/LandingPage'
 import { LoginPage } from './features/auth/LoginPage'
 import { AdminShell } from './portals/admin/AdminShell'
 import { MemberShell } from './portals/member/MemberShell'
@@ -11,7 +10,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<Navigate to="/login/member" replace />} />
         <Route path="/login/:portal" element={<LoginPage />} />
         <Route
           path="/admin/*"
@@ -37,7 +36,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login/member" replace />} />
       </Routes>
     </AuthProvider>
   )

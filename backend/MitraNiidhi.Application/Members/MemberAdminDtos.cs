@@ -37,7 +37,7 @@ public record UpdateMemberRequest(
     string? Email,
     string? Address,
     string Status,
-    bool ResetPassword);
+    string? NewPassword = null);
 
 public record AssignMemberRequest(
     int? MemberId,

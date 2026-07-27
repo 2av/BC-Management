@@ -17,17 +17,44 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddCors(options =>
 {
-    var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+    var configured = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
         ??
         [
             "http://localhost:5173",
             "http://127.0.0.1:5173"
         ];
 
+    // Normalize (trim trailing slash) so config typos don't break CORS.
+    var origins = configured
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Select(o => o.Trim().TrimEnd('/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins(origins)
+        policy
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin))
+                    return true; // native mobile / non-browser clients (no Origin)
+
+                var normalized = origin.Trim().TrimEnd('/');
+                if (origins.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                    return true;
+
+                // Allow any http(s) host under agprimetech.com (www, subdomains, local tunnels).
+                if (Uri.TryCreate(normalized, UriKind.Absolute, out var uri) &&
+                    (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                    (uri.Host.Equals("agprimetech.com", StringComparison.OrdinalIgnoreCase) ||
+                     uri.Host.EndsWith(".agprimetech.com", StringComparison.OrdinalIgnoreCase) ||
+                     uri.Host is "localhost" or "127.0.0.1"))
+                    return true;
+
+                return false;
+            })
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .SetPreflightMaxAge(TimeSpan.FromHours(24)));
 });
 
 var app = builder.Build();
@@ -61,6 +88,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("Frontend");
 
 // Surface unhandled exceptions as JSON so the UI can show the real error.
+// Do not Response.Clear() — that strips Access-Control-* headers and looks like a CORS failure in the browser.
 app.Use(async (context, next) =>
 {
     try
@@ -76,7 +104,6 @@ app.Use(async (context, next) =>
         if (context.Response.HasStarted)
             throw;
 
-        context.Response.Clear();
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsJsonAsync(new

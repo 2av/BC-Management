@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using MitraNiidhi.Application.Common;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
 using MitraNiidhi.Domain.Entities;
@@ -18,7 +19,7 @@ public class LoginCommandHandler(
     {
         var req = command.Request;
         if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
-            return Result<AuthUserDto>.Failure("Username and password are required.");
+            return Result<AuthUserDto>.Failure("Username or mobile number and password are required.");
 
         var result = req.Portal switch
         {
@@ -53,11 +54,21 @@ public class LoginCommandHandler(
 
     private async Task<Result<AuthUserDto>> LoginSuperAdminAsync(LoginRequest req, CancellationToken ct)
     {
+        var login = req.Username.Trim();
         var admin = await db.SuperAdmins
-            .FirstOrDefaultAsync(x => x.Username == req.Username && x.Status == "active", ct);
+            .FirstOrDefaultAsync(x => x.Username == login && x.Status == "active", ct);
+
+        if (admin is null && PhoneNormalizer.LooksLikePhoneLogin(login))
+        {
+            var last10 = PhoneNormalizer.Last10Digits(login)!;
+            var candidates = await db.SuperAdmins
+                .Where(x => x.Status == "active" && x.Phone != null && x.Phone != "")
+                .ToListAsync(ct);
+            admin = candidates.FirstOrDefault(x => PhoneNormalizer.Matches(x.Phone, last10));
+        }
 
         if (admin is null || !passwordHasher.Verify(req.Password, admin.PasswordHash))
-            return Result<AuthUserDto>.Failure("Invalid username or password.");
+            return Result<AuthUserDto>.Failure("Invalid username/mobile or password.");
 
         var token = jwt.CreateAccessToken(admin.Id, admin.Username, admin.FullName, UserRole.SuperAdmin, null);
         return Result<AuthUserDto>.Success(new AuthUserDto(admin.Id, admin.Username, admin.FullName, UserRole.SuperAdmin, null, token));
@@ -65,9 +76,11 @@ public class LoginCommandHandler(
 
     private async Task<Result<AuthUserDto>> LoginClientAdminAsync(LoginRequest req, CancellationToken ct)
     {
+        var login = req.Username.Trim();
+
         // Project only needed columns so login works even if optional subscription columns are missing.
         var admin = await db.ClientAdmins
-            .Where(x => x.Username == req.Username && x.Status == "active")
+            .Where(x => x.Username == login && x.Status == "active")
             .Select(x => new
             {
                 x.Id,
@@ -79,10 +92,41 @@ public class LoginCommandHandler(
             })
             .FirstOrDefaultAsync(ct);
 
+        if (admin is null && PhoneNormalizer.LooksLikePhoneLogin(login))
+        {
+            var last10 = PhoneNormalizer.Last10Digits(login)!;
+            var candidates = await db.ClientAdmins
+                .Where(x => x.Status == "active" && x.Phone != null && x.Phone != "")
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Username,
+                    x.FullName,
+                    x.PasswordHash,
+                    x.ClientId,
+                    x.Phone,
+                    ClientStatus = x.Client.Status
+                })
+                .ToListAsync(ct);
+            var match = candidates.FirstOrDefault(x => PhoneNormalizer.Matches(x.Phone, last10));
+            if (match is not null)
+            {
+                admin = new
+                {
+                    match.Id,
+                    match.Username,
+                    match.FullName,
+                    match.PasswordHash,
+                    match.ClientId,
+                    match.ClientStatus
+                };
+            }
+        }
+
         if (admin is not null)
         {
             if (!passwordHasher.Verify(req.Password, admin.PasswordHash))
-                return Result<AuthUserDto>.Failure("Invalid username or password.");
+                return Result<AuthUserDto>.Failure("Invalid username/mobile or password.");
 
             if (admin.ClientStatus is "suspended" or "inactive")
                 return Result<AuthUserDto>.Failure("Client account is not active.");
@@ -93,10 +137,10 @@ public class LoginCommandHandler(
 
         // Legacy admin_users fallback (matches PHP login)
         var legacy = await db.AdminUsers
-            .FirstOrDefaultAsync(x => x.Username == req.Username, ct);
+            .FirstOrDefaultAsync(x => x.Username == login, ct);
 
         if (legacy is null || !passwordHasher.Verify(req.Password, legacy.PasswordHash))
-            return Result<AuthUserDto>.Failure("Invalid username or password.");
+            return Result<AuthUserDto>.Failure("Invalid username/mobile or password.");
 
         var legacyToken = jwt.CreateAccessToken(legacy.Id, legacy.Username, legacy.FullName, UserRole.ClientAdmin, 1);
         return Result<AuthUserDto>.Success(new AuthUserDto(legacy.Id, legacy.Username, legacy.FullName, UserRole.ClientAdmin, 1, legacyToken));
@@ -104,19 +148,33 @@ public class LoginCommandHandler(
 
     private async Task<Result<AuthUserDto>> LoginMemberAsync(LoginRequest req, CancellationToken ct)
     {
+        var login = req.Username.Trim();
         var member = await db.Members
-            .FirstOrDefaultAsync(x => x.Username == req.Username && x.Status == "active", ct);
+            .FirstOrDefaultAsync(x => x.Username == login && x.Status == "active", ct);
+
+        if (member is null && PhoneNormalizer.LooksLikePhoneLogin(login))
+        {
+            var last10 = PhoneNormalizer.Last10Digits(login)!;
+            var candidates = await db.Members
+                .Where(x => x.Status == "active" && x.Phone != null && x.Phone != "")
+                .ToListAsync(ct);
+            member = candidates.FirstOrDefault(x => PhoneNormalizer.Matches(x.Phone, last10));
+        }
 
         if (member is null || string.IsNullOrEmpty(member.PasswordHash)
             || !passwordHasher.Verify(req.Password, member.PasswordHash))
-            return Result<AuthUserDto>.Failure("Invalid username or password.");
+            return Result<AuthUserDto>.Failure("Invalid username/mobile or password.");
+
+        if (string.IsNullOrWhiteSpace(member.Username))
+            return Result<AuthUserDto>.Failure("Member login is not set up for this account.");
 
         var clientId = await db.GroupMembers
             .Where(gm => gm.MemberId == member.Id && gm.Status == "active")
             .Join(db.BcGroups, gm => gm.GroupId, g => g.Id, (gm, g) => g.ClientId)
             .FirstOrDefaultAsync(ct);
 
-        var token = jwt.CreateAccessToken(member.Id, member.Username!, member.MemberName, UserRole.Member, clientId);
-        return Result<AuthUserDto>.Success(new AuthUserDto(member.Id, member.Username!, member.MemberName, UserRole.Member, clientId, token));
+        var token = jwt.CreateAccessToken(member.Id, member.Username, member.MemberName, UserRole.Member, clientId);
+        return Result<AuthUserDto>.Success(new AuthUserDto(
+            member.Id, member.Username, member.MemberName, UserRole.Member, clientId, token, member.MustChangePassword));
     }
 }

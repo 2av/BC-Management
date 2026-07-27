@@ -11,6 +11,7 @@ export type GroupListItem = {
   organiserMemberId?: number | null
   organiserGroupMemberId?: number | null
   organiserName?: string | null
+  month1PaymentDone?: boolean
 }
 
 export type DashboardPaymentItem = {
@@ -102,6 +103,9 @@ export type MemberDashboard = {
     totalPaid: number
     givenAmount: number
     profit: number
+    pendingAmount: number
+    pendingPaymentCount: number
+    nextPendingMonth: number | null
   }[]
 }
 

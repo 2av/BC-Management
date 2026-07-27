@@ -4,6 +4,7 @@ using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
 using MitraNiidhi.Domain.Entities;
 using MitraNiidhi.Domain.Enums;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Bidding;
 
@@ -18,7 +19,8 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
         if (group is null)
             return Result<GroupBiddingOverviewDto>.Failure("Group not found.");
 
-        // Ensure month_bidding_status rows exist for the full cycle
+        await GetGroupBcChartQueryHandler.EnsureChartRowsAsync(db, group, cancellationToken);
+
         var existing = await db.MonthBiddingStatuses
             .Where(m => m.GroupId == request.GroupId)
             .ToListAsync(cancellationToken);
@@ -51,6 +53,32 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
             .Select(g => new { Month = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Month, x => x.Count, cancellationToken);
 
+        var bestDiscountByMonth = await db.MemberBids
+            .Where(b => b.GroupId == request.GroupId)
+            .GroupBy(b => b.MonthNumber)
+            .Select(g => new { Month = g.Key, BestDiscount = g.Max(x => x.BidAmount) })
+            .ToDictionaryAsync(x => x.Month, x => x.BestDiscount, cancellationToken);
+
+        var charts = await db.GroupMonthCharts
+            .Where(c => c.GroupId == request.GroupId)
+            .ToDictionaryAsync(c => c.MonthNumber, cancellationToken);
+
+        var step = group.BoliStepAmount > 0 ? group.BoliStepAmount : 1000m;
+
+        var activeSeatCount = await db.GroupMembers
+            .CountAsync(gm => gm.GroupId == request.GroupId && gm.Status == "active", cancellationToken);
+
+        var paymentByMonth = await db.MemberPayments
+            .Where(p => p.GroupId == request.GroupId)
+            .GroupBy(p => p.MonthNumber)
+            .Select(g => new
+            {
+                Month = g.Key,
+                Paid = g.Count(x => x.PaymentStatus == PaymentStatus.Paid),
+                Pending = g.Count(x => x.PaymentStatus == PaymentStatus.Pending),
+            })
+            .ToDictionaryAsync(x => x.Month, cancellationToken);
+
         var winnerSeatIds = existing.Where(x => x.WinnerGroupMemberId.HasValue).Select(x => x.WinnerGroupMemberId!.Value).Distinct().ToList();
         var winnerSeats = await db.GroupMembers
             .Include(gm => gm.Member)
@@ -72,6 +100,22 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
                 else if (m.WinnerMemberId is int mid && winners.TryGetValue(mid, out var name))
                     winnerName = name;
 
+                charts.TryGetValue(m.MonthNumber, out var chart);
+                decimal? currentBestBoli = null;
+                decimal? nextBoli = null;
+                if (chart?.BoliStartAmount is decimal start)
+                {
+                    if (bestDiscountByMonth.TryGetValue(m.MonthNumber, out var bestDiscount))
+                        currentBestBoli = BcChartService.ToReceive(group.TotalMonthlyCollection, bestDiscount);
+                    nextBoli = BcChartService.NextBoliReceive(start, step, currentBestBoli);
+                }
+
+                var paymentDone = false;
+                if (paymentByMonth.TryGetValue(m.MonthNumber, out var pay) && activeSeatCount > 0)
+                {
+                    paymentDone = pay.Pending == 0 && pay.Paid >= activeSeatCount;
+                }
+
                 return new MonthBiddingDto(
                     m.MonthNumber,
                     ToStatus(m.BiddingStatus),
@@ -83,7 +127,12 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
                     m.WinnerGroupMemberId,
                     winnerName,
                     m.WinningBidAmount,
-                    bidCounts.GetValueOrDefault(m.MonthNumber));
+                    bidCounts.GetValueOrDefault(m.MonthNumber),
+                    chart?.RandomAmount,
+                    chart?.BoliStartAmount,
+                    nextBoli,
+                    currentBestBoli,
+                    paymentDone);
             })
             .ToList();
 
@@ -118,7 +167,8 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
             group.OrganiserMemberId,
             group.OrganiserGroupMemberId,
             organiserName,
-            month1Allocated));
+            month1Allocated,
+            step));
     }
 
     private static string ToStatus(BiddingStatus status) => status switch

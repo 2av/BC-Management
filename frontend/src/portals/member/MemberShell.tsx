@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom'
-import { Gavel, KeyRound, LayoutDashboard, LogOut, Menu, Bell, Receipt, UserRound, Users, Wallet, X } from 'lucide-react'
+import { NavLink, Route, Routes, Link, useLocation, Navigate } from 'react-router-dom'
+import { KeyRound, LayoutDashboard, LogOut, Menu, Bell, Receipt, UserRound, Users, Wallet, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -13,10 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PAYMENT_BRAND, UpiQrCard, type PaymentMethods } from '@/components/payments/UpiQrCard'
-import { PaymentQrModal } from '@/components/payments/PaymentQrModal'
 import { cn } from '@/lib/utils'
 import { AdminGroupLedgerPage } from '../admin/AdminGroupLedgerPage'
-import { MemberBiddingPage } from './MemberBiddingPage'
 import { MemberPaymentsPage, MemberPayRedirect } from './MemberPaymentsPage'
 import { MemberRandomPicksPage } from './MemberRandomPicksPage'
 import { MemberProfilePage } from './MemberProfilePage'
@@ -41,12 +39,6 @@ const memberNav = (t: (k: string) => string) => [
     label: t('nav.dashboard'),
     icon: LayoutDashboard,
     isActive: (p: string) => p === '/member' || p === '/member/',
-  },
-  {
-    to: '/member/bidding',
-    label: t('nav.bidding'),
-    icon: Gavel,
-    isActive: (p: string) => p.startsWith('/member/bidding'),
   },
   {
     to: '/member/payments',
@@ -106,11 +98,6 @@ function MemberDashboardPage() {
   const { t } = useTranslation()
   const api = useApi()
   const [groupTab, setGroupTab] = useState<'active' | 'completed'>('active')
-  const [payGroup, setPayGroup] = useState<{
-    groupId: number
-    groupName: string
-    groupMemberId: number
-  } | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['member-dashboard'],
@@ -125,6 +112,7 @@ function MemberDashboardPage() {
   const activeGroups = data?.groups.filter((g) => g.status === 'active') ?? []
   const completedGroups = data?.groups.filter((g) => g.status !== 'active') ?? []
   const visibleGroups = groupTab === 'active' ? activeGroups : completedGroups
+  const groupsWithPending = (data?.groups ?? []).filter((g) => (g.pendingAmount ?? 0) > 0)
 
   return (
     <div>
@@ -147,8 +135,53 @@ function MemberDashboardPage() {
             <StatCard label={t('member.groupsJoined')} value={`${data.groupCount}`} icon={<Users className="h-5 w-5" />} />
             <StatCard label={t('member.totalPaid')} value={formatInr(data.totalPaid)} icon={<Wallet className="h-5 w-5" />} />
             <StatCard label={t('member.amountReceived')} value={formatInr(data.totalReceived)} icon={<Receipt className="h-5 w-5" />} />
-            <StatCard label={t('member.pendingDues')} value={formatInr(data.pendingDues)} icon={<Gavel className="h-5 w-5" />} />
+            <StatCard label={t('member.pendingDues')} value={formatInr(data.pendingDues)} icon={<Wallet className="h-5 w-5" />} />
           </div>
+
+          {groupsWithPending.length > 0 ? (
+            <Card className="mb-6 border-red-200 bg-red-50/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-red-800">{t('member.pendingBreakdown')}</CardTitle>
+                <CardDescription className="text-red-700/80">
+                  {groupsWithPending.length} group{groupsWithPending.length === 1 ? '' : 's'} ·{' '}
+                  {formatInr(data.pendingDues)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {groupsWithPending.map((g) => (
+                  <div
+                    key={g.groupMemberId}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium text-red-900">{g.groupName}</p>
+                      <p className="text-xs text-red-700">
+                        {t('member.pendingForGroup')}
+                        {g.nextPendingMonth
+                          ? ` · ${t('member.pendingMonthLabel', { month: g.nextPendingMonth })}`
+                          : ''}
+                        {g.pendingPaymentCount > 1 ? ` · ${g.pendingPaymentCount} months` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-red-800">{formatInr(g.pendingAmount)}</span>
+                      <Button asChild size="sm" variant="destructive">
+                        <Link
+                          to={
+                            g.nextPendingMonth
+                              ? `/member/payments/${g.groupId}/${g.nextPendingMonth}`
+                              : '/member/payments'
+                          }
+                        >
+                          {t('member.payNow')}
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="mb-2">
             <UpiQrCard
@@ -196,8 +229,14 @@ function MemberDashboardPage() {
                 const endLabel = formatMonthYear(g.endDate)
                 const progressPct =
                   g.totalMembers > 0 ? Math.min(100, Math.round((g.completedMonths / g.totalMembers) * 100)) : 0
+                const hasPending = (g.pendingAmount ?? 0) > 0
                 return (
-                  <div key={g.groupMemberId} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <div
+                    key={g.groupMemberId}
+                    className={`rounded-xl border bg-card p-4 shadow-sm ${
+                      hasPending ? 'border-red-300 ring-1 ring-red-200' : 'border-border'
+                    }`}
+                  >
                     <div className="mb-3 flex items-start justify-between gap-2">
                       <div>
                         <h3 className="font-semibold">
@@ -210,6 +249,22 @@ function MemberDashboardPage() {
                       </div>
                       <Badge variant={g.status === 'active' ? 'success' : 'muted'}>{g.status}</Badge>
                     </div>
+
+                    {hasPending ? (
+                      <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                        <p className="font-semibold">
+                          {t('member.pendingForGroup')}: {formatInr(g.pendingAmount)}
+                        </p>
+                        <p className="text-xs text-red-700">
+                          {g.nextPendingMonth
+                            ? t('member.pendingMonthLabel', { month: g.nextPendingMonth })
+                            : null}
+                          {g.pendingPaymentCount > 1 ? ` · ${g.pendingPaymentCount} months` : ''}
+                        </p>
+                      </div>
+                    ) : g.status === 'active' ? (
+                      <p className="mb-3 text-xs font-medium text-emerald-700">{t('member.noPaymentDue')}</p>
+                    ) : null}
 
                     <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -260,24 +315,17 @@ function MemberDashboardPage() {
                         <Link to={`/member/groups/${g.groupId}`}>{t('common.ledger')}</Link>
                       </Button>
                       {g.status === 'active' ? (
-                        <>
-                          <Button
-                            className="flex-1"
-                            variant="secondary"
-                            onClick={() =>
-                              setPayGroup({
-                                groupId: g.groupId,
-                                groupName: g.groupName,
-                                groupMemberId: g.groupMemberId,
-                              })
-                            }
-                          >
+                        hasPending && g.nextPendingMonth ? (
+                          <Button asChild className="flex-1" variant="destructive">
+                            <Link to={`/member/payments/${g.groupId}/${g.nextPendingMonth}`}>
+                              {t('member.payNow')}
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button className="flex-1" variant="secondary" disabled>
                             {t('nav.pay')}
                           </Button>
-                          <Button asChild className="flex-1">
-                            <Link to="/member/bidding">{t('nav.bidding')}</Link>
-                          </Button>
-                        </>
+                        )
                       ) : null}
                     </div>
                   </div>
@@ -290,14 +338,6 @@ function MemberDashboardPage() {
               ) : null}
             </CardContent>
           </Card>
-
-          <PaymentQrModal
-            open={!!payGroup}
-            onClose={() => setPayGroup(null)}
-            groupId={payGroup?.groupId ?? 0}
-            groupName={payGroup?.groupName ?? ''}
-            groupMemberId={payGroup?.groupMemberId}
-          />
         </>
       ) : null}
     </div>
@@ -307,7 +347,12 @@ function MemberDashboardPage() {
 export function MemberShell() {
   const { logout, user } = useAuth()
   const { t } = useTranslation()
+  const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  if (user?.mustChangePassword && !location.pathname.startsWith('/member/account')) {
+    return <Navigate to="/member/account" replace />
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -364,7 +409,6 @@ export function MemberShell() {
           <Route index element={<MemberDashboardPage />} />
           <Route path="groups/:id" element={<MemberGroupLedgerPage />} />
           <Route path="groups/:groupId/random-picks" element={<MemberRandomPicksPage />} />
-          <Route path="bidding" element={<MemberBiddingPage />} />
           <Route path="payments" element={<MemberPaymentsPage />} />
           <Route path="payments/:groupId/:month" element={<MemberPaymentsPage />} />
           <Route path="pay" element={<MemberPayRedirect />} />

@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Application.Notifications;
 using MitraNiidhi.Domain.Entities;
 
 namespace MitraNiidhi.Application.Members;
@@ -24,7 +25,10 @@ public class CreateMemberCommandHandler(IAppDbContext db, IPasswordHasher passwo
         if (await db.Members.AnyAsync(m => m.Username == username, cancellationToken))
             return Result<MemberListItemDto>.Failure($"Username '{username}' is already taken.");
 
-        var password = string.IsNullOrWhiteSpace(req.Password) ? "member123" : req.Password;
+        var password = string.IsNullOrWhiteSpace(req.Password) ? "member123" : req.Password.Trim();
+        if (password.Length < 6)
+            return Result<MemberListItemDto>.Failure("Password must be at least 6 characters.");
+
         var member = new Member
         {
             MemberName = req.MemberName.Trim(),
@@ -33,9 +37,17 @@ public class CreateMemberCommandHandler(IAppDbContext db, IPasswordHasher passwo
             Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
             Email = string.IsNullOrWhiteSpace(req.Email) ? null : req.Email.Trim(),
             Address = string.IsNullOrWhiteSpace(req.Address) ? null : req.Address.Trim(),
-            Status = "active"
+            Status = "active",
+            MustChangePassword = true
         };
         db.Members.Add(member);
+        await db.SaveChangesAsync(cancellationToken);
+
+        NotificationWriter.Add(
+            db, "member", member.Id,
+            "Account created",
+            "Your Mitra Niidhi account is ready. Sign in and set a new password when prompted.",
+            "info");
         await db.SaveChangesAsync(cancellationToken);
 
         var groups = new List<MemberGroupBriefDto>();
@@ -87,6 +99,14 @@ public class UpdateMemberCommandHandler(IAppDbContext db, IPasswordHasher passwo
                 return Result.Failure($"Username '{username}' is already taken.");
         }
 
+        var profileChanged =
+            member.MemberName != req.MemberName.Trim()
+            || member.Username != username
+            || (member.Phone ?? "") != (string.IsNullOrWhiteSpace(req.Phone) ? "" : req.Phone.Trim())
+            || (member.Email ?? "") != (string.IsNullOrWhiteSpace(req.Email) ? "" : req.Email.Trim())
+            || (member.Address ?? "") != (string.IsNullOrWhiteSpace(req.Address) ? "" : req.Address.Trim())
+            || member.Status != status;
+
         member.MemberName = req.MemberName.Trim();
         member.Username = username;
         member.Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim();
@@ -94,8 +114,33 @@ public class UpdateMemberCommandHandler(IAppDbContext db, IPasswordHasher passwo
         member.Address = string.IsNullOrWhiteSpace(req.Address) ? null : req.Address.Trim();
         member.Status = status;
 
-        if (req.ResetPassword)
-            member.PasswordHash = passwordHasher.Hash("member123");
+        var passwordReset = false;
+        if (!string.IsNullOrWhiteSpace(req.NewPassword))
+        {
+            var pwd = req.NewPassword.Trim();
+            if (pwd.Length < 6)
+                return Result.Failure("New password must be at least 6 characters.");
+            member.PasswordHash = passwordHasher.Hash(pwd);
+            member.MustChangePassword = true;
+            passwordReset = true;
+        }
+
+        if (passwordReset)
+        {
+            NotificationWriter.Add(
+                db, "member", member.Id,
+                "Password reset by admin",
+                "An admin reset your password. Sign in with the temporary password and set a new one.",
+                "warning");
+        }
+        else if (profileChanged)
+        {
+            NotificationWriter.Add(
+                db, "member", member.Id,
+                "Profile updated",
+                "An admin updated your account details. Please review your profile.",
+                "info");
+        }
 
         await db.SaveChangesAsync(cancellationToken);
         return Result.Success();
@@ -138,7 +183,8 @@ public class AssignMemberCommandHandler(IAppDbContext db, IPasswordHasher passwo
                 Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
                 Email = string.IsNullOrWhiteSpace(req.Email) ? null : req.Email.Trim(),
                 Address = string.IsNullOrWhiteSpace(req.Address) ? null : req.Address.Trim(),
-                Status = "active"
+                Status = "active",
+                MustChangePassword = true
             };
             db.Members.Add(member);
             await db.SaveChangesAsync(cancellationToken);

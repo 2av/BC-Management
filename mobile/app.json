@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Mitra Niidhi",
+    "slug": "mitra-niidhi-member",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "mitraniidhi",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1F33"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mitraniidhi.member",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.mitraniidhi.member",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1F33",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "apiUrl": "https://bc.api.agprimetech.com",
+      "eas": {
+        "projectId": "local-mitra-niidhi-member"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0B1F33",
+          "defaultChannel": "default"
+        }
+      ]
+    ]
+  }
+}

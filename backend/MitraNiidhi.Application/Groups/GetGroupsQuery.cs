@@ -28,6 +28,12 @@ public class GetGroupsQueryHandler(IAppDbContext db)
             .Select(g => new { GroupId = g.Key, Amount = g.Sum(x => x.PaymentAmount) })
             .ToDictionaryAsync(x => x.GroupId, x => x.Amount, cancellationToken);
 
+        var month1PaidGroups = (await db.MemberPayments
+            .Where(p => p.MonthNumber == 1 && p.PaymentStatus == Domain.Enums.PaymentStatus.Paid)
+            .Select(p => p.GroupId)
+            .Distinct()
+            .ToListAsync(cancellationToken)).ToHashSet();
+
         var organiserSeatIds = groups
             .Where(g => g.OrganiserGroupMemberId.HasValue)
             .Select(g => g.OrganiserGroupMemberId!.Value)
@@ -67,7 +73,8 @@ public class GetGroupsQueryHandler(IAppDbContext db)
                 pendingByGroup.GetValueOrDefault(g.Id),
                 g.OrganiserMemberId,
                 g.OrganiserGroupMemberId,
-                orgName);
+                orgName,
+                month1PaidGroups.Contains(g.Id));
         }).ToList();
 
         return Result<IReadOnlyList<GroupListItemDto>>.Success(list);

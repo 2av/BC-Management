@@ -1,6 +1,12 @@
 import { useAuth } from '@/features/auth/AuthContext'
+import { expireSessionAndRedirectToLogin, isAccessTokenExpired } from '@/features/auth/session'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5027'
+/** Local `npm run dev` always hits local API (ignores machine VITE_API_URL). Set VITE_USE_REMOTE=true to use remote. */
+export const API_BASE =
+  import.meta.env.DEV && import.meta.env.VITE_USE_REMOTE !== 'true'
+    ? 'http://localhost:5027'
+    : ((import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:5027')
+
 
 export async function apiFetch<T>(
   path: string,
@@ -14,6 +20,13 @@ export async function apiFetch<T>(
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const url = `${API_BASE}${path}`
+  const isLogin = path.includes('/api/auth/login')
+
+  // Proactively clear expired JWT before calling the API (except login).
+  if (!isLogin && token && isAccessTokenExpired(token)) {
+    expireSessionAndRedirectToLogin({ reason: 'token_expired' })
+    throw new Error('Session expired. Please sign in again.')
+  }
 
   let response: Response
   try {
@@ -29,6 +42,12 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
+    // Expired / invalid JWT on any authenticated call → login
+    if (response.status === 401 && !isLogin) {
+      expireSessionAndRedirectToLogin({ reason: 'unauthorized' })
+      throw new Error('Session expired. Please sign in again.')
+    }
+
     const body = await response.json().catch(() => ({} as Record<string, unknown>))
     const apiMessage =
       (body as { message?: string }).message ||

@@ -27,6 +27,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<MemberSummary> MemberSummaries => Set<MemberSummary>();
     public DbSet<MonthBiddingStatus> MonthBiddingStatuses => Set<MonthBiddingStatus>();
     public DbSet<MemberBid> MemberBids => Set<MemberBid>();
+    public DbSet<GroupMonthChart> GroupMonthCharts => Set<GroupMonthChart>();
     public DbSet<RandomPick> RandomPicks => Set<RandomPick>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<ClientSubscription> ClientSubscriptions => Set<ClientSubscription>();
@@ -34,6 +35,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<PaymentConfig> PaymentConfigs => Set<PaymentConfig>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<MemberPushToken> MemberPushTokens => Set<MemberPushToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     private static string ToDbEnum(Enum value)
@@ -88,6 +90,7 @@ public class AppDbContext : DbContext, IAppDbContext
             e.HasIndex(x => x.Username).IsUnique();
             e.Property(x => x.MemberName).HasMaxLength(100).IsRequired();
             e.Property(x => x.PasswordHash).HasColumnName("password");
+            e.Property(x => x.MustChangePassword).HasColumnName("must_change_password");
             e.Property(x => x.WonAmount).HasPrecision(10, 2);
         });
 
@@ -104,9 +107,23 @@ public class AppDbContext : DbContext, IAppDbContext
             e.HasOne(x => x.Client).WithMany(c => c.Groups).HasForeignKey(x => x.ClientId);
             e.HasOne(x => x.OrganiserMember).WithMany().HasForeignKey(x => x.OrganiserMemberId);
             e.HasOne(x => x.OrganiserGroupMember).WithMany().HasForeignKey(x => x.OrganiserGroupMemberId);
+            e.Property(x => x.BoliStepAmount).HasPrecision(10, 2);
             e.HasQueryFilter(g => _currentUser.IsSuperAdmin
                 || !_currentUser.ClientId.HasValue
                 || g.ClientId == _currentUser.ClientId);
+        });
+
+        modelBuilder.Entity<GroupMonthChart>(e =>
+        {
+            e.ToTable("group_month_charts");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.GroupId, x.MonthNumber }).IsUnique();
+            e.Property(x => x.RandomAmount).HasPrecision(10, 2);
+            e.Property(x => x.BoliStartAmount).HasPrecision(10, 2);
+            e.HasOne(x => x.Group).WithMany(g => g.MonthCharts).HasForeignKey(x => x.GroupId);
+            e.HasQueryFilter(m => _currentUser.IsSuperAdmin
+                || !_currentUser.ClientId.HasValue
+                || m.ClientId == _currentUser.ClientId);
         });
 
         modelBuilder.Entity<GroupMember>(e =>
@@ -276,6 +293,16 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(x => x.UserType).HasMaxLength(20).IsRequired();
             e.Property(x => x.Title).HasMaxLength(255).IsRequired();
             e.Property(x => x.Type).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<MemberPushToken>(e =>
+        {
+            e.ToTable("member_push_tokens");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => x.MemberId);
+            e.Property(x => x.Token).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Platform).HasMaxLength(20).IsRequired();
         });
 
         modelBuilder.Entity<AuditLog>(e =>

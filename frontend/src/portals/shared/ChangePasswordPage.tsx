@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 
 type Profile = {
   id: number
@@ -68,6 +69,9 @@ export function ChangePasswordPage() {
       setCurrent('')
       setNew('')
       setConfirm('')
+      if (user?.mustChangePassword) {
+        login({ ...user, mustChangePassword: false })
+      }
     },
     onError: (e: Error) => setError(e.message),
   })
@@ -81,14 +85,26 @@ export function ChangePasswordPage() {
   }
 
   const isMember = user?.role === 'Member'
+  const mustChange = Boolean(user?.mustChangePassword)
 
   return (
     <div>
       <PageHeader
         title={t('account.title')}
-        description={isMember ? 'Update your login password.' : 'Update your profile and password.'}
+        description={
+          mustChange
+            ? 'Your password was reset. Enter the temporary password, then choose a new one.'
+            : isMember
+              ? 'Update your login password.'
+              : 'Update your profile and password.'
+        }
         actions={<Badge>{user?.role}</Badge>}
       />
+      {mustChange ? (
+        <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          You must change your password before continuing.
+        </p>
+      ) : null}
       {message ? <p className="mb-3 text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
 
@@ -143,15 +159,15 @@ export function ChangePasswordPage() {
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
               <Label>{t('account.currentPassword')}</Label>
-              <Input type="password" value={currentPassword} onChange={(e) => setCurrent(e.target.value)} />
+              <PasswordInput value={currentPassword} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
             </div>
             <div className="space-y-1.5">
               <Label>{t('account.newPassword')}</Label>
-              <Input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} />
+              <PasswordInput value={newPassword} onChange={(e) => setNew(e.target.value)} autoComplete="new-password" />
             </div>
             <div className="space-y-1.5">
               <Label>{t('account.confirmPassword')}</Label>
-              <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+              <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
             </div>
             <Button
               disabled={changePassword.isPending || !currentPassword || !newPassword}

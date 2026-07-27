@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Bidding;
 
@@ -12,11 +13,15 @@ public class GetMonthBidsQueryHandler(IAppDbContext db)
 {
     public async Task<Result<IReadOnlyList<BidItemDto>>> Handle(GetMonthBidsQuery request, CancellationToken cancellationToken)
     {
+        var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == request.GroupId, cancellationToken);
+        if (group is null)
+            return Result<IReadOnlyList<BidItemDto>>.Failure("Group not found.");
+
         var bids = await db.MemberBids
             .Include(b => b.Member)
             .Include(b => b.GroupMember)
             .Where(b => b.GroupId == request.GroupId && b.MonthNumber == request.MonthNumber)
-            .OrderBy(b => b.BidAmount)
+            .OrderByDescending(b => b.BidAmount)
             .ToListAsync(cancellationToken);
 
         var seats = await db.GroupMembers
@@ -28,6 +33,7 @@ public class GetMonthBidsQueryHandler(IAppDbContext db)
             var seat = b.GroupMemberId is int sid
                 ? seats.FirstOrDefault(s => s.Id == sid)
                 : seats.FirstOrDefault(s => s.MemberId == b.MemberId);
+            var boli = BcChartService.ToReceive(group.TotalMonthlyCollection, b.BidAmount);
             return new BidItemDto(
                 b.Id,
                 b.MemberId,
@@ -37,7 +43,8 @@ public class GetMonthBidsQueryHandler(IAppDbContext db)
                 seat?.HandLabel,
                 b.BidAmount,
                 b.BidStatus,
-                b.BidDate);
+                b.BidDate,
+                boli);
         }).ToList();
 
         return Result<IReadOnlyList<BidItemDto>>.Success(result);

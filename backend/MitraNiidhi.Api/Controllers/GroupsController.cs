@@ -44,6 +44,16 @@ public class GroupsController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(result.Data) : BadRequest(new { message = result.Error });
     }
 
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "ClientAdmin,SuperAdmin")]
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new DeleteGroupCommand(id), cancellationToken);
+        return result.Succeeded
+            ? Ok(new { message = "Group and all related data deleted." })
+            : BadRequest(new { message = result.Error });
+    }
+
     [HttpGet("{id:int}/ledger")]
     [Authorize(Roles = "ClientAdmin,SuperAdmin,Member")]
     public async Task<IActionResult> Ledger(int id, CancellationToken cancellationToken)

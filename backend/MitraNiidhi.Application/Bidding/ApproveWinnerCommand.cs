@@ -29,8 +29,8 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             return Result.Failure("Bidding month not found.");
         if (status.BiddingStatus is BiddingStatus.Completed)
             return Result.Failure("Winner already approved for this month.");
-        if (status.BiddingStatus is BiddingStatus.NotStarted)
-            return Result.Failure("Open or close bidding before approving a winner.");
+        // Admin may set a winner even when members never bid in-app (e.g. WhatsApp).
+        // NotStarted / Open / Closed are all allowed.
 
         var seatResult = await SeatHelper.ResolveSeatAsync(
             db, command.GroupId, req.WinnerMemberId, req.WinnerGroupMemberId, cancellationToken);
@@ -44,11 +44,29 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
         if (await db.MonthlyBids.AnyAsync(b => b.GroupId == command.GroupId && b.MonthNumber == req.MonthNumber, cancellationToken))
             return Result.Failure("This month already has a winner in the ledger.");
 
+        await GetGroupBcChartQueryHandler.EnsureChartRowsAsync(db, group, cancellationToken);
+        var chart = await db.GroupMonthCharts.FirstOrDefaultAsync(
+            c => c.GroupId == command.GroupId && c.MonthNumber == req.MonthNumber, cancellationToken);
+
+        var winningDiscount = req.WinningBidAmount;
+        if (req.UseRandomAmount)
+        {
+            if (chart is null)
+                return Result.Failure("BC chart random amount is not configured for this month.");
+            winningDiscount = BcChartService.ToDiscount(group.TotalMonthlyCollection, chart.RandomAmount);
+        }
+        else if (req.BoliAmount is decimal boliReceive)
+        {
+            if (boliReceive <= 0 || boliReceive >= group.TotalMonthlyCollection)
+                return Result.Failure("Boli amount must be between 0 and total collection.");
+            winningDiscount = BcChartService.ToDiscount(group.TotalMonthlyCollection, boliReceive);
+        }
+
         var settlement = BcCalculationService.CalculateMonth(
             group.MonthlyContribution,
             group.TotalMembers,
-            req.WinningBidAmount,
-            isBid: req.WinningBidAmount > 0);
+            winningDiscount,
+            isBid: winningDiscount > 0);
 
         var dueAmount = req.PaymentAmount is decimal overrideAmt && overrideAmt > 0
             ? overrideAmt
@@ -63,7 +81,7 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             status.BiddingStatus = BiddingStatus.Completed;
             status.WinnerMemberId = winnerSeat.MemberId;
             status.WinnerGroupMemberId = winnerSeat.Id;
-            status.WinningBidAmount = req.WinningBidAmount;
+            status.WinningBidAmount = winningDiscount;
             status.PaymentDueAmount = dueAmount;
             status.AdminApprovedBy = currentUser.UserId;
             status.AdminApprovedAt = DateTime.UtcNow;
@@ -72,7 +90,7 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             var winner = await db.Members.FirstAsync(m => m.Id == winnerSeat.MemberId, cancellationToken);
             // Legacy member-level flags kept for display; eligibility is seat-scoped.
             winner.HasWonMonth = req.MonthNumber;
-            winner.WonAmount = req.WinningBidAmount;
+            winner.WonAmount = winningDiscount;
 
             db.MonthlyBids.Add(new MonthlyBid
             {
@@ -139,6 +157,29 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             var bids = await db.MemberBids
                 .Where(b => b.GroupId == command.GroupId && b.MonthNumber == req.MonthNumber)
                 .ToListAsync(cancellationToken);
+
+            var winnerAlreadyBid = bids.Any(b =>
+                b.GroupMemberId == winnerSeat.Id
+                || (b.GroupMemberId == null && b.MemberId == winnerSeat.MemberId));
+
+            if (!winnerAlreadyBid)
+            {
+                db.MemberBids.Add(new MemberBid
+                {
+                    GroupId = command.GroupId,
+                    ClientId = group.ClientId,
+                    MemberId = winnerSeat.MemberId,
+                    GroupMemberId = winnerSeat.Id,
+                    MonthNumber = req.MonthNumber,
+                    BidAmount = winningDiscount,
+                    BidStatus = "approved",
+                    BidDate = DateTime.UtcNow,
+                    AdminNotes = "Manual winner (offline / WhatsApp)",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                });
+            }
+
             foreach (var bid in bids)
             {
                 var isWinner = bid.GroupMemberId == winnerSeat.Id
@@ -163,13 +204,13 @@ public class ApproveWinnerCommandHandler(IAppDbContext db, ICurrentUser currentU
             NotificationWriter.Add(
                 db, "admin", null,
                 "Winner approved",
-                $"{group.GroupName}: Month {req.MonthNumber} → {winnerLabel} (bid ₹{req.WinningBidAmount:N0}).",
+                $"{group.GroupName}: Month {req.MonthNumber} → {winnerLabel} (boli ₹{settlement.NetPayable:N0}).",
                 "info");
 
             NotificationWriter.Add(
                 db, "member", winnerSeat.MemberId,
                 $"You won Month {req.MonthNumber}",
-                $"{group.GroupName}: {winnerLabel} — bid ₹{req.WinningBidAmount:N0}, net payable ₹{settlement.NetPayable:N0}.",
+                $"{group.GroupName}: {winnerLabel} — receive ₹{settlement.NetPayable:N0}, per member ₹{dueAmount:N0}.",
                 "success");
 
             foreach (var memberId in seats.Select(s => s.MemberId).Distinct().Where(id => id != winnerSeat.MemberId))

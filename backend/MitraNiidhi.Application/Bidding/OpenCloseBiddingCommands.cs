@@ -14,11 +14,6 @@ public class OpenBiddingCommandHandler(IAppDbContext db)
     public async Task<Result> Handle(OpenBiddingCommand command, CancellationToken cancellationToken)
     {
         var req = command.Request;
-        if (req.MinBidAmount < 0)
-            return Result.Failure("Minimum bid amount cannot be negative.");
-        if (req.MaxBidAmount <= req.MinBidAmount)
-            return Result.Failure("Maximum bid must be greater than minimum bid.");
-
         var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == command.GroupId, cancellationToken);
         if (group is null)
             return Result.Failure("Group not found.");
@@ -28,6 +23,14 @@ public class OpenBiddingCommandHandler(IAppDbContext db)
 
         if (req.MonthNumber == 1)
             return Result.Failure("Month 1 is reserved for the organiser — use “Assign Month 1 to organiser” instead of opening bids.");
+
+        await GetGroupBcChartQueryHandler.EnsureChartRowsAsync(db, group, cancellationToken);
+        var chart = await db.GroupMonthCharts.FirstOrDefaultAsync(
+            c => c.GroupId == command.GroupId && c.MonthNumber == req.MonthNumber, cancellationToken);
+        if (chart is null)
+            return Result.Failure("BC chart is missing for this month. Open Admin → BC Chart and save amounts first.");
+        if (chart.BoliStartAmount is null or <= 0)
+            return Result.Failure("This month has no boli start on the BC chart (random-only month). Use random pick / set winner manually.");
 
         var status = await db.MonthBiddingStatuses
             .FirstOrDefaultAsync(m => m.GroupId == command.GroupId && m.MonthNumber == req.MonthNumber, cancellationToken);
@@ -46,11 +49,13 @@ public class OpenBiddingCommandHandler(IAppDbContext db)
         if (status.BiddingStatus is BiddingStatus.Completed)
             return Result.Failure("This month is already completed.");
 
+        // Snapshot ladder bounds for legacy fields: first boli discount → max "bid" discount rises as ladder goes down.
+        var startDiscount = group.TotalMonthlyCollection - chart.BoliStartAmount.Value;
         status.BiddingStatus = BiddingStatus.Open;
         status.BiddingStartDate = DateOnly.FromDateTime(DateTime.Today);
         status.BiddingEndDate = req.EndDate;
-        status.MinimumBidAmount = req.MinBidAmount;
-        status.MaximumBidAmount = req.MaxBidAmount;
+        status.MinimumBidAmount = startDiscount;
+        status.MaximumBidAmount = startDiscount;
         status.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);

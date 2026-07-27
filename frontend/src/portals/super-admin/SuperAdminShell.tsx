@@ -8,9 +8,11 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  Menu,
   Settings,
   Shield,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/AuthContext'
 import { AppSidebar } from '@/components/layout/AppSidebar'
@@ -70,11 +72,15 @@ function Dashboard() {
 export function SuperAdminShell() {
   const { logout, user } = useAuth()
   const { t } = useTranslation()
+  const [mobileOpen, setMobileOpen] = useState(false)
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <AppSidebar
         brand="Mitra Niidhi"
         subtitle="Platform control"
+        mobileOpen={mobileOpen}
+        onNavigate={() => setMobileOpen(false)}
+        onClose={() => setMobileOpen(false)}
         items={[
           { to: '/super-admin', label: t('nav.dashboard'), icon: <LayoutDashboard className="h-4 w-4" />, end: true, isActive: (p) => p === '/super-admin' || p === '/super-admin/' },
           { to: '/super-admin/clients', label: t('nav.clients'), icon: <Building2 className="h-4 w-4" />, isActive: (p) => p.startsWith('/super-admin/clients') },
@@ -104,16 +110,30 @@ export function SuperAdminShell() {
         }
       />
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <header className="sticky top-0 z-10 border-b border-border bg-card/90 px-6 py-3 backdrop-blur">
+        <header className="sticky top-0 z-10 border-b border-border bg-card/90 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">SaaS control plane</p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <p className="text-sm text-muted-foreground">SaaS control plane</p>
+            </div>
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
-              <NavLink to="/" className="text-sm font-medium text-primary hover:underline">{t('nav.switchPortal')}</NavLink>
+              <NavLink to="/" className="hidden text-sm font-medium text-primary hover:underline sm:inline">
+                {t('nav.switchPortal')}
+              </NavLink>
             </div>
           </div>
         </header>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <Routes>
             <Route index element={<Dashboard />} />
             <Route path="clients" element={<SuperAdminClientsPage />} />

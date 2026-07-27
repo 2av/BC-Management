@@ -205,6 +205,33 @@ export function AdminGroupsPage() {
     onError: (e: Error) => setError(e.message),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (groupId: number) =>
+      api.delete<{ message?: string }>(`/api/groups/${groupId}`),
+    onSuccess: async (res) => {
+      setMessage(res.message ?? 'Group deleted.')
+      setError(null)
+      setEditId(null)
+      setCloneId(null)
+      await qc.invalidateQueries({ queryKey: ['groups'] })
+      await qc.invalidateQueries({ queryKey: ['members'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  function confirmDeleteGroup(g: GroupListItem) {
+    const ok = confirm(
+      `Delete "${g.groupName}" permanently?\n\nThis removes all payments, bids, seats, and ledger data for this group. Members themselves stay in the directory.\n\nThis cannot be undone.`,
+    )
+    if (!ok) return
+    const typed = window.prompt(`Type the group name to confirm delete:\n${g.groupName}`)
+    if (typed?.trim() !== g.groupName) {
+      setError('Delete cancelled — group name did not match.')
+      return
+    }
+    deleteMutation.mutate(g.id)
+  }
+
   useEffect(() => {
     setSlots((prev) => {
       const next = prev.slice(0, members)
@@ -633,6 +660,17 @@ export function AdminGroupsPage() {
                 >
                   Clone
                 </Button>
+                {!g.month1PaymentDone ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => confirmDeleteGroup(g)}
+                  >
+                    Delete
+                  </Button>
+                ) : null}
               </div>
             </CardContent>
           </Card>

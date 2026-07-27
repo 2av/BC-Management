@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Application.Notifications;
 using MitraNiidhi.Domain.Enums;
 
 namespace MitraNiidhi.Application.Auth;
@@ -40,6 +41,12 @@ public class ChangePasswordCommandHandler(
         if (!passwordHasher.Verify(req.CurrentPassword, user.PasswordHash))
             return Result.Failure("Current password is incorrect.");
         user.PasswordHash = passwordHasher.Hash(req.NewPassword);
+        user.MustChangePassword = false;
+        NotificationWriter.Add(
+            db, "member", user.Id,
+            "Password changed",
+            "Your password was updated successfully.",
+            "success");
         await db.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -52,6 +59,11 @@ public class ChangePasswordCommandHandler(
             if (!passwordHasher.Verify(req.CurrentPassword, ca.PasswordHash))
                 return Result.Failure("Current password is incorrect.");
             ca.PasswordHash = passwordHasher.Hash(req.NewPassword);
+            NotificationWriter.Add(
+                db, "admin", ca.Id,
+                "Password changed",
+                "Your password was updated successfully.",
+                "success");
             await db.SaveChangesAsync(ct);
             return Result.Success();
         }

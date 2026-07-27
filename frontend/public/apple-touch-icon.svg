@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Mitra Niidhi Samooh">
+  <rect width="180" height="180" rx="40" fill="#0B1F33"/>
+  <circle cx="90" cy="90" r="68" fill="#0F766E"/>
+  <circle cx="90" cy="90" r="52" fill="none" stroke="#CCFBF1" stroke-width="6" opacity="0.9"/>
+  <path
+    fill="#FFFFFF"
+    d="M48 126V64c0-2.4 2-4.1 4.3-3.8 1.2.1 2.3.7 2.9 1.6L90 116.5 124.8 61.8c.6-.9 1.7-1.5 2.9-1.6 2.3-.3 4.3 1.4 4.3 3.8v62c0 2.5-2 4.5-4.5 4.5S123 126.5 123 124V81.5L95.5 123c-.9 1.5-2.5 2.4-4.2 2.4s-3.3-.9-4.2-2.4L59 81.5V124c0 2.5-2 4.5-4.5 4.5S48 126.5 48 124z"
+  />
+</svg>

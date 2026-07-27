@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { QrCode } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Check, Copy, QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,6 +53,7 @@ export function UpiQrCard({
   compact?: boolean
 }) {
   const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
   const note = paymentText || methods?.paymentNote || PAYMENT_BRAND
   const payee = methods?.payeeName || PAYMENT_BRAND
 
@@ -67,7 +68,17 @@ export function UpiQrCard({
   }, [methods?.upiId, payee, note, amount])
 
   const qrImageUrl = embedded?.qrImageUrl || methods?.qrImageUrl
-  const upiUrl = embedded?.upiUrl || methods?.upiUrl
+
+  async function copyUpiId() {
+    if (!methods?.upiId) return
+    try {
+      await navigator.clipboard.writeText(methods.upiId.trim())
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // ignore clipboard failures (HTTP / permissions)
+    }
+  }
 
   if (!methods?.qrEnabled || !qrImageUrl) {
     return (
@@ -126,13 +137,10 @@ export function UpiQrCard({
               <strong>{amountLabel}</strong>
             </p>
           ) : null}
-          {upiUrl ? (
-            <Button asChild size="sm" variant="outline">
-              <a href={upiUrl} target="_blank" rel="noreferrer">
-                {t('member.openUpiApp')}
-              </a>
-            </Button>
-          ) : null}
+          <Button type="button" size="sm" variant="outline" onClick={copyUpiId}>
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? t('member.upiCopied') : t('member.copyUpi')}
+          </Button>
         </div>
       </CardContent>
     </Card>

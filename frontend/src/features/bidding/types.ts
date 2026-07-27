@@ -10,6 +10,12 @@ export type MonthBidding = {
   winnerMemberName: string | null
   winningBidAmount: number | null
   totalBids: number
+  randomAmount?: number | null
+  boliStartAmount?: number | null
+  nextBoliAmount?: number | null
+  currentBestBoliAmount?: number | null
+  /** All active seats paid for this month (no pending left). */
+  paymentDone?: boolean
 }
 
 export type GroupBiddingOverview = {
@@ -23,6 +29,7 @@ export type GroupBiddingOverview = {
   organiserGroupMemberId?: number | null
   organiserName?: string | null
   month1Allocated?: boolean
+  boliStepAmount?: number
 }
 
 export type BidItem = {
@@ -35,4 +42,23 @@ export type BidItem = {
   bidAmount: number
   bidStatus: string
   bidDate: string
+  boliAmount?: number | null
+}
+
+export type GroupMonthChartRow = {
+  monthNumber: number
+  randomAmount: number
+  boliStartAmount: number | null
+  perMemberIfRandom: number
+  perMemberIfBoli: number | null
+}
+
+export type GroupBcChart = {
+  groupId: number
+  groupName: string
+  totalMembers: number
+  monthlyContribution: number
+  totalMonthlyCollection: number
+  boliStepAmount: number
+  months: GroupMonthChartRow[]
 }

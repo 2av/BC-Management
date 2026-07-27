@@ -56,7 +56,8 @@ public class MultiHandSeatTests
     [Fact]
     public void PlaceBidRequest_AcceptsGroupMemberId()
     {
-        var req = new MitraNiidhi.Application.Bidding.PlaceBidRequest(2, 1000m, 55);
+        var req = new MitraNiidhi.Application.Bidding.PlaceBidRequest(2, 85000m, 55);
         req.GroupMemberId.Should().Be(55);
+        req.BoliAmount.Should().Be(85000m);
     }
 }
