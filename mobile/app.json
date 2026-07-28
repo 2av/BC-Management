@@ -22,6 +22,7 @@
     "android": {
       "package": "com.mitraniidhi.member",
       "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0B1F33",
         "foregroundImage": "./assets/android-icon-foreground.png",

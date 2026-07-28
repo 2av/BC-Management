@@ -113,7 +113,7 @@ export function GroupLedgerScreen() {
                 <View style={styles.stat}>
                   <Text style={styles.statLabel}>Collection</Text>
                   <Text style={styles.statValue}>
-                    {formatInr(data.totalMonthlyCollection)}
+                    {formatInr(data.monthlyContribution * data.totalMembers)}
                   </Text>
                 </View>
                 <View style={[styles.stat, styles.statAccent]}>

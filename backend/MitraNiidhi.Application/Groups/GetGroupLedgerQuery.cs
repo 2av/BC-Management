@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Groups;
 
@@ -16,6 +17,9 @@ public class GetGroupLedgerQueryHandler(IAppDbContext db)
         var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == request.GroupId, cancellationToken);
         if (group is null)
             return Result<GroupLedgerDto>.Failure("Group not found.");
+
+        if (BcCalculationService.TrySyncStoredCollection(group))
+            await db.SaveChangesAsync(cancellationToken);
 
         var bids = await db.MonthlyBids
             .Where(b => b.GroupId == request.GroupId)

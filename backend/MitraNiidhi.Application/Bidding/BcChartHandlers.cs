@@ -44,6 +44,9 @@ public class GetGroupBcChartQueryHandler(IAppDbContext db)
         var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == request.GroupId, ct);
         if (group is null) return Result<GroupBcChartDto>.Failure("Group not found.");
 
+        if (BcCalculationService.TrySyncStoredCollection(group))
+            await db.SaveChangesAsync(ct);
+
         await EnsureChartRowsAsync(db, group, ct);
         return Result<GroupBcChartDto>.Success(await MapAsync(db, group, ct));
     }

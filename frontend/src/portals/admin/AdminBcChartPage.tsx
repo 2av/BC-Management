@@ -98,7 +98,7 @@ export function AdminBcChartPage() {
         title={data ? `BC Chart · ${data.groupName}` : 'BC Chart'}
         description={
           data
-            ? `${data.totalMembers} members · ${formatInr(data.monthlyContribution)} / month · collection ${formatInr(data.totalMonthlyCollection)}`
+            ? `${data.totalMembers} members · ${formatInr(data.monthlyContribution)} / month · collection ${formatInr(data.monthlyContribution * data.totalMembers)}`
             : 'Month-wise random & boli start amounts'
         }
         actions={<Badge>Admin</Badge>}

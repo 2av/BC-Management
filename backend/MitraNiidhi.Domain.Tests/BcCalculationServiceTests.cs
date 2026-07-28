@@ -75,6 +75,21 @@ public class BcCalculationServiceTests
     }
 
     [Fact]
+    public void TrySyncStoredCollection_CorrectsStaleDenormalizedValue()
+    {
+        var group = new MitraNiidhi.Domain.Entities.BcGroup
+        {
+            MonthlyContribution = 3000,
+            TotalMembers = 15,
+            TotalMonthlyCollection = 48000,
+        };
+
+        BcCalculationService.TrySyncStoredCollection(group).Should().BeTrue();
+        group.TotalMonthlyCollection.Should().Be(45000);
+        BcCalculationService.TrySyncStoredCollection(group).Should().BeFalse();
+    }
+
+    [Fact]
     public void NoBid_IgnoresPositiveBidAmountWhenIsBidFalse()
     {
         var result = BcCalculationService.CalculateMonth(2000, 9, 500, isBid: false);

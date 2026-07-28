@@ -109,20 +109,42 @@ export function AdminBiddingPage() {
 
   const month1 = data?.months.find((m) => m.monthNumber === 1)
 
-  /** Hide months up through the last fully-paid month; show everything after. */
-  const lastPaidMonth = useMemo(() => {
-    const paid = (data?.months ?? []).filter((m) => m.paymentDone).map((m) => m.monthNumber)
-    return paid.length ? Math.max(...paid) : 0
+  /**
+   * Hide months that are fully settled: payments complete AND pot already assigned (winner set).
+   * If everyone paid but no winner yet, keep the month visible so admin can View / set winner.
+   */
+  const lastSettledMonth = useMemo(() => {
+    const settled = (data?.months ?? [])
+      .filter(
+        (m) =>
+          m.paymentDone &&
+          (Boolean(m.winnerMemberId) || Boolean(m.winnerGroupMemberId) || m.biddingStatus === 'completed'),
+      )
+      .map((m) => m.monthNumber)
+    return settled.length ? Math.max(...settled) : 0
   }, [data?.months])
 
   const visibleMonths = useMemo(
-    () => (data?.months ?? []).filter((m) => m.monthNumber > lastPaidMonth),
-    [data?.months, lastPaidMonth],
+    () =>
+      (data?.months ?? []).filter((m) => {
+        const hasWinner =
+          Boolean(m.winnerMemberId) || Boolean(m.winnerGroupMemberId) || m.biddingStatus === 'completed'
+        // Always show months that still need a winner (even if paymentDone).
+        if (!hasWinner) return true
+        return m.monthNumber > lastSettledMonth
+      }),
+    [data?.months, lastSettledMonth],
   )
 
-  const paidMonthsSummary = useMemo(
-    () => (data?.months ?? []).filter((m) => m.monthNumber <= lastPaidMonth && m.paymentDone),
-    [data?.months, lastPaidMonth],
+  const settledMonthsSummary = useMemo(
+    () =>
+      (data?.months ?? []).filter(
+        (m) =>
+          m.monthNumber <= lastSettledMonth &&
+          m.paymentDone &&
+          (Boolean(m.winnerMemberId) || Boolean(m.winnerGroupMemberId) || m.biddingStatus === 'completed'),
+      ),
+    [data?.months, lastSettledMonth],
   )
 
   useEffect(() => {
@@ -133,6 +155,7 @@ export function AdminBiddingPage() {
     if (selectedMonth == null || !visibleMonths.some((m) => m.monthNumber === selectedMonth)) {
       const prefer =
         visibleMonths.find((m) => m.biddingStatus === 'open') ??
+        visibleMonths.find((m) => m.monthNumber > 1 && !m.winnerMemberId) ??
         visibleMonths.find((m) => m.monthNumber > 1) ??
         visibleMonths[0]
       setSelectedMonth(prefer.monthNumber > 1 ? prefer.monthNumber : null)
@@ -157,12 +180,12 @@ export function AdminBiddingPage() {
   }, [roster, wonSeatIds])
 
   const selectedMonthStatus = selectedMonthMeta?.biddingStatus
+  const selectedHasWinner =
+    Boolean(selectedMonthMeta?.winnerMemberId) ||
+    Boolean(selectedMonthMeta?.winnerGroupMemberId) ||
+    selectedMonthStatus === 'completed'
   const canSetWinner =
-    selectedMonth != null &&
-    selectedMonth > 1 &&
-    selectedMonthStatus != null &&
-    selectedMonthStatus !== 'completed' &&
-    selectedMonth > lastPaidMonth
+    selectedMonth != null && selectedMonth > 1 && selectedMonthStatus != null && !selectedHasWinner
 
   function submitManualWinner() {
     if (!selectedMonth || !manualSeatId) {
@@ -246,7 +269,7 @@ export function AdminBiddingPage() {
 
       {data ? (
         <>
-          {lastPaidMonth === 0 && !data.month1Allocated && !month1?.winnerMemberId ? (
+          {lastSettledMonth === 0 && !data.month1Allocated && !month1?.winnerMemberId ? (
             <Card className="mb-4 border-teal-200 bg-teal-50/40">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Month 1 · Organiser pot</CardTitle>
@@ -279,10 +302,10 @@ export function AdminBiddingPage() {
             </Card>
           ) : null}
 
-          {paidMonthsSummary.length > 0 ? (
+          {settledMonthsSummary.length > 0 ? (
             <p className="mb-4 text-sm text-muted-foreground">
-              Paid (hidden): {paidMonthsSummary.map((m) => `M${m.monthNumber}`).join(', ')} — showing months after M
-              {lastPaidMonth}
+              Settled (hidden): {settledMonthsSummary.map((m) => `M${m.monthNumber}`).join(', ')} — paid +
+              winner assigned. Months paid without a winner stay visible.
             </p>
           ) : null}
         </>
@@ -293,12 +316,15 @@ export function AdminBiddingPage() {
           <CardHeader>
             <CardTitle>Months</CardTitle>
             <CardDescription>
-              Months whose payments are fully paid are hidden. Remaining months stay available for bidding.
+              Months are hidden only after payments are complete <em>and</em> a winner has received the pot.
+              If paid but no winner yet, use View / set winner.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {!data ? null : visibleMonths.length === 0 ? (
-              <p className="text-sm text-muted-foreground">All months have payments completed for this group.</p>
+              <p className="text-sm text-muted-foreground">
+                All months are settled (payments complete and winner assigned).
+              </p>
             ) : (
               visibleMonths.map((m) => (
                 <div key={m.monthNumber} className="rounded-xl border border-border p-4">
@@ -310,6 +336,9 @@ export function AdminBiddingPage() {
                           {m.biddingStatus.replace('_', ' ')}
                         </Badge>
                         {m.monthNumber === 1 ? <Badge variant="muted">Organiser</Badge> : null}
+                        {m.paymentDone && !m.winnerMemberId && !m.winnerGroupMemberId ? (
+                          <Badge variant="warning">Paid · needs winner</Badge>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {m.monthNumber === 1
@@ -320,7 +349,9 @@ export function AdminBiddingPage() {
                               m.boliStartAmount != null ? ` · boli start ${formatInr(m.boliStartAmount)}` : ''
                             }${m.randomAmount != null ? ` · random ${formatInr(m.randomAmount)}` : ''}${
                               m.nextBoliAmount != null ? ` · next ${formatInr(m.nextBoliAmount)}` : ''
-                            }${m.winnerMemberName ? ` · winner ${m.winnerMemberName}` : ''}`}
+                            }${m.winnerMemberName ? ` · winner ${m.winnerMemberName}` : ''}${
+                              m.paymentDone && !m.winnerMemberName ? ' · payments complete' : ''
+                            }`}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -487,7 +518,7 @@ export function AdminBiddingPage() {
               </div>
             ) : null}
 
-            {selectedMonth && selectedMonthStatus === 'completed' ? (
+            {selectedMonth && selectedHasWinner ? (
               <p className="text-sm text-muted-foreground">This month already has an approved winner.</p>
             ) : null}
 

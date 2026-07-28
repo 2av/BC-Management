@@ -1,3 +1,5 @@
+using MitraNiidhi.Domain.Entities;
+
 namespace MitraNiidhi.Domain.Services;
 
 /// <summary>
@@ -45,6 +47,19 @@ public static class BcCalculationService
 
     public static decimal TotalMonthlyCollection(decimal monthlyContribution, int totalMembers)
         => monthlyContribution * totalMembers;
+
+    /// <summary>
+    /// Keeps denormalized <see cref="BcGroup.TotalMonthlyCollection"/> in sync with
+    /// contribution × seat count. Returns true when a correction was applied.
+    /// </summary>
+    public static bool TrySyncStoredCollection(BcGroup group)
+    {
+        var expected = TotalMonthlyCollection(group.MonthlyContribution, group.TotalMembers);
+        if (group.TotalMonthlyCollection == expected)
+            return false;
+        group.TotalMonthlyCollection = expected;
+        return true;
+    }
 
     public static decimal Profit(decimal givenAmount, decimal totalPaid)
         => givenAmount - totalPaid;

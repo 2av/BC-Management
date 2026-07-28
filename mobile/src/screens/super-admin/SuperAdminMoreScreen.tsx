@@ -1,9 +1,11 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../auth/AuthContext'
 import { COLORS, FONTS, SPACE } from '../../theme'
 import { ScreenHeader, SoftCard } from '../../components/ui'
+import { MenuRow } from '../../components/MenuRow'
 import type { RootStackParamList } from '../../types'
 
 type Nav = NativeStackNavigationProp<RootStackParamList>
@@ -17,21 +19,41 @@ export function SuperAdminMoreScreen() {
       <ScreenHeader title="More" subtitle={`Signed in as ${user?.fullName ?? 'super admin'}`} />
       <View style={styles.content}>
         <SoftCard>
-          <Text style={styles.name}>@{user?.username}</Text>
-          <Text style={styles.muted}>Super admin · platform</Text>
+          <View style={styles.profileRow}>
+            <View style={styles.avatar}>
+              <Ionicons name="planet-outline" size={22} color={COLORS.teal} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>@{user?.username}</Text>
+              <Text style={styles.muted}>Super admin · platform</Text>
+            </View>
+          </View>
         </SoftCard>
-        <Pressable style={styles.row} onPress={() => navigation.navigate('SaPayments')}>
-          <Text style={styles.rowText}>Subscription payments</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => navigation.navigate('SaAudit')}>
-          <Text style={styles.rowText}>Audit log</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => navigation.navigate('AdminChangePassword')}>
-          <Text style={styles.rowText}>Change password</Text>
-        </Pressable>
-        <Pressable style={[styles.row, styles.danger]} onPress={() => void logout()}>
-          <Text style={[styles.rowText, { color: COLORS.danger }]}>Sign out</Text>
-        </Pressable>
+        <MenuRow
+          label="Subscription payments"
+          subtitle="Client billing history"
+          icon="cash-outline"
+          onPress={() => navigation.navigate('SaPayments')}
+        />
+        <MenuRow
+          label="Audit log"
+          subtitle="Platform activity trail"
+          icon="document-text-outline"
+          onPress={() => navigation.navigate('SaAudit')}
+        />
+        <MenuRow
+          label="Change password"
+          subtitle="Update your login password"
+          icon="lock-closed-outline"
+          onPress={() => navigation.navigate('AdminChangePassword')}
+        />
+        <MenuRow
+          label="Sign out"
+          subtitle="Leave this session"
+          icon="log-out-outline"
+          danger
+          onPress={() => void logout()}
+        />
       </View>
     </View>
   )
@@ -40,16 +62,15 @@ export function SuperAdminMoreScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: SPACE.md, gap: 10 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.tealSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   name: { fontFamily: FONTS.bodyBold, fontSize: 16, color: COLORS.text },
   muted: { marginTop: 4, fontFamily: FONTS.body, color: COLORS.muted },
-  row: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  danger: { borderColor: '#FECACA' },
-  rowText: { fontFamily: FONTS.bodyBold, color: COLORS.text },
 })

@@ -4,6 +4,7 @@ using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
 using MitraNiidhi.Application.Notifications;
 using MitraNiidhi.Domain.Entities;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Members;
 
@@ -320,7 +321,8 @@ internal static class AssignInternal
         if (number > group.TotalMembers)
         {
             group.TotalMembers = number;
-            group.TotalMonthlyCollection = group.MonthlyContribution * group.TotalMembers;
+            group.TotalMonthlyCollection = BcCalculationService.TotalMonthlyCollection(
+                group.MonthlyContribution, group.TotalMembers);
         }
 
         var handIndex = existingSeats.Count + 1;

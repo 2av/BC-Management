@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../auth/AuthContext'
 import { apiFetch } from '../../api'
 import { COLORS, FONTS, SPACE } from '../../theme'
@@ -26,6 +27,30 @@ type GroupItem = {
 }
 
 type Nav = NativeStackNavigationProp<RootStackParamList>
+
+function ActionBtn({
+  label,
+  icon,
+  onPress,
+  outline,
+}: {
+  label: string
+  icon: keyof typeof Ionicons.glyphMap
+  onPress: () => void
+  outline?: boolean
+}) {
+  return (
+    <Pressable
+      style={[styles.btn, outline && styles.btnOutline]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Ionicons name={icon} size={14} color={outline ? COLORS.text : COLORS.white} />
+      <Text style={[styles.btnText, outline && styles.btnOutlineText]}>{label}</Text>
+    </Pressable>
+  )
+}
 
 export function AdminGroupsScreen() {
   const { user } = useAuth()
@@ -63,7 +88,8 @@ export function AdminGroupsScreen() {
         subtitle="Ledger · bidding · roster · clone"
         right={
           <Pressable style={styles.addBtn} onPress={() => navigation.navigate('AdminCreateGroup')}>
-            <Text style={styles.addBtnText}>+ New</Text>
+            <Ionicons name="add" size={16} color={COLORS.white} />
+            <Text style={styles.addBtnText}>New</Text>
           </Pressable>
         }
       />
@@ -87,53 +113,53 @@ export function AdminGroupsScreen() {
           {groups.map((g) => (
             <SoftCard key={g.id} style={styles.card}>
               <Pressable onPress={() => navigation.navigate('GroupLedger', { groupId: g.id })}>
-                <Text style={styles.name}>{g.groupName}</Text>
+                <View style={styles.titleRow}>
+                  <Ionicons name="people-outline" size={18} color={COLORS.teal} />
+                  <Text style={styles.name}>{g.groupName}</Text>
+                </View>
                 <Text style={styles.muted}>
                   {g.totalMembers} seats · {formatInr(g.monthlyContribution)} / mo · {g.status}
                 </Text>
                 <Text style={styles.meta}>
-                  {g.completedMonths}/{g.totalMembers} months done
+                  {g.completedMonths}/{g.totalMembers} months done · Open ledger
                 </Text>
               </Pressable>
               <View style={styles.row}>
-                <Pressable
-                  style={styles.btn}
+                <ActionBtn
+                  label="Bidding"
+                  icon="hammer-outline"
                   onPress={() => navigation.navigate('AdminBidding', { groupId: g.id })}
-                >
-                  <Text style={styles.btnText}>Bidding</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.btn}
+                />
+                <ActionBtn
+                  label="Chart"
+                  icon="grid-outline"
                   onPress={() => navigation.navigate('AdminBcChart', { groupId: g.id })}
-                >
-                  <Text style={styles.btnText}>Chart</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.btn}
+                />
+                <ActionBtn
+                  label="Random"
+                  icon="dice-outline"
                   onPress={() => navigation.navigate('RandomPicks', { groupId: g.id })}
-                >
-                  <Text style={styles.btnText}>Random</Text>
-                </Pressable>
+                />
               </View>
               <View style={styles.row}>
-                <Pressable
-                  style={[styles.btn, styles.btnOutline]}
+                <ActionBtn
+                  outline
+                  label="Roster"
+                  icon="list-outline"
                   onPress={() => navigation.navigate('AdminGroupRoster', { groupId: g.id })}
-                >
-                  <Text style={[styles.btnText, styles.btnOutlineText]}>Roster</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnOutline]}
+                />
+                <ActionBtn
+                  outline
+                  label="Clone"
+                  icon="copy-outline"
                   onPress={() => navigation.navigate('AdminCloneGroup', { groupId: g.id })}
-                >
-                  <Text style={[styles.btnText, styles.btnOutlineText]}>Clone</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.btn, styles.btnOutline]}
+                />
+                <ActionBtn
+                  outline
+                  label="Edit"
+                  icon="create-outline"
                   onPress={() => navigation.navigate('AdminEditGroup', { groupId: g.id })}
-                >
-                  <Text style={[styles.btnText, styles.btnOutlineText]}>Edit</Text>
-                </Pressable>
+                />
               </View>
             </SoftCard>
           ))}
@@ -147,7 +173,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: SPACE.md, paddingBottom: 40, gap: 10 },
   card: { marginBottom: 0 },
-  name: { fontFamily: FONTS.bodyBold, fontSize: 16, color: COLORS.text },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  name: { flex: 1, fontFamily: FONTS.bodyBold, fontSize: 16, color: COLORS.text },
   muted: { marginTop: 4, fontFamily: FONTS.body, fontSize: 13, color: COLORS.muted },
   meta: { marginTop: 6, fontFamily: FONTS.bodyMed, fontSize: 12, color: COLORS.teal },
   row: { flexDirection: 'row', gap: 8, marginTop: 12 },
@@ -157,15 +184,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   btnOutline: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
-  btnText: { color: COLORS.white, fontFamily: FONTS.bodyBold, fontSize: 12 },
+  btnText: { color: COLORS.white, fontFamily: FONTS.bodyBold, fontSize: 11 },
   btnOutlineText: { color: COLORS.text },
   addBtn: {
     backgroundColor: COLORS.teal,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   addBtnText: { color: COLORS.white, fontFamily: FONTS.bodyBold, fontSize: 13 },
 })

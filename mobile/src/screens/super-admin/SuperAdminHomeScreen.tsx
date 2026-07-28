@@ -12,10 +12,12 @@ import { StatusBar } from 'expo-status-bar'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../auth/AuthContext'
 import { apiFetch } from '../../api'
 import { BRAND, COLORS, FONTS, SPACE } from '../../theme'
 import { ErrorBanner, SoftCard } from '../../components/ui'
+import { MenuRow } from '../../components/MenuRow'
 import { formatInr, type RootStackParamList } from '../../types'
 
 type Nav = NativeStackNavigationProp<RootStackParamList>
@@ -68,8 +70,8 @@ export function SuperAdminHomeScreen() {
           <Text style={styles.title}>Platform console</Text>
           <Text style={styles.sub}>Hi {user?.fullName ?? 'Super admin'}</Text>
         </View>
-        <Pressable onPress={() => void logout()}>
-          <Text style={styles.signOut}>Sign out</Text>
+        <Pressable onPress={() => void logout()} style={styles.signOutBtn} hitSlop={8}>
+          <Ionicons name="log-out-outline" size={18} color={COLORS.danger} />
         </Pressable>
       </View>
 
@@ -117,12 +119,12 @@ export function SuperAdminHomeScreen() {
             </View>
           ) : null}
 
-          <Pressable
-            style={styles.link}
+          <MenuRow
+            label="Change password"
+            subtitle="Update your login password"
+            icon="lock-closed-outline"
             onPress={() => navigation.navigate('AdminChangePassword')}
-          >
-            <Text style={styles.linkText}>Change password</Text>
-          </Pressable>
+          />
         </ScrollView>
       )}
     </View>
@@ -141,19 +143,19 @@ const styles = StyleSheet.create({
   brand: { fontFamily: FONTS.displaySoft, fontSize: 12, color: COLORS.teal },
   title: { fontFamily: FONTS.bodyBold, fontSize: 22, color: COLORS.text, marginTop: 2 },
   sub: { marginTop: 4, fontFamily: FONTS.body, fontSize: 13, color: COLORS.muted },
-  signOut: { fontFamily: FONTS.bodyBold, color: COLORS.danger, marginTop: 8 },
+  signOutBtn: {
+    marginTop: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: { padding: SPACE.md, paddingBottom: 40, gap: 10 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { width: '48%', flexGrow: 1, marginBottom: 0 },
   statVal: { fontFamily: FONTS.bodyBold, fontSize: 18, color: COLORS.text },
   statLabel: { marginTop: 4, fontFamily: FONTS.body, fontSize: 12, color: COLORS.muted },
-  link: {
-    marginTop: 8,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-  },
-  linkText: { fontFamily: FONTS.bodyBold, color: COLORS.text },
 })

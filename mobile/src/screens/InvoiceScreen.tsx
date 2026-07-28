@@ -92,7 +92,7 @@ export function InvoiceScreen() {
                 <Text style={styles.groupName}>{data.groupName}</Text>
                 <Text style={styles.muted}>
                   {formatInr(data.monthlyContribution)} / month · collection{' '}
-                  {formatInr(data.totalMonthlyCollection)}
+                  {formatInr(data.monthlyContribution * data.totalMembers)}
                 </Text>
                 <View style={styles.divider} />
                 <Text style={styles.memberName}>

@@ -19,6 +19,9 @@ public class GetGroupBiddingQueryHandler(IAppDbContext db)
         if (group is null)
             return Result<GroupBiddingOverviewDto>.Failure("Group not found.");
 
+        if (BcCalculationService.TrySyncStoredCollection(group))
+            await db.SaveChangesAsync(cancellationToken);
+
         await GetGroupBcChartQueryHandler.EnsureChartRowsAsync(db, group, cancellationToken);
 
         var existing = await db.MonthBiddingStatuses

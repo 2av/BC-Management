@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../auth/AuthContext'
 import { apiFetch } from '../../api'
 import { BRAND, COLORS, FONTS, RADIUS, SPACE } from '../../theme'
@@ -69,7 +70,7 @@ export function AdminHomeScreen() {
             <Text style={styles.hello}>{user?.fullName?.split(' ')[0] ?? 'Admin'}</Text>
           </View>
           <Pressable onPress={() => void logout()} style={styles.logoutChip}>
-            <Text style={styles.logoutText}>Out</Text>
+            <Ionicons name="log-out-outline" size={16} color={COLORS.tealSoft} />
           </Pressable>
         </View>
       </View>
@@ -111,7 +112,9 @@ export function AdminHomeScreen() {
             style={styles.linkBtn}
             onPress={() => navigation.navigate('AdminChangePassword')}
           >
+            <Ionicons name="lock-closed-outline" size={18} color={COLORS.teal} />
             <Text style={styles.linkBtnText}>Change password</Text>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
           </Pressable>
         </ScrollView>
       )}
@@ -132,11 +135,13 @@ const styles = StyleSheet.create({
   brand: { fontFamily: FONTS.displaySoft, fontSize: 12, color: COLORS.tealSoft },
   hello: { fontFamily: FONTS.display, fontSize: 22, fontWeight: '700', color: COLORS.white },
   logoutChip: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: 'rgba(204,251,241,0.35)',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoutText: { color: COLORS.tealSoft, fontFamily: FONTS.bodyMed, fontSize: 12 },
   content: { padding: SPACE.md, gap: 12, paddingBottom: 40 },
@@ -151,7 +156,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingVertical: 14,
+    paddingHorizontal: 14,
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
   },
-  linkBtnText: { fontFamily: FONTS.bodyBold, color: COLORS.teal },
+  linkBtnText: { flex: 1, fontFamily: FONTS.bodyBold, color: COLORS.teal },
 })

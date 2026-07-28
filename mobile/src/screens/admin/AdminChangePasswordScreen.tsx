@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
@@ -13,6 +12,9 @@ import { useAuth } from '../../auth/AuthContext'
 import { apiFetch } from '../../api'
 import { COLORS, FONTS, SPACE } from '../../theme'
 import { ScreenHeader } from '../../components/ui'
+import { PasswordField } from '../../components/PasswordField'
+import { KeyboardForm } from '../../components/KeyboardForm'
+import { showError, showSuccess } from '../../utils/alerts'
 
 export function AdminChangePasswordScreen() {
   const { user, updateUser } = useAuth()
@@ -20,19 +22,27 @@ export function AdminChangePasswordScreen() {
   const [currentPassword, setCurrent] = useState('')
   const [newPassword, setNew] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [show, setShow] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function submit() {
-    setError(null)
+    if (!currentPassword.trim()) {
+      showError('Enter your current password.', 'Missing password')
+      return
+    }
+    if (!newPassword.trim()) {
+      showError('Enter a new password.', 'Validation')
+      return
+    }
+    if (!confirm.trim()) {
+      showError('Confirm your new password.', 'Validation')
+      return
+    }
     if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters.')
+      showError('New password must be at least 6 characters.', 'Invalid password')
       return
     }
     if (newPassword !== confirm) {
-      setError('Passwords do not match.')
+      showError('New password and confirm password do not match.', 'Mismatch')
       return
     }
     if (!user?.accessToken) return
@@ -47,13 +57,15 @@ export function AdminChangePasswordScreen() {
         user.accessToken,
       )
       await updateUser({ mustChangePassword: false })
-      setMessage('Password updated.')
       setCurrent('')
       setNew('')
       setConfirm('')
-      if (user.mustChangePassword) navigation.goBack()
+      const forced = Boolean(user.mustChangePassword)
+      showSuccess('Your password was updated.', 'Password changed', () => {
+        if (!forced && navigation.canGoBack()) navigation.goBack()
+      })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed')
+      showError(e instanceof Error ? e.message : 'Failed to change password')
     } finally {
       setLoading(false)
     }
@@ -70,92 +82,86 @@ export function AdminChangePasswordScreen() {
         }
         onBack={user?.mustChangePassword ? undefined : () => navigation.goBack()}
       />
-      <View style={styles.content}>
+      <KeyboardForm contentContainerStyle={styles.content}>
         {user?.mustChangePassword ? (
-          <Text style={styles.warn}>You must change your password before continuing.</Text>
+          <View style={styles.warnBox}>
+            <Ionicons name="warning-outline" size={18} color="#92400E" />
+            <Text style={styles.warn}>
+              You must change your password before continuing.
+            </Text>
+          </View>
         ) : null}
-        {error ? <Text style={styles.err}>{error}</Text> : null}
-        {message ? <Text style={styles.ok}>{message}</Text> : null}
-        <Pwd
+        <PasswordField
           label="Current password"
           value={currentPassword}
-          onChange={setCurrent}
-          show={show}
+          onChangeText={setCurrent}
+          autoComplete="password"
+          textContentType="password"
         />
-        <Pwd label="New password" value={newPassword} onChange={setNew} show={show} />
-        <Pwd label="Confirm password" value={confirm} onChange={setConfirm} show={show} />
-        <Pressable style={styles.eye} onPress={() => setShow((v) => !v)}>
-          <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={18} color={COLORS.teal} />
-          <Text style={styles.eyeText}>{show ? 'Hide' : 'Show'} passwords</Text>
-        </Pressable>
-        <Pressable style={styles.btn} onPress={() => void submit()} disabled={loading}>
+        <PasswordField
+          label="New password"
+          value={newPassword}
+          onChangeText={setNew}
+          autoComplete="password-new"
+          textContentType="newPassword"
+        />
+        <PasswordField
+          label="Confirm password"
+          value={confirm}
+          onChangeText={setConfirm}
+          autoComplete="password-new"
+          textContentType="newPassword"
+          returnKeyType="done"
+          onSubmitEditing={() => void submit()}
+        />
+        <Pressable
+          style={[styles.btn, loading && styles.btnDisabled]}
+          onPress={() => void submit()}
+          disabled={loading}
+        >
           {loading ? (
             <ActivityIndicator color={COLORS.white} />
           ) : (
-            <Text style={styles.btnText}>Update password</Text>
+            <>
+              <Ionicons name="lock-closed-outline" size={18} color={COLORS.white} />
+              <Text style={styles.btnText}>Update password</Text>
+            </>
           )}
         </Pressable>
-      </View>
+      </KeyboardForm>
     </View>
-  )
-}
-
-function Pwd({
-  label,
-  value,
-  onChange,
-  show,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  show: boolean
-}) {
-  return (
-    <>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        secureTextEntry={!show}
-        value={value}
-        onChangeText={onChange}
-        placeholderTextColor={COLORS.muted}
-      />
-    </>
   )
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: SPACE.md, gap: 6 },
-  label: { marginTop: 8, fontFamily: FONTS.bodyMed, fontSize: 12, color: COLORS.muted },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    color: COLORS.text,
+  content: { padding: SPACE.md },
+  warnBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
   },
-  eye: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  eyeText: { fontFamily: FONTS.bodyMed, color: COLORS.teal, fontSize: 13 },
+  warn: {
+    flex: 1,
+    color: '#92400E',
+    fontFamily: FONTS.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   btn: {
-    marginTop: 16,
+    marginTop: 18,
     backgroundColor: COLORS.teal,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
-  btnText: { color: COLORS.white, fontFamily: FONTS.bodyBold },
-  err: { color: COLORS.danger },
-  ok: { color: COLORS.success },
-  warn: {
-    backgroundColor: '#FEF3C7',
-    color: '#92400E',
-    padding: 10,
-    borderRadius: 10,
-    fontFamily: FONTS.body,
-    marginBottom: 6,
-  },
+  btnDisabled: { opacity: 0.6 },
+  btnText: { color: COLORS.white, fontFamily: FONTS.bodyBold, fontSize: 15 },
 })

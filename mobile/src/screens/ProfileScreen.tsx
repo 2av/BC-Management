@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,14 +9,18 @@ import {
 } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import { useFocusEffect } from '@react-navigation/native'
+import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../api'
 import { COLORS, FONTS } from '../theme'
-import { ScreenHeader, ErrorBanner, SuccessBanner } from '../components/ui'
+import { ScreenHeader } from '../components/ui'
+import { PasswordField } from '../components/PasswordField'
+import { KeyboardForm } from '../components/KeyboardForm'
+import { showConfirm, showError, showSuccess } from '../utils/alerts'
 import type { MemberProfile } from '../types'
 
 export function ProfileScreen() {
-  const { user, updateUser } = useAuth()
+  const { user, updateUser, logout } = useAuth()
 
   const [profile, setProfile] = useState<MemberProfile | null>(null)
   const [memberName, setMemberName] = useState('')
@@ -27,15 +30,12 @@ export function ProfileScreen() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
 
   const load = useCallback(async () => {
     if (!user?.accessToken) return
-    setError(null)
     try {
       const next = await apiFetch<MemberProfile>(
         '/api/members/me/profile',
@@ -48,7 +48,7 @@ export function ProfileScreen() {
       setEmail(next.email ?? '')
       setAddress(next.address ?? '')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load profile')
+      showError(e instanceof Error ? e.message : 'Failed to load profile')
     } finally {
       setLoading(false)
     }
@@ -61,18 +61,12 @@ export function ProfileScreen() {
     }, [load]),
   )
 
-  useEffect(() => {
-    setMessage(null)
-  }, [])
-
   async function saveProfile() {
     if (!user?.accessToken || !memberName.trim()) {
-      setError('Full name is required.')
+      showError('Full name is required.', 'Validation')
       return
     }
     setSavingProfile(true)
-    setError(null)
-    setMessage(null)
     try {
       const next = await apiFetch<MemberProfile>(
         '/api/members/me/profile',
@@ -89,9 +83,9 @@ export function ProfileScreen() {
       )
       setProfile(next)
       await updateUser({ fullName: next.memberName })
-      setMessage('Profile updated.')
+      showSuccess('Your profile was saved.', 'Profile updated')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save profile')
+      showError(e instanceof Error ? e.message : 'Failed to save profile')
     } finally {
       setSavingProfile(false)
     }
@@ -99,17 +93,27 @@ export function ProfileScreen() {
 
   async function savePassword() {
     if (!user?.accessToken) return
+    if (!currentPassword.trim()) {
+      showError('Enter your current password.', 'Validation')
+      return
+    }
+    if (!newPassword.trim()) {
+      showError('Enter a new password.', 'Validation')
+      return
+    }
+    if (!confirmPassword.trim()) {
+      showError('Confirm your new password.', 'Validation')
+      return
+    }
     if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters.')
+      showError('New password must be at least 6 characters.', 'Validation')
       return
     }
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match.')
+      showError('New passwords do not match.', 'Validation')
       return
     }
     setSavingPassword(true)
-    setError(null)
-    setMessage(null)
     try {
       await apiFetch(
         '/api/auth/change-password',
@@ -125,12 +129,18 @@ export function ProfileScreen() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setMessage('Password updated.')
+      showSuccess('Your password was updated.', 'Password changed')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to change password')
+      showError(e instanceof Error ? e.message : 'Failed to change password')
     } finally {
       setSavingPassword(false)
     }
+  }
+
+  function onLogout() {
+    showConfirm('Sign out?', 'You will need to sign in again to continue.', () => {
+      void logout()
+    }, 'Sign out')
   }
 
   return (
@@ -144,12 +154,12 @@ export function ProfileScreen() {
       {loading && !profile ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={COLORS.teal} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {error ? <ErrorBanner message={error} /> : null}
-          {message ? <SuccessBanner message={message} /> : null}
-
+        <KeyboardForm contentContainerStyle={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Contact details</Text>
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="person-circle-outline" size={22} color={COLORS.teal} />
+              <Text style={styles.cardTitle}>Contact details</Text>
+            </View>
             <Field label="Full name" value={memberName} onChangeText={setMemberName} />
             <Field
               label="Username"
@@ -175,6 +185,7 @@ export function ProfileScreen() {
               disabled={savingProfile}
               onPress={() => void saveProfile()}
             >
+              <Ionicons name="save-outline" size={18} color={COLORS.white} />
               <Text style={styles.submitText}>
                 {savingProfile ? 'Saving…' : 'Save profile'}
               </Text>
@@ -182,40 +193,49 @@ export function ProfileScreen() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Change password</Text>
-            <Text style={styles.hint}>At least 6 characters.</Text>
-            <Field
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.teal} />
+              <Text style={styles.cardTitle}>Change password</Text>
+            </View>
+            <Text style={styles.hint}>At least 6 characters. Tap the eye to show/hide.</Text>
+            <PasswordField
               label="Current password"
               value={currentPassword}
               onChangeText={setCurrentPassword}
-              secureTextEntry
+              autoComplete="password"
+              textContentType="password"
             />
-            <Field
+            <PasswordField
               label="New password"
               value={newPassword}
               onChangeText={setNewPassword}
-              secureTextEntry
+              autoComplete="password-new"
+              textContentType="newPassword"
             />
-            <Field
+            <PasswordField
               label="Confirm new password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              secureTextEntry
+              autoComplete="password-new"
+              textContentType="newPassword"
             />
             <Pressable
-              style={[
-                styles.submitBtn,
-                (savingPassword || !currentPassword || !newPassword) && styles.submitDisabled,
-              ]}
-              disabled={savingPassword || !currentPassword || !newPassword}
+              style={[styles.submitBtn, savingPassword && styles.submitDisabled]}
+              disabled={savingPassword}
               onPress={() => void savePassword()}
             >
+              <Ionicons name="key-outline" size={18} color={COLORS.white} />
               <Text style={styles.submitText}>
                 {savingPassword ? 'Updating…' : 'Update password'}
               </Text>
             </Pressable>
           </View>
-        </ScrollView>
+
+          <Pressable style={styles.logoutBtn} onPress={onLogout}>
+            <Ionicons name="log-out-outline" size={18} color={COLORS.danger} />
+            <Text style={styles.logoutText}>Sign out</Text>
+          </Pressable>
+        </KeyboardForm>
       )}
     </View>
   )
@@ -226,7 +246,6 @@ function Field({
   value,
   onChangeText,
   editable = true,
-  secureTextEntry,
   keyboardType,
   autoCapitalize,
 }: {
@@ -234,7 +253,6 @@ function Field({
   value: string
   onChangeText?: (v: string) => void
   editable?: boolean
-  secureTextEntry?: boolean
   keyboardType?: 'default' | 'email-address' | 'phone-pad'
   autoCapitalize?: 'none' | 'sentences'
 }) {
@@ -246,7 +264,6 @@ function Field({
         value={value}
         onChangeText={onChangeText}
         editable={editable}
-        secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         placeholderTextColor={COLORS.muted}
@@ -257,32 +274,7 @@ function Field({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    paddingTop: 56,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  back: { color: COLORS.teal, fontWeight: '600', marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text },
-  sub: { fontSize: 13, color: COLORS.muted, marginTop: 2 },
-  content: { padding: 16, paddingBottom: 40 },
-  error: {
-    backgroundColor: '#FEF2F2',
-    color: COLORS.danger,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-  },
-  success: {
-    backgroundColor: '#ECFDF5',
-    color: '#047857',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-  },
+  content: { padding: 16, paddingBottom: 56 },
   card: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -291,10 +283,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
-  hint: { fontSize: 13, color: COLORS.muted, marginBottom: 8 },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  cardTitle: { fontSize: 16, fontFamily: FONTS.bodyBold, color: COLORS.text },
+  hint: { fontSize: 13, fontFamily: FONTS.body, color: COLORS.muted, marginBottom: 8 },
   field: { marginBottom: 12 },
-  label: { fontSize: 12, fontWeight: '700', color: COLORS.muted, marginBottom: 6 },
+  label: { fontSize: 12, fontFamily: FONTS.bodyBold, color: COLORS.muted, marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -304,15 +302,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
     backgroundColor: COLORS.bg,
+    fontFamily: FONTS.body,
   },
   inputDisabled: { opacity: 0.7 },
   submitBtn: {
-    marginTop: 4,
+    marginTop: 8,
     backgroundColor: COLORS.teal,
     borderRadius: 10,
     paddingVertical: 13,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   submitDisabled: { opacity: 0.5 },
-  submitText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+  submitText: { color: COLORS.white, fontFamily: FONTS.bodyBold, fontSize: 15 },
+  logoutBtn: {
+    marginTop: 4,
+    marginBottom: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  logoutText: { color: COLORS.danger, fontFamily: FONTS.bodyBold, fontSize: 15 },
 })

@@ -166,7 +166,7 @@ export function AdminBcChartScreen() {
           {meta ? (
             <Text style={styles.hint}>
               {meta.totalMembers} seats · {formatInr(meta.monthlyContribution)} / mo · collection{' '}
-              {formatInr(meta.totalMonthlyCollection)}
+              {formatInr(meta.monthlyContribution * meta.totalMembers)}
             </Text>
           ) : null}
 

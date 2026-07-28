@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,7 +17,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { useAuth } from '../../auth/AuthContext'
 import { apiFetch } from '../../api'
 import { COLORS, FONTS, SPACE } from '../../theme'
-import { ErrorBanner, ScreenHeader, SoftCard } from '../../components/ui'
+import { ScreenHeader, SoftCard } from '../../components/ui'
+import { PasswordField } from '../../components/PasswordField'
+import { showError, showSuccess } from '../../utils/alerts'
 
 type MemberItem = {
   id: number
@@ -30,8 +34,6 @@ type MemberItem = {
 export function AdminMembersScreen() {
   const { user } = useAuth()
   const [members, setMembers] = useState<MemberItem[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [editing, setEditing] = useState<MemberItem | null>(null)
@@ -45,17 +47,15 @@ export function AdminMembersScreen() {
     newPassword: '',
     confirmPassword: '',
   })
-  const [showPwd, setShowPwd] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     if (!user?.accessToken) return
-    setError(null)
     try {
       const next = await apiFetch<MemberItem[]>('/api/members', {}, user.accessToken)
       setMembers(next)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load members')
+      showError(e instanceof Error ? e.message : 'Failed to load members')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -71,8 +71,6 @@ export function AdminMembersScreen() {
 
   function openEdit(m: MemberItem) {
     setEditing(m)
-    setMessage(null)
-    setError(null)
     setForm({
       memberName: m.memberName,
       username: m.username ?? '',
@@ -87,36 +85,46 @@ export function AdminMembersScreen() {
 
   async function save() {
     if (!user?.accessToken || !editing) return
+    if (!form.memberName.trim()) {
+      showError('Member name is required.', 'Validation')
+      return
+    }
     if (form.newPassword || form.confirmPassword) {
       if (form.newPassword.length < 6) {
-        setError('New password must be at least 6 characters.')
+        showError('New password must be at least 6 characters.', 'Validation')
         return
       }
       if (form.newPassword !== form.confirmPassword) {
-        setError('Passwords do not match.')
+        showError('Passwords do not match.', 'Validation')
         return
       }
     }
     setSaving(true)
-    setError(null)
     try {
-      await apiFetch(`/api/members/${editing.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          memberName: form.memberName,
-          username: form.username || null,
-          phone: form.phone || null,
-          email: form.email || null,
-          address: form.address || null,
-          status: form.status,
-          newPassword: form.newPassword.trim() || null,
-        }),
-      }, user.accessToken)
-      setMessage(form.newPassword ? 'Member updated · password reset.' : 'Member updated.')
+      await apiFetch(
+        `/api/members/${editing.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            memberName: form.memberName,
+            username: form.username || null,
+            phone: form.phone || null,
+            email: form.email || null,
+            address: form.address || null,
+            status: form.status,
+            newPassword: form.newPassword.trim() || null,
+          }),
+        },
+        user.accessToken,
+      )
       setEditing(null)
+      showSuccess(
+        form.newPassword ? 'Member updated and password reset.' : 'Member details saved.',
+        'Saved',
+      )
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed')
+      showError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -141,15 +149,21 @@ export function AdminMembersScreen() {
             />
           }
         >
-          {message ? <Text style={styles.ok}>{message}</Text> : null}
-          {error && !editing ? <ErrorBanner message={error} /> : null}
           {members.map((m) => (
             <SoftCard key={m.id} style={styles.card}>
-              <Text style={styles.name}>{m.memberName}</Text>
-              <Text style={styles.muted}>
-                @{m.username ?? '—'} · {m.phone ?? 'no phone'} · {m.status}
-              </Text>
+              <View style={styles.memberRow}>
+                <View style={styles.avatar}>
+                  <Ionicons name="person" size={18} color={COLORS.teal} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>{m.memberName}</Text>
+                  <Text style={styles.muted}>
+                    @{m.username ?? '—'} · {m.phone ?? 'no phone'} · {m.status}
+                  </Text>
+                </View>
+              </View>
               <Pressable style={styles.editBtn} onPress={() => openEdit(m)}>
+                <Ionicons name="create-outline" size={16} color={COLORS.white} />
                 <Text style={styles.editBtnText}>Edit</Text>
               </Pressable>
             </SoftCard>
@@ -158,47 +172,78 @@ export function AdminMembersScreen() {
       )}
 
       <Modal visible={!!editing} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit {editing?.memberName}</Text>
-            {error ? <Text style={styles.err}>{error}</Text> : null}
-            <Field label="Name" value={form.memberName} onChange={(v) => setForm({ ...form, memberName: v })} />
-            <Field label="Username" value={form.username} onChange={(v) => setForm({ ...form, username: v })} />
-            <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-            <Field label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-            <Field label="Address" value={form.address} onChange={(v) => setForm({ ...form, address: v })} />
-            <Text style={styles.label}>Reset password (optional)</Text>
-            <View style={styles.pwdWrap}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                secureTextEntry={!showPwd}
+            <View style={styles.modalTitleRow}>
+              <Ionicons name="person-circle-outline" size={22} color={COLORS.teal} />
+              <Text style={styles.modalTitle}>Edit {editing?.memberName}</Text>
+            </View>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
+              <Field
+                label="Name"
+                value={form.memberName}
+                onChange={(v) => setForm({ ...form, memberName: v })}
+              />
+              <Field
+                label="Username"
+                value={form.username}
+                onChange={(v) => setForm({ ...form, username: v })}
+              />
+              <Field
+                label="Phone"
+                value={form.phone}
+                onChange={(v) => setForm({ ...form, phone: v })}
+              />
+              <Field
+                label="Email"
+                value={form.email}
+                onChange={(v) => setForm({ ...form, email: v })}
+              />
+              <Field
+                label="Address"
+                value={form.address}
+                onChange={(v) => setForm({ ...form, address: v })}
+              />
+              <Text style={styles.sectionHint}>Reset password (optional)</Text>
+              <PasswordField
+                label="New password"
                 value={form.newPassword}
                 onChangeText={(v) => setForm({ ...form, newPassword: v })}
                 placeholder="New password"
-                placeholderTextColor={COLORS.muted}
+                variant="sand"
               />
-              <Pressable onPress={() => setShowPwd((v) => !v)} hitSlop={8}>
-                <Ionicons name={showPwd ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.muted} />
-              </Pressable>
-            </View>
-            <TextInput
-              style={styles.input}
-              secureTextEntry={!showPwd}
-              value={form.confirmPassword}
-              onChangeText={(v) => setForm({ ...form, confirmPassword: v })}
-              placeholder="Confirm password"
-              placeholderTextColor={COLORS.muted}
-            />
+              <PasswordField
+                label="Confirm password"
+                value={form.confirmPassword}
+                onChangeText={(v) => setForm({ ...form, confirmPassword: v })}
+                placeholder="Confirm password"
+                variant="sand"
+              />
+            </ScrollView>
             <View style={styles.modalActions}>
               <Pressable style={styles.cancel} onPress={() => setEditing(null)}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
               <Pressable style={styles.save} onPress={() => void save()} disabled={saving}>
-                {saving ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.saveText}>Save</Text>}
+                {saving ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color={COLORS.white} />
+                    <Text style={styles.saveText}>Save</Text>
+                  </>
+                )}
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   )
@@ -230,6 +275,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: SPACE.md, paddingBottom: 40, gap: 10 },
   card: { marginBottom: 0 },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.tealSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   name: { fontFamily: FONTS.bodyBold, fontSize: 15, color: COLORS.text },
   muted: { marginTop: 4, fontFamily: FONTS.body, fontSize: 13, color: COLORS.muted },
   editBtn: {
@@ -239,9 +293,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   editBtnText: { color: COLORS.white, fontFamily: FONTS.bodyBold, fontSize: 13 },
-  ok: { color: COLORS.success, fontFamily: FONTS.bodyMed, marginBottom: 4 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -254,7 +310,20 @@ const styles = StyleSheet.create({
     padding: 18,
     maxHeight: '92%',
   },
-  modalTitle: { fontFamily: FONTS.bodyBold, fontSize: 18, color: COLORS.text, marginBottom: 8 },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  modalTitle: { fontFamily: FONTS.bodyBold, fontSize: 18, color: COLORS.text },
+  sectionHint: {
+    marginTop: 12,
+    marginBottom: 2,
+    fontFamily: FONTS.bodyMed,
+    fontSize: 13,
+    color: COLORS.text,
+  },
   label: { marginTop: 8, fontFamily: FONTS.bodyMed, fontSize: 12, color: COLORS.muted },
   input: {
     borderWidth: 1,
@@ -264,17 +333,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginTop: 4,
     color: COLORS.text,
-    backgroundColor: COLORS.sand,
-  },
-  pwdWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingRight: 12,
-    marginTop: 4,
     backgroundColor: COLORS.sand,
   },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
@@ -293,7 +351,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
   saveText: { color: COLORS.white, fontFamily: FONTS.bodyBold },
-  err: { color: COLORS.danger, marginBottom: 6 },
 })

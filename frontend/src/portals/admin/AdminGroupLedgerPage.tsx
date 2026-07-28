@@ -48,7 +48,7 @@ export function AdminGroupLedgerPage() {
         <>
           <PageHeader
             title={data.groupName}
-            description={`${data.totalMembers} members · ${formatInr(data.monthlyContribution)} / month · collection ${formatInr(data.totalMonthlyCollection)}${
+            description={`${data.totalMembers} members · ${formatInr(data.monthlyContribution)} / month · collection ${formatInr(data.monthlyContribution * data.totalMembers)}${
               data.organiserName ? ` · organiser ${data.organiserName}` : ''
             }`}
             actions={

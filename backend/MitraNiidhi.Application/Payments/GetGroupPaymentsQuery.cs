@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
 using MitraNiidhi.Domain.Enums;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Payments;
 
@@ -17,6 +18,9 @@ public class GetGroupPaymentsQueryHandler(IAppDbContext db)
         var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == request.GroupId, cancellationToken);
         if (group is null)
             return Result<GroupPaymentsOverviewDto>.Failure("Group not found.");
+
+        if (BcCalculationService.TrySyncStoredCollection(group))
+            await db.SaveChangesAsync(cancellationToken);
 
         var query = db.MemberPayments
             .Include(p => p.Member)

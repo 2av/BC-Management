@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
 using MitraNiidhi.Domain.Enums;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Invoices;
 
@@ -38,6 +39,9 @@ public class GetInvoiceQueryHandler(IAppDbContext db, ICurrentUser currentUser)
     {
         var group = await db.BcGroups.FirstOrDefaultAsync(g => g.Id == request.GroupId, ct);
         if (group is null) return Result<InvoiceDto>.Failure("Group not found.");
+
+        if (BcCalculationService.TrySyncStoredCollection(group))
+            await db.SaveChangesAsync(ct);
 
         var member = await db.Members.FirstOrDefaultAsync(m => m.Id == request.MemberId, ct);
         if (member is null) return Result<InvoiceDto>.Failure("Member not found.");

@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, RADIUS, SPACE } from '../theme'
 
@@ -33,8 +34,13 @@ export function ScreenHeader({
       ]}
     >
       {onBack ? (
-        <Pressable onPress={onBack} hitSlop={10} style={styles.backBtn}>
-          <Text style={[styles.back, dark && styles.textOnDark]}>← Back</Text>
+        <Pressable onPress={onBack} hitSlop={10} style={styles.backBtn} accessibilityRole="button">
+          <Ionicons
+            name="arrow-back"
+            size={18}
+            color={dark ? COLORS.white : COLORS.teal}
+          />
+          <Text style={[styles.back, dark && styles.textOnDark]}>Back</Text>
         </Pressable>
       ) : null}
       <View style={styles.headerRow}>
@@ -111,7 +117,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.navy,
     borderBottomColor: 'transparent',
   },
-  backBtn: { marginBottom: 8 },
+  backBtn: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
   back: {
     color: COLORS.teal,
     fontFamily: FONTS.bodyMed,

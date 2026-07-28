@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MitraNiidhi.Application.Common;
 using MitraNiidhi.Application.Common.Interfaces;
 using MitraNiidhi.Application.Common.Models;
+using MitraNiidhi.Domain.Services;
 
 namespace MitraNiidhi.Application.Groups;
 
@@ -16,6 +17,12 @@ public class GetGroupsQueryHandler(IAppDbContext db)
         var groups = await db.BcGroups
             .OrderByDescending(g => g.CreatedAt)
             .ToListAsync(cancellationToken);
+
+        var synced = false;
+        foreach (var g in groups)
+            synced |= BcCalculationService.TrySyncStoredCollection(g);
+        if (synced)
+            await db.SaveChangesAsync(cancellationToken);
 
         var completedMonths = await db.MonthlyBids
             .GroupBy(b => b.GroupId)
