@@ -91,7 +91,10 @@
     "backHome": "Back home",
     "backToMember": "Member sign in",
     "unknownPortal": "Unknown portal",
-    "unknownPortalDesc": "Please open the member sign-in page."
+    "unknownPortalDesc": "Please open the member sign-in page.",
+    "downloadAppTitle": "Android app",
+    "downloadAppBlurb": "Install Mitra Niidhi on your phone for dues, bids, and invoices.",
+    "downloadApk": "Download APK"
   },
   "member": {
     "dashboardTitle": "Member dashboard",

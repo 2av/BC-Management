@@ -91,7 +91,10 @@
     "backHome": "होम पर वापस",
     "backToMember": "सदस्य साइन इन",
     "unknownPortal": "अज्ञात पोर्टल",
-    "unknownPortalDesc": "कृपया सदस्य साइन-इन पेज खोलें।"
+    "unknownPortalDesc": "कृपया सदस्य साइन-इन पेज खोलें।",
+    "downloadAppTitle": "एंड्रॉइड ऐप",
+    "downloadAppBlurb": "किस्त, बोली और इनवॉइस के लिए फ़ोन पर मित्र निधि इंस्टॉल करें।",
+    "downloadApk": "APK डाउनलोड करें"
   },
   "member": {
     "dashboardTitle": "सदस्य डैशबोर्ड",
