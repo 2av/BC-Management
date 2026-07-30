@@ -170,8 +170,10 @@ export function LoginPage() {
         {isMember ? (
           <>
             <a
-              href="/app/MitraNiidhi.apk"
+              href="/app/MitraNiidhi.apk?v=1.0.1"
               download="MitraNiidhi.apk"
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-5 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 transition hover:border-primary/40 hover:bg-primary/10"
             >
               <img
