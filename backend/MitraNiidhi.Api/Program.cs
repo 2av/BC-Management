@@ -125,6 +125,19 @@ app.MapGet("/api/health", () => Results.Ok(new
     time = DateTime.UtcNow
 }));
 
+// Android APK download via API (avoids IIS static MIME 404 on the web host).
+app.MapGet("/downloads/MitraNiidhi.apk", (IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.ContentRootPath, "wwwroot", "downloads", "MitraNiidhi.apk");
+    if (!System.IO.File.Exists(path))
+        return Results.NotFound(new { message = "APK not published on this API host yet." });
+
+    return Results.File(
+        path,
+        contentType: "application/vnd.android.package-archive",
+        fileDownloadName: "MitraNiidhi.apk");
+});
+
 app.Run();
 
 public partial class Program;

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { apiFetch } from '@/shared/api/client'
+import { apiFetch, API_BASE } from '@/shared/api/client'
 import { useAuth, type AuthUser, type UserRole } from '@/features/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -170,7 +170,7 @@ export function LoginPage() {
         {isMember ? (
           <>
             <a
-              href="/app/MitraNiidhi.apk?v=1.0.1"
+              href={`${API_BASE.replace(/\/$/, '')}/downloads/MitraNiidhi.apk`}
               download="MitraNiidhi.apk"
               target="_blank"
               rel="noopener noreferrer"
